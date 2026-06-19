@@ -32,7 +32,9 @@ if st.button("Generate", type="primary"):
     else:
         with st.spinner(f"Asking Gemini for sentences in {active['name']}…"):
             try:
-                cards = generate_cards(words, active["name"])
+                cards = generate_cards(
+                    words, active["name"], vowelized=bool(active["vowelized"])
+                )
             except Exception as e:  # surface API/config errors to the user
                 st.error(f"Generation failed: {e}")
                 cards = []
@@ -56,5 +58,8 @@ if cards and st.session_state.get("generated_lang_id") == active["id"]:
         n = flashcards.save_cards(
             active["id"], [GeneratedCard(**c) for c in cards]
         )
-        st.success(f"Saved {n} flashcards to your **{active['name']}** deck.")
+        st.success(
+            f"Saved {n} sentence(s) as {n * 2} flashcards (reading + building) "
+            f"to your **{active['name']}** deck."
+        )
         st.session_state.pop("generated", None)

@@ -46,11 +46,20 @@ if idx >= len(batch):
 card = batch[idx]
 show = st.session_state[f"review_show_{lang_id}"]
 
+# Prompt depends on the card direction (legacy cards without one are recognition).
+if card.get("direction") == flashcards.PRODUCTION:
+    prompt_label = f"✍️ Build the sentence in {active['name']}"
+    reveal_label = "Show answer"
+else:
+    prompt_label = "📖 Read & understand"
+    reveal_label = "Show translation"
+
 st.divider()
+st.caption(prompt_label)
 st.markdown(f"#### {card['front']}")
 
 if not show:
-    if st.button("Show translation", type="primary"):
+    if st.button(reveal_label, type="primary"):
         st.session_state[f"review_show_{lang_id}"] = True
         st.rerun()
 else:

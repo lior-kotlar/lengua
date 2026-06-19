@@ -39,6 +39,17 @@ def render_sidebar():
             if choice_id != active_id:
                 languages.set_active_language_id(choice_id)
             active = next(l for l in langs if l["id"] == choice_id)
+
+            # Per-language vocalization toggle (keyed per id to avoid stale state).
+            vowel = st.checkbox(
+                "Vowel marks (harakat / nikkud)",
+                value=bool(active["vowelized"]),
+                help="Ask the model to fully vocalize sentences in this language.",
+                key=f"vowelized_{active['id']}",
+            )
+            if vowel != bool(active["vowelized"]):
+                languages.set_vowelized(active["id"], vowel)
+                active["vowelized"] = int(vowel)
         else:
             st.info("Add a language to get started.")
 
@@ -46,8 +57,9 @@ def render_sidebar():
             with st.form("add_language", clear_on_submit=True):
                 name = st.text_input("Name", placeholder="Spanish")
                 code = st.text_input("Code (optional)", placeholder="es")
+                new_vowelized = st.checkbox("Include vowel marks (harakat / nikkud)")
                 if st.form_submit_button("Add") and name.strip():
-                    languages.add_language(name, code)
+                    languages.add_language(name, code, vowelized=new_vowelized)
                     st.rerun()
 
             if langs:

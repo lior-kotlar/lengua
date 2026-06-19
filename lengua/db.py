@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS languages (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL UNIQUE,
     code        TEXT,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    vowelized   INTEGER NOT NULL DEFAULT 0  -- request harakat/nikkud in generated sentences
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -30,7 +31,8 @@ CREATE TABLE IF NOT EXISTS cards (
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     saved       INTEGER NOT NULL DEFAULT 0,
     fsrs_state  TEXT,                 -- JSON of fsrs.Card.to_dict(), null until saved
-    due         TEXT                  -- ISO 8601 due datetime, null until saved
+    due         TEXT,                 -- ISO 8601 due datetime, null until saved
+    direction   TEXT                  -- 'recognition' (target->EN) or 'production' (EN->target)
 );
 
 CREATE INDEX IF NOT EXISTS idx_cards_due
@@ -64,6 +66,20 @@ def connect():
         conn.close()
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply column additions to pre-existing databases (idempotent)."""
+    card_cols = {r["name"] for r in conn.execute("PRAGMA table_info(cards)")}
+    if "direction" not in card_cols:
+        conn.execute("ALTER TABLE cards ADD COLUMN direction TEXT")
+
+    lang_cols = {r["name"] for r in conn.execute("PRAGMA table_info(languages)")}
+    if "vowelized" not in lang_cols:
+        conn.execute(
+            "ALTER TABLE languages ADD COLUMN vowelized INTEGER NOT NULL DEFAULT 0"
+        )
+
+
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)

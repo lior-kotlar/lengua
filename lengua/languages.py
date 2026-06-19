@@ -13,12 +13,12 @@ def list_languages() -> list[sqlite3.Row]:
         ).fetchall()
 
 
-def add_language(name: str, code: str | None = None) -> int:
+def add_language(name: str, code: str | None = None, vowelized: bool = False) -> int:
     name = name.strip()
     with connect() as conn:
         cur = conn.execute(
-            "INSERT OR IGNORE INTO languages (name, code) VALUES (?, ?)",
-            (name, (code or "").strip() or None),
+            "INSERT OR IGNORE INTO languages (name, code, vowelized) VALUES (?, ?, ?)",
+            (name, (code or "").strip() or None, 1 if vowelized else 0),
         )
         if cur.lastrowid and cur.rowcount:
             lang_id = cur.lastrowid
@@ -62,6 +62,14 @@ def set_active_language_id(language_id: int) -> None:
             "INSERT INTO settings (key, value) VALUES (?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (ACTIVE_KEY, str(language_id)),
+        )
+
+
+def set_vowelized(language_id: int, value: bool) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE languages SET vowelized = ? WHERE id = ?",
+            (1 if value else 0, language_id),
         )
 
 

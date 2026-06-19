@@ -22,8 +22,13 @@ def _get_client() -> genai.Client:
     return _client
 
 
-def generate_cards(words: list[str], language: str) -> list[GeneratedCard]:
-    """Generate example sentences in `language` that use the given vocabulary words."""
+def generate_cards(
+    words: list[str], language: str, vowelized: bool = False
+) -> list[GeneratedCard]:
+    """Generate example sentences in `language` that use the given vocabulary words.
+
+    When `vowelized`, sentences come back fully vocalized (harakat / nikkud).
+    """
     words = [w.strip() for w in words if w.strip()]
     if not words:
         return []
@@ -32,7 +37,7 @@ def generate_cards(words: list[str], language: str) -> list[GeneratedCard]:
         model=config.MODEL,
         contents="Vocabulary words:\n" + "\n".join(f"- {w}" for w in words),
         config=types.GenerateContentConfig(
-            system_instruction=system_instruction(language),
+            system_instruction=system_instruction(language, vowelized=vowelized),
             response_mime_type="application/json",
             response_schema=list[GeneratedCard],
         ),

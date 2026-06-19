@@ -105,6 +105,12 @@ user, write natural example sentences in {language} that follow all the rules ab
 Together, the sentences must use every one of the supplied vocabulary words at least \
 once."""
 
+# Appended only for languages flagged as vowelized (per-language toggle).
+VOCALIZATION_INSTRUCTION = """\
+Write every word in the {language} sentence fully vocalized: include all vowel marks / \
+diacritics (e.g., Arabic harakat, Hebrew niqqud) on every word, as in a fully-pointed \
+beginner text. The English translation stays unchanged."""
+
 
 def _render_rules() -> str:
     blocks = []
@@ -118,12 +124,14 @@ def _render_rules() -> str:
 RULES_PROMPT = INTRO + "\n\n" + _render_rules()
 
 
-def system_instruction(language: str) -> str:
-    """Full system instruction for a generation request in `language`."""
-    return "\n\n".join(
-        [
-            RULES_PROMPT,
-            GENERATION_INSTRUCTION.format(language=language),
-            OUTPUT_FORMAT.format(language=language),
-        ]
-    )
+def system_instruction(language: str, vowelized: bool = False) -> str:
+    """Full system instruction for a generation request in `language`.
+
+    When `vowelized`, ask the model to fully vocalize the target-language sentence
+    (harakat / nikkud), for scripts with optional diacritics.
+    """
+    parts = [RULES_PROMPT, GENERATION_INSTRUCTION.format(language=language)]
+    if vowelized:
+        parts.append(VOCALIZATION_INSTRUCTION.format(language=language))
+    parts.append(OUTPUT_FORMAT.format(language=language))
+    return "\n\n".join(parts)
