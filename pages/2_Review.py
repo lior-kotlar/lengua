@@ -45,6 +45,22 @@ _WORD_CSS = """
 </style>
 """
 
+# Color the four rating buttons by difficulty: Again=red, Hard=orange, Good=blue,
+# Easy=green. Targets the per-key class Streamlit emits (`.st-key-rate-<name>`).
+_RATING_CSS = """
+<style>
+[class*="st-key-rate-again"] button { background-color: #e53935 !important; }
+[class*="st-key-rate-hard"]  button { background-color: #fb8c00 !important; }
+[class*="st-key-rate-good"]  button { background-color: #1e88e5 !important; }
+[class*="st-key-rate-easy"]  button { background-color: #43a047 !important; }
+[class*="st-key-rate-"] button {
+    color: #fff !important;
+    border: none !important;
+}
+[class*="st-key-rate-"] button:hover { filter: brightness(1.1); }
+</style>
+"""
+
 
 def _is_rtl(text: str) -> bool:
     """True if the text contains Arabic or Hebrew letters (right-to-left script)."""
@@ -168,6 +184,7 @@ else:
         st.markdown(f"#### {card['back']}")
 
     st.divider()
+    st.markdown(_RATING_CSS, unsafe_allow_html=True)
     cols = st.columns(4)
     ratings = [
         ("Again", Rating.Again),
@@ -176,7 +193,9 @@ else:
         ("Easy", Rating.Easy),
     ]
     for col, (label, rating) in zip(cols, ratings):
-        if col.button(label, use_container_width=True):
+        if col.button(
+            label, key=f"rate-{label.lower()}-{lang_id}", use_container_width=True
+        ):
             scheduler.grade(card["id"], rating)
             st.session_state[f"review_idx_{lang_id}"] = idx + 1
             st.session_state[f"review_show_{lang_id}"] = False

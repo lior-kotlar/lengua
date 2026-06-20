@@ -137,6 +137,38 @@ def _render_rules() -> str:
 RULES_PROMPT = INTRO + "\n\n" + _render_rules()
 
 
+def suggestion_instruction(
+    language: str,
+    level_band: str,
+    known_words: list[str],
+    count: int,
+    topic: str | None = None,
+) -> str:
+    """System instruction for the word-suggestion step of the Discover feature.
+
+    Asks Gemini to pick `count` vocabulary words in `language` at `level_band` that are
+    not in `known_words`. Optionally constrained to a `topic` domain.
+    """
+    known_block = (
+        "The learner already knows these words — do NOT include any of them:\n"
+        + ", ".join(known_words)
+        if known_words
+        else "The learner has no prior vocabulary yet."
+    )
+    topic_line = (
+        f"\nFocus on the topic or domain: {topic}." if topic else ""
+    )
+    return (
+        f"You are a {language} vocabulary coach.\n\n"
+        f"Pick exactly {count} vocabulary words in {language} that are appropriate for a "
+        f"CEFR {level_band} learner. Choose words that are useful, natural, and suited to "
+        f"that level's typical range — not too simple, not too advanced.{topic_line}\n\n"
+        f"{known_block}\n\n"
+        f"Return ONLY a JSON array of {count} strings, e.g. [\"word1\", \"word2\"]. "
+        f"No explanations, no numbering, no extra text."
+    )
+
+
 def system_instruction(
     language: str, vowelized: bool = False, level: str | None = None
 ) -> str:

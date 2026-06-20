@@ -91,3 +91,16 @@ def count_saved(language_id: int) -> int:
             "SELECT COUNT(*) AS n FROM cards WHERE language_id = ? AND saved = 1",
             (language_id,),
         ).fetchone()["n"]
+
+
+def get_known_words(language_id: int) -> list[str]:
+    """Return a deduplicated sorted list of every vocabulary word the user has a saved card for."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT used_words FROM cards WHERE language_id = ? AND saved = 1 AND used_words IS NOT NULL",
+            (language_id,),
+        ).fetchall()
+    words: set[str] = set()
+    for row in rows:
+        words.update(json.loads(row["used_words"]))
+    return sorted(words)

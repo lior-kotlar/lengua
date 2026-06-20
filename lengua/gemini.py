@@ -8,9 +8,9 @@ import time
 from google import genai
 from google.genai import errors, types
 
-from . import config
+from . import config, settings
 from .models import GeneratedCard
-from .prompts import system_instruction
+from .prompts import suggestion_instruction, system_instruction
 
 # Backoff between retries when the model is transiently overloaded (503/429).
 _RETRY_DELAYS = (1, 2, 4)
@@ -44,7 +44,7 @@ def generate_cards(
         return []
 
     resp = _get_client().models.generate_content(
-        model=config.MODEL,
+        model=settings.gemini_model(),
         contents="Vocabulary words:\n" + "\n".join(f"- {w}" for w in words),
         config=types.GenerateContentConfig(
             system_instruction=system_instruction(
@@ -52,6 +52,33 @@ def generate_cards(
             ),
             response_mime_type="application/json",
             response_schema=list[GeneratedCard],
+        ),
+    )
+    return resp.parsed or []
+
+
+def suggest_new_words(
+    language: str,
+    level_band: str,
+    known_words: list[str],
+    count: int = 5,
+    topic: str | None = None,
+) -> list[str]:
+    """Ask Gemini to pick `count` new vocabulary words the user doesn't know yet.
+
+    Returns a list of word strings. Gemini is told the learner's CEFR level, an
+    optional topic, and the full list of known words to avoid.
+    """
+    resp = _get_client().models.generate_content(
+        model=settings.gemini_model(),
+        contents=f"Suggest {count} new {language} vocabulary words.",
+        config=types.GenerateContentConfig(
+            system_instruction=suggestion_instruction(
+                language, level_band, known_words, count, topic
+            ),
+            response_mime_type="application/json",
+            response_schema=list[str],
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
     )
     return resp.parsed or []
@@ -82,7 +109,7 @@ def explain_word(word: str, sentence: str, translation: str, language: str) -> s
             time.sleep(delay)  # the model was busy; wait, then retry
         try:
             resp = _get_client().models.generate_content(
-                model=config.MODEL, contents=prompt, config=cfg
+                model=settings.gemini_model(), contents=prompt, config=cfg
             )
             text = (resp.text or "").strip()
             if text:

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fsrs import Card, Rating, Scheduler
 
-from . import config, proficiency
+from . import config, proficiency, settings
 from .db import connect
 
 _scheduler = Scheduler()
@@ -50,8 +50,8 @@ def due_cards(language_id: int) -> list[dict]:
 
     due.sort(key=lambda c: c["due"])
     new.sort(key=lambda c: c["due"])
-    batch = due + new[: config.DAILY_NEW_LIMIT]
-    return batch[: config.DAILY_TOTAL_LIMIT]
+    batch = due + new[: settings.daily_new_limit()]
+    return batch[: settings.daily_total_limit()]
 
 
 def count_due(language_id: int) -> int:

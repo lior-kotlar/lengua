@@ -20,11 +20,16 @@ automatically on every request, so you only ever supply the words.
    - the **sentence** in your target language,
    - a natural **English translation**,
    - the **vocabulary words** it used.
-3. **Save as flashcards** — each sentence becomes **two** independently-scheduled cards in
+3. **Discover** — no input needed. Lengua looks at all the vocabulary you already know,
+   then asks Gemini to pick new words at your current CEFR level that you haven't seen yet.
+   You can optionally set a topic (e.g. "food", "travel") to guide the selection, set a
+   count, review the suggested words, and either accept them or ask for a different set
+   before sentences are written.
+4. **Save as flashcards** — each sentence becomes **two** independently-scheduled cards in
    your local SQLite deck: a *recognition* card (read the target sentence, recall the
    English) and a *production* card (read the English, build the target sentence). On the
    production card you can tap any word for a quick explanation.
-4. **Review** — Lengua shows the cards due today, you reveal the answer and rate your recall
+5. **Review** — Lengua shows the cards due today, you reveal the answer and rate your recall
    (*Again / Hard / Good / Easy*). [FSRS](https://github.com/open-spaced-repetition/py-fsrs)
    reschedules each card, so the daily batch stays fresh on its own — no cron needed. Your
    answers also nudge your level (see below).
@@ -87,6 +92,7 @@ app.py               Streamlit entry point / home page
 pages/
   1_Generate.py      words in -> sentences out
   2_Review.py        daily flashcard review (FSRS)
+  3_Discover.py      auto-pick new vocab at your level -> sentences out
 lengua/
   config.py          loads .env, model name, paths, daily limits, level tuning
   db.py              SQLite connection + schema (+ idempotent migrations)
