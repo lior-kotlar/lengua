@@ -3,7 +3,7 @@ import re
 
 import streamlit as st
 
-from lengua import flashcards
+from lengua import flashcards, proficiency
 from lengua.gemini import generate_cards
 from lengua.ui import render_sidebar
 
@@ -16,8 +16,10 @@ if active is None:
     st.warning("Add and select a language in the sidebar first.")
     st.stop()
 
-st.caption(f"Active language: **{active['name']}**. Just enter words — the rules "
-           "prompt and language are added automatically.")
+gen_score = proficiency.get_score(active["id"])
+gen_band = proficiency.band_for_score(gen_score)
+st.caption(f"Active language: **{active['name']}** · level **{gen_band}**. Just enter "
+           "words — the rules prompt, language, and your level are added automatically.")
 
 raw = st.text_area(
     "Vocabulary words",
@@ -33,7 +35,10 @@ if st.button("Generate", type="primary"):
         with st.spinner(f"Asking Gemini for sentences in {active['name']}…"):
             try:
                 cards = generate_cards(
-                    words, active["name"], vowelized=bool(active["vowelized"])
+                    words,
+                    active["name"],
+                    vowelized=bool(active["vowelized"]),
+                    level_band=gen_band,
                 )
             except Exception as e:  # surface API/config errors to the user
                 st.error(f"Generation failed: {e}")
@@ -56,7 +61,7 @@ if cards and st.session_state.get("generated_lang_id") == active["id"]:
         from lengua.models import GeneratedCard
 
         n = flashcards.save_cards(
-            active["id"], [GeneratedCard(**c) for c in cards]
+            active["id"], [GeneratedCard(**c) for c in cards], gen_level=gen_score
         )
         st.success(
             f"Saved {n} sentence(s) as {n * 2} flashcards (reading + building) "

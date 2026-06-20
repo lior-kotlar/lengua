@@ -1,12 +1,11 @@
 """Review page: daily flashcard batch scheduled by FSRS."""
+import json
+
 import streamlit as st
 from fsrs import Rating
 
-from lengua import flashcards, gemini, scheduler
+from lengua import flashcards, gemini, proficiency, scheduler
 from lengua.ui import render_sidebar
-
-# Punctuation trimmed off a token to get the "bare" word (incl. Arabic marks).
-_STRIP_CHARS = ".,!?؟،؛:;\"'«»…()[]"
 
 # Style the per-word buttons so they read as inline sentence text, with a
 # hover lift + highlight. Scoped to the keyed container Streamlit emits as
@@ -74,7 +73,13 @@ batch = st.session_state[batch_key]
 idx = st.session_state[f"review_idx_{lang_id}"]
 
 total_saved = flashcards.count_saved(lang_id)
-st.caption(f"{len(batch)} due today · {total_saved} cards in your {active['name']} deck")
+new_count = sum(1 for c in batch if scheduler.is_new_card(c))
+due_count = len(batch) - new_count
+level_band = proficiency.get_band(lang_id)
+st.caption(
+    f"Level **{level_band}** · {new_count} new · {due_count} due · "
+    f"{total_saved} cards in your {active['name']} deck"
+)
 
 if st.button("🔄 Refresh batch"):
     for k in list(st.session_state):
@@ -119,7 +124,7 @@ else:
         row_key = f"lwrow-rtl-{card_id}" if _is_rtl(card["back"]) else f"lwrow-{card_id}"
         with st.container(horizontal=True, key=row_key):
             for i, token in enumerate(card["back"].split()):
-                bare = token.strip(_STRIP_CHARS)
+                bare = flashcards.bare_word(token)
                 if not bare:
                     st.markdown(token)
                     continue
@@ -133,16 +138,25 @@ else:
         st.caption("👆 Tap any word above for a quick explanation.")
 
         if selected_word:
-            cache = st.session_state.setdefault(f"word_cache_{card_id}", {})
+            # Seed the session cache once from the card's pre-generated notes so
+            # stored words render instantly (no spinner, no API call).
+            cache = st.session_state.get(f"word_cache_{card_id}")
+            if cache is None:
+                stored = card.get("word_explanations")
+                cache = json.loads(stored) if stored else {}
+                st.session_state[f"word_cache_{card_id}"] = cache
             if selected_word not in cache:
                 with st.spinner(f'Explaining "{selected_word}"…'):
                     try:
-                        cache[selected_word] = gemini.explain_word(
+                        note = gemini.explain_word(
                             selected_word,
                             card["back"],
                             card["front"],
                             active["name"],
                         )
+                        cache[selected_word] = note
+                        # Persist so it's instant next time (covers imported cards).
+                        flashcards.save_word_explanation(card_id, selected_word, note)
                     except Exception as exc:  # surface API issues instead of crashing
                         cache[selected_word] = f"⚠️ Couldn't fetch an explanation: {exc}"
             exp_col, close_col = st.columns([0.92, 0.08], vertical_alignment="top")

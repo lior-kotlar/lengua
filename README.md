@@ -11,17 +11,43 @@ automatically on every request, so you only ever supply the words.
 ## How it works
 
 1. **Pick a language** in the sidebar (e.g. Spanish, Arabic). It's saved and stays active
-   across pages and restarts. You can learn several languages and switch between them.
+   across pages and restarts. You can learn several languages and switch between them. For
+   scripts with optional diacritics (Arabic, Hebrew) a per-language **vowel marks** toggle
+   asks Gemini to fully vocalize the generated sentences.
 2. **Generate** — paste vocabulary words (one per line or comma-separated). Lengua sends
-   them to Gemini with your fixed rules prompt and gets back, for each item:
+   them to Gemini with your fixed rules prompt and your current level, and gets back, for
+   each item:
    - the **sentence** in your target language,
    - a natural **English translation**,
    - the **vocabulary words** it used.
-3. **Save as flashcards** — each sentence becomes a card (front = target language,
-   back = English) stored in a local SQLite deck.
-4. **Review** — Lengua shows the cards due today, you reveal the translation and rate your
-   recall (*Again / Hard / Good / Easy*). [FSRS](https://github.com/open-spaced-repetition/py-fsrs)
-   reschedules each card, so the daily batch stays fresh on its own — no cron needed.
+3. **Save as flashcards** — each sentence becomes **two** independently-scheduled cards in
+   your local SQLite deck: a *recognition* card (read the target sentence, recall the
+   English) and a *production* card (read the English, build the target sentence). On the
+   production card you can tap any word for a quick explanation.
+4. **Review** — Lengua shows the cards due today, you reveal the answer and rate your recall
+   (*Again / Hard / Good / Easy*). [FSRS](https://github.com/open-spaced-repetition/py-fsrs)
+   reschedules each card, so the daily batch stays fresh on its own — no cron needed. Your
+   answers also nudge your level (see below).
+
+## Your level
+
+Each language has a level on the **CEFR scale (A1 → C2)** that tunes how long and complex
+the generated sentences are. It's shown in the sidebar (with progress to the next band) and
+on the Generate and Review pages.
+
+- **It adapts as you review.** Answering *Easy* nudges your level up; *Again* / *Hard* nudge
+  it down; *Good* holds roughly steady — so sentences track your real ability over time.
+- **Production counts more.** Because building a sentence (English → target) is harder than
+  reading one, success on production cards raises your level faster, and struggling on them
+  is penalized less.
+- **Only current-level cards move it.** Each card remembers the level it was generated at, so
+  a backlog of old/easy cards can't inflate your level.
+- **You can override it.** Use *Adjust level* in the sidebar to set your band manually (handy
+  when starting a language you already partly know); it keeps adapting from there.
+
+The nudge sizes and weighting are tunable constants in
+[`lengua/config.py`](lengua/config.py) (`LEVEL_DELTAS`, `PROD_POS_WEIGHT`,
+`PROD_NEG_WEIGHT`, `LEVEL_WINDOW`).
 
 ## Setup
 
@@ -62,15 +88,16 @@ pages/
   1_Generate.py      words in -> sentences out
   2_Review.py        daily flashcard review (FSRS)
 lengua/
-  config.py          loads .env, model name, paths, daily limits
-  db.py              SQLite connection + schema
-  models.py          GeneratedCard (sentence / translation / used_words)
-  prompts.py         the editable rules + output-format prompt
-  gemini.py          Gemini wrapper: words -> structured cards
+  config.py          loads .env, model name, paths, daily limits, level tuning
+  db.py              SQLite connection + schema (+ idempotent migrations)
+  models.py          GeneratedCard (sentence / translation / used_words / word_notes)
+  prompts.py         the editable rules + output-format + level prompt
+  gemini.py          Gemini wrapper: words -> structured cards; tap-a-word explanations
   languages.py       learned languages + active-language setting
-  flashcards.py      persist generated cards into the deck
+  flashcards.py      persist generated cards (recognition + production) into the deck
   scheduler.py       FSRS: new-card state, due batch, grading
-  ui.py              shared sidebar (always-present language selector)
+  proficiency.py     per-language CEFR level: scoring, review-driven updates, override
+  ui.py              shared sidebar (language selector + level)
 ```
 
 ## Configuration knobs

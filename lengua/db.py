@@ -32,7 +32,9 @@ CREATE TABLE IF NOT EXISTS cards (
     saved       INTEGER NOT NULL DEFAULT 0,
     fsrs_state  TEXT,                 -- JSON of fsrs.Card.to_dict(), null until saved
     due         TEXT,                 -- ISO 8601 due datetime, null until saved
-    direction   TEXT                  -- 'recognition' (target->EN) or 'production' (EN->target)
+    direction   TEXT,                 -- 'recognition' (target->EN) or 'production' (EN->target)
+    word_explanations TEXT,           -- JSON {bare_word: note} for tap-a-word, null until generated
+    gen_level   REAL                  -- continuous CEFR score the card was generated at, null if unknown
 );
 
 CREATE INDEX IF NOT EXISTS idx_cards_due
@@ -43,6 +45,17 @@ CREATE TABLE IF NOT EXISTS reviews (
     card_id     INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     rating      INTEGER NOT NULL,     -- fsrs.Rating value 1-4
     reviewed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- The learner's level per language as a continuous CEFR score (0..6). No user table
+-- yet, so user_id defaults to a single learner; the column is here so multi-user
+-- support arrives without a migration.
+CREATE TABLE IF NOT EXISTS proficiency (
+    user_id     INTEGER NOT NULL DEFAULT 1,
+    language_id INTEGER NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+    score       REAL NOT NULL DEFAULT 0.0,
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, language_id)
 );
 """
 
@@ -71,6 +84,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     card_cols = {r["name"] for r in conn.execute("PRAGMA table_info(cards)")}
     if "direction" not in card_cols:
         conn.execute("ALTER TABLE cards ADD COLUMN direction TEXT")
+    if "word_explanations" not in card_cols:
+        conn.execute("ALTER TABLE cards ADD COLUMN word_explanations TEXT")
+    if "gen_level" not in card_cols:
+        # Continuous CEFR score the card was generated at; NULL for legacy/imported cards.
+        conn.execute("ALTER TABLE cards ADD COLUMN gen_level REAL")
 
     lang_cols = {r["name"] for r in conn.execute("PRAGMA table_info(languages)")}
     if "vowelized" not in lang_cols:

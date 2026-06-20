@@ -28,11 +28,16 @@ def _get_client() -> genai.Client:
 
 
 def generate_cards(
-    words: list[str], language: str, vowelized: bool = False
+    words: list[str],
+    language: str,
+    vowelized: bool = False,
+    level_band: str | None = None,
 ) -> list[GeneratedCard]:
     """Generate example sentences in `language` that use the given vocabulary words.
 
-    When `vowelized`, sentences come back fully vocalized (harakat / nikkud).
+    When `vowelized`, sentences come back fully vocalized (harakat / nikkud). When
+    `level_band` (a CEFR band like "A2") is given, sentence length and complexity are
+    sized to the learner's level.
     """
     words = [w.strip() for w in words if w.strip()]
     if not words:
@@ -42,7 +47,9 @@ def generate_cards(
         model=config.MODEL,
         contents="Vocabulary words:\n" + "\n".join(f"- {w}" for w in words),
         config=types.GenerateContentConfig(
-            system_instruction=system_instruction(language, vowelized=vowelized),
+            system_instruction=system_instruction(
+                language, vowelized=vowelized, level=level_band
+            ),
             response_mime_type="application/json",
             response_schema=list[GeneratedCard],
         ),
@@ -51,16 +58,19 @@ def generate_cards(
 
 
 def explain_word(word: str, sentence: str, translation: str, language: str) -> str:
-    """Return a 2-3 sentence explanation of a word's meaning and role in the sentence."""
+    """Return a short (≤ 2 sentence) explanation of a word's meaning and role.
+
+    Trivial function words (e.g. "to", "in") get a one-word/short-phrase gloss.
+    """
     prompt = (
         f'In the {language} sentence: "{sentence}"\n'
         f'(English: "{translation}")\n\n'
-        f'Explain the word "{word}" in 2-3 sentences. '
-        f'Describe its meaning and its grammatical role in this specific sentence. '
-        f'Be concise — no more than 3 sentences total.'
+        f'Briefly explain the word "{word}": its meaning and its role in this sentence. '
+        f'Use at most two sentences. If it is a very simple or common word '
+        f'(e.g. "to", "in", "and"), a single word or short phrase is enough.'
     )
     cfg = types.GenerateContentConfig(
-        max_output_tokens=300,
+        max_output_tokens=150,
         # Disable "thinking" so the small token budget isn't spent before any
         # answer text is produced (gemini-2.5-* think by default).
         thinking_config=types.ThinkingConfig(thinking_budget=0),

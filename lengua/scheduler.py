@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fsrs import Card, Rating, Scheduler
 
-from . import config
+from . import config, proficiency
 from .db import connect
 
 _scheduler = Scheduler()
@@ -19,6 +19,16 @@ def new_card_state() -> tuple[str, str]:
     card = Card()
     d = card.to_dict()
     return json.dumps(d), d["due"]
+
+
+def is_new_card(card: dict) -> bool:
+    """True if the card has never been reviewed — i.e. new since it was generated.
+
+    New cards have no `last_review` in their FSRS state (freshly generated, and
+    imported learning cards too); reviewed cards carry a `last_review` timestamp.
+    """
+    state = card.get("fsrs_state")
+    return not (state and json.loads(state).get("last_review"))
 
 
 def due_cards(language_id: int) -> list[dict]:
@@ -36,10 +46,7 @@ def due_cards(language_id: int) -> list[dict]:
     for r in rows:
         if datetime.fromisoformat(r["due"]) <= now:
             card = dict(r)
-            if r["fsrs_state"] and json.loads(r["fsrs_state"]).get("last_review"):
-                due.append(card)
-            else:
-                new.append(card)
+            (new if is_new_card(card) else due).append(card)
 
     due.sort(key=lambda c: c["due"])
     new.sort(key=lambda c: c["due"])
@@ -55,7 +62,8 @@ def grade(card_id: int, rating: Rating) -> None:
     """Apply an FSRS rating to a card: update its state/due and log the review."""
     with connect() as conn:
         row = conn.execute(
-            "SELECT fsrs_state FROM cards WHERE id = ?", (card_id,)
+            "SELECT fsrs_state, direction, gen_level, language_id FROM cards WHERE id = ?",
+            (card_id,),
         ).fetchone()
         if row is None:
             return
@@ -70,3 +78,7 @@ def grade(card_id: int, rating: Rating) -> None:
             "INSERT INTO reviews (card_id, rating) VALUES (?, ?)",
             (card_id, int(rating)),
         )
+    # Nudge the language level from this answer (its own connection, after the commit).
+    proficiency.register_review(
+        row["language_id"], int(rating), row["direction"], row["gen_level"]
+    )

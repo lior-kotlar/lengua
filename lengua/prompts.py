@@ -96,6 +96,11 @@ any critical pronunciation aids.
 - "translation": a natural English translation of the sentence (faithful, not \
 word-for-word).
 - "used_words": the list of supplied vocabulary words that appear in the sentence.
+- "word_notes": a list of {{"word", "note"}} objects, one for each meaningful word in \
+the sentence. "word" is the word exactly as it appears in the sentence (keep all vowel \
+marks / diacritics). "note" is a brief gloss — at most two sentences covering its \
+meaning and role in this sentence; for a very simple or common word (e.g. "to", "in", \
+"and") a single word or short phrase is enough.
 Do not add any other text, commentary, or numbering outside these fields."""
 
 # Standing instruction. {language} is filled per request.
@@ -111,6 +116,14 @@ Write every word in the {language} sentence fully vocalized: include all vowel m
 diacritics (e.g., Arabic harakat, Hebrew niqqud) on every word, as in a fully-pointed \
 beginner text. The English translation stays unchanged."""
 
+# Appended when the learner's level is known, to size sentence length & complexity.
+LEVEL_INSTRUCTION = """\
+Write the {language} sentences for a learner at CEFR level {level}. Match that level's \
+typical sentence length, grammar, and vocabulary: at A1/A2 keep them short and simple \
+with high-frequency words and basic tenses; at B1 use longer connected clauses and common \
+idioms; at B2/C1/C2 allow long, multi-clause sentences with richer vocabulary, idioms, and \
+varied tenses. The English translation stays natural."""
+
 
 def _render_rules() -> str:
     blocks = []
@@ -124,14 +137,19 @@ def _render_rules() -> str:
 RULES_PROMPT = INTRO + "\n\n" + _render_rules()
 
 
-def system_instruction(language: str, vowelized: bool = False) -> str:
+def system_instruction(
+    language: str, vowelized: bool = False, level: str | None = None
+) -> str:
     """Full system instruction for a generation request in `language`.
 
     When `vowelized`, ask the model to fully vocalize the target-language sentence
-    (harakat / nikkud), for scripts with optional diacritics.
+    (harakat / nikkud), for scripts with optional diacritics. When `level` (a CEFR band
+    like "A2") is given, size sentence length and complexity to that level.
     """
     parts = [RULES_PROMPT, GENERATION_INSTRUCTION.format(language=language)]
     if vowelized:
         parts.append(VOCALIZATION_INSTRUCTION.format(language=language))
+    if level:
+        parts.append(LEVEL_INSTRUCTION.format(language=language, level=level))
     parts.append(OUTPUT_FORMAT.format(language=language))
     return "\n\n".join(parts)

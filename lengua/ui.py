@@ -1,7 +1,7 @@
 """Shared Streamlit UI pieces — notably the always-present language sidebar."""
 import streamlit as st
 
-from . import languages
+from . import config, languages, proficiency
 from .db import init_db
 
 
@@ -10,6 +10,29 @@ def ensure_ready() -> None:
     if not st.session_state.get("_db_ready"):
         init_db()
         st.session_state["_db_ready"] = True
+
+
+def _render_level(language_id: int) -> None:
+    """Show the learner's CEFR level for a language, with progress and a manual override."""
+    score = proficiency.get_score(language_id)
+    band = proficiency.band_for_score(score)
+
+    st.markdown(f"**Level: {band}**")
+    if band != config.CEFR_BANDS[-1]:
+        nxt = config.CEFR_BANDS[config.CEFR_BANDS.index(band) + 1]
+        st.progress(proficiency.band_progress(score), text=f"Progress to {nxt}")
+
+    with st.expander("Adjust level"):
+        choice = st.selectbox(
+            "Set level manually",
+            options=config.CEFR_BANDS,
+            index=config.CEFR_BANDS.index(band),
+            help="Auto-adjusts as you review; override it here if it's off.",
+            key=f"level_select_{language_id}",
+        )
+        if choice != band:
+            proficiency.set_band(language_id, choice)
+            st.rerun()
 
 
 def render_sidebar():
@@ -50,6 +73,8 @@ def render_sidebar():
             if vowel != bool(active["vowelized"]):
                 languages.set_vowelized(active["id"], vowel)
                 active["vowelized"] = int(vowel)
+
+            _render_level(active["id"])
         else:
             st.info("Add a language to get started.")
 
