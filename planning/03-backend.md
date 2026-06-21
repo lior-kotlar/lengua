@@ -8,7 +8,13 @@
 - **Pydantic v2** for request/response models (already used in `lengua/models.py`).
 - **PyJWT** for Supabase JWT verification.
 - **OpenTelemetry** SDK + FastAPI/SQLAlchemy/httpx instrumentation.
-- Gemini via the existing `google-genai` usage in `lengua/gemini.py`.
+- **LLM provider** behind a small `llm` interface, selected by `LLM_PROVIDER` (**default
+  `groq`** — all development runs on Groq's free tier now; set `gemini` in any env to validate
+  real prompts / serve prod, no code change). Impls: **Groq** (OpenAI-compatible API, free tier)
+  and **Gemini** (`google-genai`, the existing `lengua/gemini.py`). Both implement
+  `generate_cards` / `suggest_new_words` / `explain_word`, return the same Pydantic models, and
+  run behind the same quota gate. Only the Gemini SDK gives native schema-parsed output; other
+  providers use JSON mode and parse into `GeneratedCard` / `WordNote` themselves.
 
 ## Layering
 
@@ -23,7 +29,9 @@ app/
   schemas/           # Pydantic request/response DTOs
   services/          # orchestrates lengua_core + repositories
   repositories/      # all SQL; the only place that touches the DB
-lengua_core/         # ported domain logic (gemini, scheduler, proficiency, prompts, models)
+lengua_core/         # ported domain logic
+  llm/               # provider interface + groq.py (default) / gemini.py (later), picked by LLM_PROVIDER
+  ...                # scheduler, proficiency, prompts, models
 migrations/          # Alembic
 ```
 
@@ -34,15 +42,30 @@ no SQL) so it remains unit-testable and portable.
 
 | Today | Becomes |
 | --- | --- |
-| `lengua/gemini.py` | `lengua_core/gemini.py` — unchanged logic; key from env, model from env (operator-funded). Wrap calls so the quota gate runs first. |
+| `lengua/gemini.py` | `lengua_core/llm/` — a provider interface with `groq.py` (default, dev) and `gemini.py` (later/prod, unchanged logic) behind it; provider, key, and model from env (operator-funded), chosen by `LLM_PROVIDER`. Wrap calls so the quota gate runs first; non-Gemini providers parse JSON into the same `GeneratedCard` / `WordNote` models. |
 | `lengua/scheduler.py` | `lengua_core/scheduler.py` — pure FSRS; reads limits from per-user settings passed in. |
 | `lengua/proficiency.py` | `lengua_core/proficiency.py` — pure; `register_review` called by the review service. |
 | `lengua/flashcards.py` | split: pure card-building stays in core; persistence moves to `repositories/cards.py`. |
 | `lengua/prompts.py`, `models.py` | move as-is into `lengua_core/`. |
 | `lengua/languages.py` | becomes per-user; logic in `services/languages.py` + repository. |
-| `lengua/settings.py` | per-user settings service; **operator/global values (Gemini key + model) leave the DB for env**. |
+| `lengua/settings.py` | per-user settings service; **operator/global values (LLM provider + key + model) leave the DB for env**. |
 | `lengua/db.py` (SQLite) | replaced by SQLAlchemy engine/session + repositories; Alembic owns schema. |
 | `lengua/config.py` | becomes typed settings (`pydantic-settings`) reading env per environment. |
+
+### Switching the LLM provider
+
+The whole point of the `llm` seam: changing model providers is a **config flip, never a code
+change**.
+
+- `LLM_PROVIDER=groq` (default) → uses `GROQ_API_KEY` + `GROQ_MODEL`. This is what every dev,
+  test, and CI run uses for now.
+- `LLM_PROVIDER=gemini` → uses `GEMINI_API_KEY` + `GEMINI_MODEL`. Flip this **later** to
+  eyeball real prompt quality on Gemini, or as the prod default at launch.
+
+`llm.get_provider()` reads `LLM_PROVIDER` once at startup and returns the matching impl; routers
+and services depend only on the interface. A provider mismatch (missing key for the selected
+provider) fails fast at boot. Keep both keys configurable so the flip is instant; **for now only
+the Groq key needs to be set.**
 
 ## Postgres schema (DDL sketch)
 
@@ -148,9 +171,11 @@ create policy cards_owner on cards using (user_id = auth.uid()) with check (user
 
 All except `/health` require a valid Supabase JWT; all reads/writes are scoped to the token's user.
 
-## Gemini quota subsystem (the cost guard)
+## LLM quota subsystem (the cost guard)
 
-Order of checks in `quota.py` before any Gemini call:
+This gate fronts **whichever provider is active** (Groq now, Gemini when you switch) — the
+`gemini_usage` / `gemini_budget` table names are historical; ceilings are read from the active
+provider's free-tier limits. Order of checks in `quota.py` before any LLM call:
 
 1. **Email verified?** else 403.
 2. **Per-user rate limit** (sliding window, e.g. N/min) → 429 if exceeded.
@@ -169,13 +194,15 @@ Caps are per-user today; because `profiles.plan` exists, they can become **plan-
 so a user-supplied key can override the operator key — the growth escape hatch (see
 [08-open-questions-and-costs.md](08-open-questions-and-costs.md)).
 
-> ⚠️ Verify Gemini's *current* free-tier RPM/RPD/TPM for the chosen model and set the global
-> ceiling from real numbers — they change. The global guard is the backstop that honors
-> "I don't want to pay."
+> ⚠️ Verify the **active provider's** *current* free-tier RPM/RPD/TPM for the chosen model and
+> set the global ceiling from real numbers — they change. (Groq now: ~30 RPM / ~1K RPD per
+> model, no card required; Gemini: verify when you switch.) The global guard is the backstop
+> that honors "I don't want to pay."
 
 ## Config & secrets (per environment)
 
 `pydantic-settings` reading env vars:
+`LLM_PROVIDER` (default `groq`; `gemini` later), `GROQ_API_KEY`, `GROQ_MODEL`,
 `GEMINI_API_KEY`, `GEMINI_MODEL`, `DATABASE_URL` (Supabase Postgres), `SUPABASE_JWT_SECRET`/
 `SUPABASE_JWKS_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`/headers, `SENTRY_DSN`, `ENV`
 (local/staging/prod), quota ceilings. Never commit secrets; sourced from Cloud Run secrets /

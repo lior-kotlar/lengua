@@ -36,6 +36,12 @@
 | **Login methods** | Email + Google + Apple | Broadest reach; Apple is mandatory on iOS because Google is offered. |
 | **Language entry** | Free text (any language) | Keep today's behavior; Gemini handles any language. No curated list to maintain. |
 
+## Decisions confirmed (planning round 6)
+
+| Decision | Choice | Consequence |
+| --- | --- | --- |
+| **LLM provider** | **Groq free tier** the default (e.g. `gemma2-9b-it` / a Qwen model); **Gemini** a one-env-var switch for later / prod | **All development uses Groq for now** (no card, ~30 RPM / ~1K RPD per model). `LLM_PROVIDER` flips to Gemini in any env — done later to validate real prompt output and as the prod default — with no code change. One provider interface + the same quota gate; non-Gemini providers use JSON mode and parse into `GeneratedCard` / `WordNote`. Accept lower model quality on Groq during dev — fine for wiring the pipeline. |
+
 ## Decisions still to confirm (with my recommended defaults)
 
 The plan assumes these defaults so it's actionable; flag any you want to change.
@@ -64,8 +70,9 @@ The plan assumes these defaults so it's actionable; flag any you want to change.
 
 ### Can stay $0 (with the guardrails in this plan)
 
-- **Gemini API** — free tier, kept free by per-user caps + global daily kill-switch. *The one
-  thing that can surprise you; the cost-guard dashboard + alert exist for this.*
+- **LLM provider** — **Groq** free tier by default for all dev now (no card required); **Gemini**
+  free tier switched on later. Both kept free by per-user caps + the global daily kill-switch.
+  *The one thing that can surprise you; the cost-guard dashboard + alert exist for this.*
 - Supabase, Cloud Run, Vercel, Grafana Cloud, Sentry, GitHub Actions, Upstash — all free tier.
 
 ### Optional later
@@ -79,7 +86,8 @@ The plan assumes these defaults so it's actionable; flag any you want to change.
 - [ ] Supabase (org + staging/prod projects + CLI)
 - [ ] Google Cloud (Cloud Run + Secret Manager)
 - [ ] Vercel
-- [ ] Google AI Studio (Gemini API key)
+- [ ] Groq Console (free-tier API key — the **default** LLM provider; needed now)
+- [ ] Google AI Studio (Gemini API key — **later**, only when flipping `LLM_PROVIDER=gemini`)
 - [ ] Grafana Cloud
 - [ ] Sentry
 - [ ] **Apple Developer ($99/yr)**

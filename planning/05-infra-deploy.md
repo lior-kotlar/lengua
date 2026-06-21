@@ -32,17 +32,20 @@ Three environments, kept inside free limits:
 > within that limit. If you'd rather have only 2 environments, drop staging and use Vercel
 > preview deploys + local as your pre-prod. Confirm current Supabase limits when you set up.
 
-Each env gets its own Supabase keys, Gemini quota ceilings, OTLP credentials, and API base URL.
+Each env gets its own Supabase keys, **LLM provider config** (`LLM_PROVIDER` + key + model —
+**default Groq in every env for now**; flip an env to Gemini later with no code change), quota
+ceilings, OTLP credentials, and API base URL.
 
 ## Secrets management
 
 Never in git. Per platform:
 
-- **Cloud Run**: mount secrets from Secret Manager (`GEMINI_API_KEY`, `DATABASE_URL`,
-  `SUPABASE_JWT_SECRET`, `OTEL_*`, `SENTRY_DSN`, quota ceilings).
+- **Cloud Run**: mount secrets from Secret Manager (`LLM_PROVIDER`, `GROQ_API_KEY` (set now),
+  `GEMINI_API_KEY` (add later when flipping to Gemini), `DATABASE_URL`, `SUPABASE_JWT_SECRET`,
+  `OTEL_*`, `SENTRY_DSN`, quota ceilings).
 - **Vercel**: project env vars per environment (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
   `VITE_API_BASE_URL`, web `SENTRY_DSN`). Only the **anon** key and public URLs go to the
-  client — never the service-role key or Gemini key.
+  client — never the service-role key or any LLM provider key (Groq/Gemini).
 - **GitHub Actions**: repo/environment secrets for deploy credentials (GCP service account,
   Vercel token, Supabase access token) + mobile signing material.
 - **Mobile signing**: iOS certs/provisioning profile + Android keystore stored as encrypted CI
@@ -123,9 +126,9 @@ restore from backup, and the store-release checklist.
 | Supabase | active project count, DB size, monthly active users, pausing of idle projects |
 | Cloud Run | monthly requests / CPU-seconds, max instances |
 | Vercel | bandwidth, build minutes |
-| Gemini | RPM / requests-per-day / tokens-per-minute (drives the global budget ceiling) |
+| LLM provider (Groq now / Gemini later) | RPM / requests-per-day / tokens-per-minute, per active provider (drives the global budget ceiling) |
 | Grafana Cloud | series / logs GB / traces GB retention |
 | GitHub Actions | monthly minutes |
 
-Set the **Gemini global budget ceiling** from real, current numbers — it is the backstop that
-keeps the bill at $0.
+Set the **global budget ceiling** from the active provider's real, current numbers (Groq now;
+re-set it from Gemini's numbers when you switch) — it is the backstop that keeps the bill at $0.

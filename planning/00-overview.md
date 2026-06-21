@@ -41,8 +41,12 @@ build a React UI to replace Streamlit, (4) operationalize it.
   native iOS + Android apps.
 - **Data + Auth:** Supabase — Postgres for data, Supabase Auth for accounts (email + Google +
   Apple), Row-Level Security as defense-in-depth.
-- **AI:** operator-held Gemini key, gated by per-user daily caps, per-user rate limiting, and
-  a project-wide daily budget kill-switch so we never exceed the free tier.
+- **AI:** a **pluggable LLM provider** behind one interface, chosen by a single `LLM_PROVIDER`
+  env var. **Default = Groq free tier** (e.g. `gemma2-9b-it` / a Qwen model) — *all development
+  runs on Groq for now*. Switching to **Gemini** is a one-line env flip in any environment, done
+  **later** to validate real prompt output and as the prod default at launch — no code change.
+  The active provider's key is operator-held and gated by per-user daily caps, per-user rate
+  limiting, and a project-wide daily budget kill-switch so we never exceed its free tier.
 - **Ops:** 3 environments (local/staging/prod), GitHub Actions CI/CD, OpenTelemetry traces +
   logs + metrics to Grafana Cloud, Sentry error tracking, uptime checks and alerts.
 
@@ -50,8 +54,9 @@ build a React UI to replace Streamlit, (4) operationalize it.
 
 1. **Reuse the core.** Don't rewrite `gemini`/`scheduler`/`proficiency`/`flashcards`; port
    them behind FastAPI and add a persistence boundary.
-2. **Stay free by design.** Every dependency must have a viable free tier; the Gemini cost is
-   actively capped, not hoped about.
+2. **Stay free by design.** Every dependency must have a viable free tier. LLM calls default to
+   **Groq's** free tier for all development now; **Gemini** is a one-env-var switch for later /
+   prod. Both run behind one provider seam and are actively capped — not hoped about.
 3. **Multi-tenant from the first commit of the new backend.** Every row is owned by a user;
    never reintroduce global tables.
 4. **Observable from the start.** Instrument as we build, not as an afterthought.
@@ -88,3 +93,6 @@ left **paid-ready** via `profiles.plan`, but no payment code ships in v1). See t
 - **Capacitor** — wraps a web app in a native shell with access to device APIs.
 - **OTLP** — OpenTelemetry Protocol; the wire format for traces/logs/metrics.
 - **BYOK** — bring-your-own-key (rejected for v1; we chose operator-funded + capped).
+- **LLM provider** — the swappable sentence/word generator behind one interface, chosen by the
+  `LLM_PROVIDER` env var. **Groq** (free tier) is the default used for all dev now; **Gemini**
+  is a one-line switch for later / prod.

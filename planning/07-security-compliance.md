@@ -18,7 +18,7 @@
 
 ## Secrets & key hygiene
 
-- Server-only secrets (Gemini key, Supabase service-role key, JWT secret, DB URL, OTLP creds)
+- Server-only secrets (the LLM provider key — Groq now / Gemini later, Supabase service-role key, JWT secret, DB URL, OTLP creds)
   live in Cloud Run Secret Manager / GitHub Actions secrets — **never in the client bundle or
   git**. Only the Supabase **anon** key + public URLs ship to the client.
 - Rotate keys on a schedule; document rotation in the runbook.

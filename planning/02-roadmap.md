@@ -25,7 +25,8 @@ Goal: repo, tooling, and all free-tier accounts ready.
       (`apps/api`, `apps/web`, `packages/`, `infra/`); keep legacy Streamlit runnable.
 - [ ] Decide package manager / tooling: `uv` or `pip-tools` (api), `pnpm` (web).
 - [ ] Create accounts: **GitHub**, **Supabase**, **Google Cloud** (Cloud Run), **Vercel**,
-      **Grafana Cloud**, **Sentry**, **Google AI Studio** (Gemini key).
+      **Grafana Cloud**, **Sentry**, **Groq** (free-tier key — the default LLM provider, needed
+      now). **Google AI Studio** (Gemini key) can wait — only needed when you flip to Gemini later.
 - [ ] Pay + register the unavoidable store accounts: **Apple Developer ($99/yr)**,
       **Google Play ($25 one-time)**. (Start early — Apple identity verification can take days.)
 - [ ] Set up the Supabase CLI local stack (Docker) for the `local` env.
@@ -56,7 +57,10 @@ Goal: the domain logic runs behind FastAPI against Postgres, single hard-coded t
 - [ ] Set up **Alembic** migrations; first migration = full schema.
 - [ ] FastAPI routers for the core loop: `languages`, `generate`, `cards`, `review`,
       `discover`, `explain`, `proficiency`, `settings` (see endpoint list in 03).
-- [ ] Port Gemini calls behind an async-friendly wrapper; keep retry/backoff.
+- [ ] Port LLM calls behind an async-friendly **provider interface** (`LLM_PROVIDER`, **default
+      `groq`**): a `groq` impl (OpenAI-compatible + JSON parse into `GeneratedCard`/`WordNote`)
+      and the existing `gemini` impl; keep retry/backoff. **All dev/test/CI runs on Groq's free
+      tier**; the `gemini` impl exists so flipping the env var later is a no-code switch.
 - [ ] Unit tests for scheduler/proficiency (pure logic) + a few API integration tests
       against a throwaway Postgres (testcontainers or local Supabase).
 - [ ] Generate the **OpenAPI schema**; wire `packages/api-types` codegen.
@@ -90,9 +94,11 @@ historical data is importable.
 
 ---
 
-## Phase 3 — Gemini quota, rate-limiting & cost guard · **S–M**
+## Phase 3 — LLM quota, rate-limiting & cost guard · **S–M**
 
-Goal: the operator-funded key can never produce a bill.
+Goal: the operator-funded key can never produce a bill. The gate is provider-agnostic — same
+checks whether the active provider is Groq (default, now) or Gemini (later); ceilings come from
+the active provider's free-tier limits.
 
 - [ ] `gemini_usage` table + per-user **daily caps** (generate / discover / explain), with
       values from per-user settings, bounded by hard server maximums.

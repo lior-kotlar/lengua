@@ -66,10 +66,15 @@ You chose to require E2E on every PR. To keep that practical:
 
 - **Ephemeral stack per PR:** build the web bundle + API container + a disposable Postgres
   (local Supabase / testcontainers) seeded with fixtures; run Playwright headless against it.
-- **Stub Gemini deterministically** in E2E (a fake that returns canned cards/explanations).
-  This (a) never burns real quota, (b) removes model nondeterminism, (c) lets us assert *app*
-  behavior, not the model's wording. Keep **one** separate, **non-blocking, scheduled** smoke
-  run that hits real Gemini to catch API/contract drift.
+- **Stub the LLM provider deterministically** in E2E (a fake `llm` impl that returns canned
+  cards/explanations — provider-agnostic, so it stands in for Groq or Gemini). This (a) never
+  burns real quota, (b) removes model nondeterminism, (c) lets us assert *app* behavior, not the
+  model's wording. Keep **one** separate, **non-blocking, scheduled** smoke run that hits the
+  real provider (Groq now) to catch API/contract drift.
+- **Prompt-quality validation on Gemini (later):** because the provider is a flip of
+  `LLM_PROVIDER`, eyeballing real Gemini output is a config change, not a code change. When you
+  want to check prompts against the prod model, run the manual smoke with `LLM_PROVIDER=gemini`;
+  not part of the per-PR gate.
 - **Small required set on PR** (critical-path smoke); run the **full/long E2E nightly**.
 - **Flaky policy:** auto-retry a failing E2E once; if it still fails it **blocks**. Chronically
   flaky tests are **quarantined behind a tracked issue**, never silently skipped.

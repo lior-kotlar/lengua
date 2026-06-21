@@ -14,7 +14,8 @@ Streamlit app into a real, deployed, multi-user product on **web + iOS + Android
 | **Web frontend** | React + TypeScript (Vite) |
 | **Mobile** | Capacitor — wrap the one React web app as native iOS + Android |
 | **Auth + Database** | Supabase (Postgres + Auth + Row-Level Security) |
-| **Gemini funding** | Operator-funded single key, with strict per-user caps + rate limits + a global daily kill-switch to stay inside the free tier |
+| **LLM provider** | Pluggable behind one interface, picked by `LLM_PROVIDER`. **Default = Groq free tier** — all development runs on Groq for now; flipping to **Gemini** is a one-env-var switch (later, to validate real prompts / for prod) with no code change |
+| **LLM funding** | Operator-funded single key (the active provider), with strict per-user caps + rate limits + a global daily kill-switch to stay inside the free tier |
 | **Rollout** | All platforms (web, iOS, Android) launch together |
 | **Environments** | `local` + `staging` + `prod` (3), fit inside free tiers |
 | **Observability** | OpenTelemetry → Grafana Cloud (traces, logs, metrics) + Sentry for errors |
@@ -41,8 +42,10 @@ Infra, DB, auth, and observability can all be **$0** on free tiers. Three things
 
 - **Apple Developer Program — $99/year** (mandatory to publish to the App Store).
 - **Google Play registration — $25 one-time** (mandatory to publish to Play).
-- **Gemini API** — has a free tier, but it's the one cost that grows with users. The whole
-  quota/rate-limit design in [03-backend.md](03-backend.md) exists to keep this at $0.
+- **LLM provider** — development runs entirely on **Groq's** free tier (no card required);
+  **Gemini** (also free-tier) is switched on later via `LLM_PROVIDER`. The provider is the one
+  cost that grows with users, so the whole quota/rate-limit design in
+  [03-backend.md](03-backend.md) exists to keep it at $0.
 
 See [08-open-questions-and-costs.md](08-open-questions-and-costs.md) for the full cost +
 accounts checklist.
@@ -54,7 +57,7 @@ accounts checklist.
 | [00-overview.md](00-overview.md) | Vision, current state, target state, principles, success criteria |
 | [01-architecture.md](01-architecture.md) | Target architecture, data flows, multi-tenant data model, repo layout |
 | [02-roadmap.md](02-roadmap.md) | **The phased task plan (Phases 0–9) with checklists** |
-| [03-backend.md](03-backend.md) | FastAPI design, Postgres schema, Gemini quota subsystem |
+| [03-backend.md](03-backend.md) | FastAPI design, Postgres schema, pluggable LLM provider (Groq/Gemini) + quota subsystem |
 | [04-frontend-mobile.md](04-frontend-mobile.md) | React app + Capacitor packaging, RTL, offline, store assets |
 | [05-infra-deploy.md](05-infra-deploy.md) | Hosting, 3 environments, CI/CD, secrets, free-tier limits |
 | [06-observability.md](06-observability.md) | OpenTelemetry, Grafana, Sentry, dashboards, alerts, SLOs |

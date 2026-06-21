@@ -41,21 +41,27 @@
 | Component | Responsibility |
 | --- | --- |
 | **React app** | All UI; auth via supabase-js; talks to FastAPI for everything else. One build → web (static host) + iOS/Android (Capacitor). |
-| **FastAPI** | The only thing that talks to Gemini (key stays server-side) and the only writer of domain data. Verifies JWTs, enforces ownership + quotas, runs FSRS/proficiency logic. |
+| **FastAPI** | The only thing that talks to the LLM provider (Groq by default now / Gemini later; key stays server-side) and the only writer of domain data. Verifies JWTs, enforces ownership + quotas, runs FSRS/proficiency logic. |
 | **Supabase Auth** | Sign-up/login, email verification, password reset, OAuth (Google/Apple), JWT issuance + refresh. |
 | **Supabase Postgres** | System of record. RLS on every table as defense-in-depth. |
-| **Gemini API** | Sentence/word generation + explanations. Called only from FastAPI, behind the quota gate. |
+| **LLM provider (Groq / Gemini)** | Sentence/word generation + explanations, behind one provider interface picked by `LLM_PROVIDER` — **default Groq** (free tier; all dev now), flip to **Gemini** anytime (later / prod). Called only from FastAPI, behind the quota gate. |
 | **Grafana Cloud / Sentry** | Telemetry + error tracking. |
 
 ## Why this shape
 
-- **FastAPI in front of Gemini, not the client calling Supabase directly.** The Gemini key
-  must never reach the client, and the domain logic (FSRS scheduling, proficiency math, dual
-  card creation, prompt assembly) is already Python. So a server is required regardless; we
-  centralize all writes there. The client uses Supabase *only* for auth.
+- **FastAPI in front of the LLM provider, not the client calling Supabase directly.** The
+  provider key (Groq or Gemini) must never reach the client, and the domain logic (FSRS
+  scheduling, proficiency math, dual card creation, prompt assembly) is already Python. So a
+  server is required regardless; we centralize all writes there. The client uses Supabase
+  *only* for auth.
 - **Capacitor over React Native/Flutter.** The app is text-and-forms with complex script
   rendering (Arabic/Hebrew + diacritics, RTL). The web layer renders that beautifully and one
   React codebase serves all three platforms — lowest cost, max reuse.
+- **One LLM provider seam, default Groq.** All generation goes through a single `llm` interface,
+  so the model behind it is a config choice, not a code change. We build and test everything on
+  **Groq's free tier** now; flipping `LLM_PROVIDER=gemini` (any env) later validates real prompt
+  output and serves prod. Same call signatures, same Pydantic results, same quota gate — only
+  the provider impl and key differ.
 
 ## Auth flow
 
@@ -73,7 +79,7 @@ client → POST /generate {words, language_id}
   → FastAPI: verify JWT → resolve user
   → quota gate:  per-user daily cap?  per-user rate limit?  global daily budget left?
        └─ if blocked → 429 with friendly reason (no Gemini call)
-  → lengua.gemini.generate_cards(words, level_band)   [Gemini API, with retry/backoff]
+  → llm.generate_cards(words, level_band)   [active provider — Groq now / Gemini later, with retry/backoff]
   → lengua.flashcards.save_cards(...)  → 2 cards/sentence, tagged gen_level, persisted
   → record usage (user_id, day, kind) for caps + the global budget counter
   → 200 with created cards
@@ -92,8 +98,9 @@ table. **Both break under multi-user and must be re-scoped.** Plan:
   `proficiency` (already has one — change its type to UUID and make it a real FK).
 - **Re-scope uniqueness:** `languages` → `UNIQUE(user_id, name)`; `settings` → PK
   `(user_id, key)` (these become *per-user preferences*: daily limits, discover count).
-- **Operator-global config leaves the DB:** the Gemini model name and the operator API key
-  move to environment/secrets (operator-funded model — users don't pick the key).
+- **Operator-global config leaves the DB:** the LLM provider selection (`LLM_PROVIDER`), model
+  name, and the operator API key move to environment/secrets (operator-funded — users don't
+  pick the provider or key).
 - **New tables:** `gemini_usage` (per-user/day counters for caps) and a `gemini_budget`
   day-counter (project-wide kill-switch). See DDL sketch in [03-backend.md](03-backend.md).
 - **Type modernization for Postgres:** `timestamptz` for timestamps, `jsonb` for
