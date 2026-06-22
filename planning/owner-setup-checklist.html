@@ -2167,7 +2167,7 @@ function updateProgress() {
 }
 
 /* ── localStorage ────────────────────────────── */
-var KEY = 'lengua_setup_v2';
+var KEY = 'lengua_setup_v3';
 function saveLS() {
   var s = {};
   document.querySelectorAll('input.cb').forEach(function(cb, i) { s['cb'+i] = cb.checked; });
@@ -2178,7 +2178,7 @@ function loadLS() {
   var raw; try { raw = localStorage.getItem(KEY); } catch(e) {}
   if (!raw) return;
   var s = JSON.parse(raw);
-  document.querySelectorAll('input.cb').forEach(function(cb, i) { if (s['cb'+i] !== undefined) cb.checked = s['cb'+i]; });
+  document.querySelectorAll('input.cb').forEach(function(cb, i) { if (s['cb'+i] !== undefined) cb.checked = s['cb'+i] || cb.defaultChecked; });
   document.querySelectorAll('input.fill-input').forEach(function(el) {
     var v = s['f_'+el.dataset.key];
     if (v !== undefined && el.getAttribute('value') === '') el.value = v;
