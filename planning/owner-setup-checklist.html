@@ -712,7 +712,6 @@ Fill in ALL the highlighted input fields with the values you collected:
   - Grafana stack URL
   - Sentry org slug
   - Sender email + name
-  - Apple Team ID + Bundle ID (fill later in Phase 7)
 
 Click "Save &amp; Download" at the top, then:
   git add planning/owner-setup-checklist.html
@@ -1811,115 +1810,18 @@ All done! Tell Kotlar: "Setup complete! Commit the HTML and send the credentials
 </div>
 
 <!-- ══════════════════════════════════════════════════════════ -->
-<!-- 12 · MOBILE — PHASE 7+ (do later, set up accounts now)  -->
+<!-- 12 · MOBILE — DEFERRED TO PHASE 7+                      -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div class="section">
   <div class="section-head">
     <div class="section-num">12</div>
-    <div class="section-title">Mobile App Stores — Set Up Accounts Now (Build in Phase 7+)</div>
+    <div class="section-title">Mobile App Stores — Deferred to Phase 7+</div>
   </div>
   <div class="section-body">
-    <div class="future">iOS and Android launch together with web. You don't need to build the mobile apps yet, but creating these accounts now prevents surprises — especially Apple's review process, which can take weeks for first-time apps.</div>
-    <div class="warn">These have costs: Apple Developer Program = $99/year. Google Play Console = $25 one-time. Both require the account owner to be a real developer identity.</div>
-
-    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Apple (iOS)</strong>
-    <div class="item" data-owner="kotlar">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Enroll in Apple Developer Program</strong> ($99/year)
-          <div class="item-detail">developer.apple.com/programs/enroll/ · Use an Apple ID connected to your legal name (required for the App Store)</div>
-        </span></label>
-      <span class="badge badge-kotlar">Kotlar</span>
-    </div>
-    <div class="item" data-owner="kotlar">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Invite Ben Artzi to the Apple Developer team</strong>
-          <div class="item-detail">developer.apple.com → Account → People → Invite People → use Ben Artzi's Apple ID email<br>
-          Role: <strong>Admin</strong> (needed to create certificates &amp; provisioning profiles)</div>
-        </span></label>
-      <span class="badge badge-kotlar">Kotlar</span>
-    </div>
-
-    <div class="fill-block">
-      <div class="fill-block-title">Apple — safe to commit</div>
-      <div class="fill-row">
-        <div class="fill-label">Apple Team ID</div>
-        <div class="fill-hint">developer.apple.com → Account → your team ID (10-char alphanumeric)</div>
-        <input class="fill-input" data-key="apple_team_id" placeholder="XXXXXXXXXX" value="">
-      </div>
-      <div class="fill-row">
-        <div class="fill-label">App Bundle ID</div>
-        <div class="fill-hint">e.g. com.lengua.app — needs to be unique</div>
-        <input class="fill-input" data-key="app_bundle_id" placeholder="com.lengua.app" value="com.lengua.app">
-      </div>
-    </div>
-
-    <div class="item" data-owner="kotlar">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Set up Apple Sign In</strong> (REQUIRED on iOS since Google OAuth is offered)
-          <div class="item-detail">developer.apple.com → Certificates, IDs &amp; Profiles → Identifiers → your App ID → enable Sign in with Apple<br>
-          Also create a Service ID for web auth redirect</div>
-        </span></label>
-      <span class="badge badge-kotlar">Kotlar</span>
-    </div>
-
-    <div class="secure-block">
-      <div class="secure-title">🔒 Apple Sign In — send to Ben Artzi SECURELY (needed when building iOS)</div>
-      <div class="secure-row"><span class="secure-var">APPLE_SIGN_IN_KEY_ID</span><span class="secure-badge">SEND SECURELY</span></div>
-      <div class="secure-row"><span class="secure-var">APPLE_SIGN_IN_PRIVATE_KEY (.p8 file contents)</span><span class="secure-badge">SEND SECURELY</span></div>
-    </div>
-
-    <div class="item" data-owner="ben">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Accept Apple Developer team invite</strong>
-          <div class="item-detail">Check your email for invitation from Apple. Accept and log in to developer.apple.com</div>
-        </span></label>
-      <span class="badge badge-ben">Ben Artzi</span>
-    </div>
-    <div class="item" data-owner="ben">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Install Xcode</strong> (Mac required for iOS builds)
-          <div class="item-detail">Mac App Store → Xcode. Takes a while. Confirm: <code>xcode-select --version</code></div>
-        </span></label>
-      <span class="badge badge-ben">Ben Artzi</span>
-    </div>
-
-    <div class="divider"></div>
-    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Google Play (Android)</strong>
-    <div class="item" data-owner="kotlar">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Create a Google Play Console account</strong> ($25 one-time)
-          <div class="item-detail">play.google.com/console → Create developer account → pay $25 registration fee</div>
-        </span></label>
-      <span class="badge badge-kotlar">Kotlar</span>
-    </div>
-    <div class="item" data-owner="kotlar">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Invite Ben Artzi to Play Console</strong>
-          <div class="item-detail">Users and permissions → Invite new users → <code>benartzi4@gmail.com</code> → Role: Release manager</div>
-        </span></label>
-      <span class="badge badge-kotlar">Kotlar</span>
-    </div>
-
-    <div class="fill-block">
-      <div class="fill-block-title">Google Play — safe to commit</div>
-      <div class="fill-row">
-        <div class="fill-label">Google Play App Package Name</div>
-        <div class="fill-hint">Same as bundle ID, e.g. com.lengua.app</div>
-        <input class="fill-input" data-key="android_package" placeholder="com.lengua.app" value="com.lengua.app">
-      </div>
-    </div>
-
-    <div class="item" data-owner="ben">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Accept Google Play Console invite</strong></span></label>
-      <span class="badge badge-ben">Ben Artzi</span>
-    </div>
-    <div class="item" data-owner="ben">
-      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-        <span class="item-text"><strong>Install Android Studio</strong>
-          <div class="item-detail">developer.android.com/studio — confirm: <code>adb --version</code></div>
-        </span></label>
-      <span class="badge badge-ben">Ben Artzi</span>
+    <div class="future">
+      <strong>Not needed now.</strong> Mobile setup (Apple Developer Program and Google Play Console) is deferred to Phase 7+.
+      Both have one-time or annual costs and are not required to ship the web app.
+      See <code>planning/08-open-questions-and-costs.md</code> → "Deferred to Phase 7+: Mobile costs" for the full checklist when the time comes.
     </div>
   </div>
 </div>
@@ -2075,13 +1977,6 @@ EMAIL
 RESEND_API_KEY=
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-APPLE SIGN IN (Phase 7 — send when iOS build starts)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-APPLE_SIGN_IN_KEY_ID=
-APPLE_SIGN_IN_PRIVATE_KEY=
-[paste full contents of .p8 file here]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PUBLIC URLS (also in the committed HTML — just for convenience)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Supabase staging URL:
@@ -2112,8 +2007,6 @@ Good luck! — Kotlar</textarea>
         <li>Grafana stack URL</li>
         <li>Sentry org slug</li>
         <li>Sender email + display name</li>
-        <li>Apple Team ID + Bundle ID</li>
-        <li>Android package name</li>
       </ul>
     </div>
     <div class="sum-col sum-sec">
@@ -2130,7 +2023,6 @@ Good luck! — Kotlar</textarea>
         <li>OTEL_EXPORTER_OTLP_ENDPOINT + HEADERS</li>
         <li>SENTRY_AUTH_TOKEN + DSN_API + DSN_WEB</li>
         <li>RESEND_API_KEY</li>
-        <li>APPLE_SIGN_IN_KEY_ID + PRIVATE_KEY (phase 7)</li>
       </ul>
     </div>
   </div>
