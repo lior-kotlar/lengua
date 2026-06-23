@@ -61,12 +61,24 @@ The plan assumes these defaults so it's actionable; flag any you want to change.
 
 ## Costs — the honest picture
 
-### Unavoidable (you said no paying — these are the exceptions)
+### Deferred to Phase 7+: Mobile costs (not needed now)
 
-| Item | Cost | When |
+These are real costs but are **not required** to ship the web app. Defer until Phase 7 when
+you're ready to build and submit the iOS/Android apps.
+
+| Item | Cost | Notes |
 | --- | --- | --- |
-| **Apple Developer Program** | **$99 / year** | Before any App Store submission (start early — verification can take days). |
-| **Google Play registration** | **$25 one-time** | Before any Play submission. |
+| **Apple Developer Program** | **$99 / year** | Required before any App Store submission. Enrollment verification can take days — start a few weeks before you plan to submit. |
+| **Google Play Console** | **$25 one-time** | Required before publishing to the Play Store. Instant after payment. |
+
+**When Phase 7 starts:**
+- Kotlar enrolls in Apple Developer Program (developer.apple.com/programs/enroll/)
+- Kotlar creates Google Play Console account (play.google.com/console)
+- Both: invite Ben Artzi as Admin (Apple) / Release Manager (Play)
+- Ben Artzi: accept invites, install Xcode (Mac) + Android Studio
+- Set up Apple Sign In + download key (.p8) → send to Ben Artzi securely
+- App Bundle ID: `com.lengua.app` (already decided — confirm availability at enrollment)
+- Set GitHub Actions secrets: `APPLE_TEAM_ID`, `APP_BUNDLE_ID`, `APPLE_SIGN_IN_KEY_ID`, `APPLE_SIGN_IN_PRIVATE_KEY`
 
 ### Can stay $0 (with the guardrails in this plan)
 
@@ -80,7 +92,7 @@ The plan assumes these defaults so it's actionable; flag any you want to change.
 - Custom domain (~$10/yr). Paid tiers only if you outgrow free limits (more users, more
   telemetry retention, always-on backend).
 
-## Accounts to create (Phase 0 checklist)
+## Accounts to create (Phase 0 checklist — all free)
 
 - [ ] GitHub (repo + Actions)
 - [ ] Supabase (org + staging/prod projects + CLI)
@@ -90,9 +102,11 @@ The plan assumes these defaults so it's actionable; flag any you want to change.
 - [ ] Google AI Studio (Gemini API key — **later**, only when flipping `LLM_PROVIDER=gemini`)
 - [ ] Grafana Cloud
 - [ ] Sentry
-- [ ] **Apple Developer ($99/yr)**
-- [ ] **Google Play Console ($25)**
-- [ ] (optional) Upstash, domain registrar
+- [ ] (optional) Upstash, domain registrar (~$10/yr)
+
+**Phase 7+ only (paid — deferred):**
+- [ ] Apple Developer Program ($99/yr) — see "Deferred to Phase 7+" section above
+- [ ] Google Play Console ($25 one-time) — see "Deferred to Phase 7+" section above
 
 ## "Anything else we want to add?" — backlog
 

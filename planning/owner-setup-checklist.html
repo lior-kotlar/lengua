@@ -1,0 +1,2135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lengua — Kotlar + Ben Artzi Setup Checklist</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --kotlar-bg:     #eff6ff;
+      --kotlar-border: #93c5fd;
+      --kotlar-text:   #1d4ed8;
+      --kotlar-badge:  #2563eb;
+      --kotlar-check:  #3b82f6;
+
+      --ben-bg:     #ecfdf5;
+      --ben-border: #6ee7b7;
+      --ben-text:   #065f46;
+      --ben-badge:  #059669;
+      --ben-check:  #10b981;
+
+      --secure-bg:     #fff7ed;
+      --secure-border: #fed7aa;
+
+      --fill-bg:     #f0f9ff;
+      --fill-border: #bae6fd;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      line-height: 1.6;
+      padding: 0 0 80px;
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #1e3a8a 0%, #4f46e5 60%, #7c3aed 100%);
+      color: white;
+      padding: 32px 32px 24px;
+    }
+    .header h1 { font-size: 1.65rem; font-weight: 800; margin-bottom: 4px; }
+    .header .sub { opacity: .8; font-size: 0.9rem; margin-bottom: 20px; }
+
+    /* ── Legend ──────────────────────────────────── */
+    .legend {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 0;
+    }
+    .legend-card {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 10px;
+      padding: 12px 16px;
+      flex: 1; min-width: 220px;
+    }
+    .legend-card .who {
+      font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; margin-bottom: 6px; opacity: .9;
+    }
+    .legend-card .who span {
+      display: inline-block;
+      padding: 2px 8px; border-radius: 20px; margin-right: 6px;
+    }
+    .legend-kotlar span { background: rgba(96,165,250,.4); color: #bfdbfe; }
+    .legend-ben    span { background: rgba(52,211,153,.4); color: #a7f3d0; }
+    .legend-card p { font-size: 0.82rem; opacity: .85; }
+
+    /* ── Sticky bar ──────────────────────────────── */
+    .sticky-bar {
+      position: sticky; top: 0; z-index: 100;
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 8px 24px;
+      display: flex; gap: 24px; align-items: center; flex-wrap: wrap;
+    }
+    .prog-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+    .prog-bar {
+      width: 120px; height: 7px; background: #e2e8f0; border-radius: 4px; overflow: hidden;
+    }
+    .prog-fill { height: 100%; border-radius: 4px; width: 0%; transition: width .3s; }
+    .prog-fill-kotlar { background: #3b82f6; }
+    .prog-fill-ben    { background: #10b981; }
+    .prog-label { color: #475569; white-space: nowrap; }
+
+    /* ── Save banner ─────────────────────────────── */
+    .save-banner {
+      background: white;
+      border: 2px solid #4f46e5;
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .save-banner p { flex: 1; min-width: 200px; font-size: 0.85rem; color: #475569; }
+    .save-banner p strong { color: #1e293b; }
+    .btn-save {
+      background: #4f46e5; color: white; border: none;
+      padding: 9px 18px; border-radius: 8px;
+      font-size: 0.875rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .btn-save:hover { background: #4338ca; }
+
+    /* ── Container ───────────────────────────────── */
+    .container { max-width: 900px; margin: 0 auto; padding: 28px 20px; }
+
+    /* ── Section card ────────────────────────────── */
+    .section {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .section-head {
+      padding: 16px 22px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .section-num {
+      width: 28px; height: 28px;
+      background: #1e293b; color: white;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 800; flex-shrink: 0;
+    }
+    .section-title { font-size: 1rem; font-weight: 700; color: #0f172a; }
+    .section-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 10px; }
+
+    /* ── Task items ──────────────────────────────── */
+    .item {
+      display: flex;
+      border-radius: 8px;
+      padding: 8px 12px;
+      align-items: flex-start;
+      gap: 10px;
+      border: 1px solid transparent;
+    }
+    .item[data-owner="kotlar"] {
+      background: var(--kotlar-bg);
+      border-color: var(--kotlar-border);
+    }
+    .item[data-owner="ben"] {
+      background: var(--ben-bg);
+      border-color: var(--ben-border);
+    }
+    .item[data-owner="both"] {
+      background: #faf5ff;
+      border-color: #d8b4fe;
+    }
+
+    .item label {
+      display: flex; align-items: flex-start; gap: 8px;
+      cursor: pointer; flex: 1;
+    }
+    .item input[type="checkbox"] { display: none; }
+
+    .cb-box {
+      width: 18px; height: 18px;
+      border: 2px solid #cbd5e1;
+      border-radius: 4px; flex-shrink: 0; margin-top: 2px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .item[data-owner="kotlar"] .cb-box { border-color: var(--kotlar-border); }
+    .item[data-owner="ben"]    .cb-box { border-color: var(--ben-border); }
+    .item[data-owner="both"]   .cb-box { border-color: #c084fc; }
+
+    .item[data-owner="kotlar"] input:checked ~ .cb-box { background: var(--kotlar-check); border-color: var(--kotlar-check); }
+    .item[data-owner="ben"]    input:checked ~ .cb-box { background: var(--ben-check);    border-color: var(--ben-check); }
+    .item[data-owner="both"]   input:checked ~ .cb-box { background: #9333ea;             border-color: #9333ea; }
+
+    input:checked ~ .cb-box::after {
+      content: '';
+      width: 10px; height: 6px;
+      border-left: 2px solid white;
+      border-bottom: 2px solid white;
+      transform: rotate(-45deg) translate(1px, -1px);
+      display: block;
+    }
+    input:checked ~ .item-text { color: #94a3b8; text-decoration: line-through; }
+
+    .item-text { flex: 1; font-size: 0.875rem; }
+    .item-detail {
+      font-size: 0.78rem; color: #64748b; margin-top: 3px;
+      line-height: 1.5;
+    }
+    .item-detail code {
+      background: #e2e8f0; padding: 0 4px; border-radius: 3px;
+      font-family: 'SF Mono', 'Fira Code', monospace; font-size: .85em;
+    }
+
+    .badge {
+      font-size: 0.65rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .06em; padding: 2px 7px; border-radius: 20px;
+      flex-shrink: 0; margin-top: 3px; line-height: 1.4;
+    }
+    .badge-kotlar { background: var(--kotlar-badge); color: white; }
+    .badge-ben    { background: var(--ben-badge);    color: white; }
+    .badge-both   { background: #9333ea; color: white; }
+
+    /* ── Sub-list ─────────────────────────────────── */
+    .sub-list { margin-left: 8px; display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Fill-in blocks ──────────────────────────── */
+    .fill-block {
+      background: var(--fill-bg);
+      border: 1px solid var(--fill-border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .fill-block-title {
+      font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .06em; color: #0369a1; margin-bottom: 10px;
+    }
+    .fill-row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+    .fill-row:last-child { margin-bottom: 0; }
+    .fill-label { font-size: 0.8rem; font-weight: 700; color: #1e293b; }
+    .fill-hint  { font-size: 0.73rem; color: #64748b; }
+    .fill-input {
+      width: 100%; border: 1px solid var(--fill-border);
+      border-radius: 6px; padding: 7px 10px;
+      font-size: 0.85rem; font-family: 'SF Mono', 'Fira Code', monospace;
+      background: white; color: #1e293b; outline: none;
+    }
+    .fill-input:focus { border-color: #0369a1; box-shadow: 0 0 0 2px rgba(3,105,161,.15); }
+    .fill-input::placeholder { color: #94a3b8; }
+
+    /* ── Secure blocks ───────────────────────────── */
+    .secure-block {
+      background: var(--secure-bg);
+      border: 1px solid var(--secure-border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .secure-title {
+      font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .06em; color: #c2410c; margin-bottom: 10px;
+    }
+    .secure-row {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 5px 0; border-bottom: 1px dashed #fed7aa;
+      font-size: 0.82rem;
+    }
+    .secure-row:last-child { border-bottom: none; }
+    .secure-var {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.78rem; color: #9a3412; flex: 1;
+    }
+    .secure-badge {
+      font-size: 0.65rem; font-weight: 800; letter-spacing: .04em;
+      background: #fde68a; color: #92400e;
+      padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+    }
+
+    /* ── Callouts ────────────────────────────────── */
+    .tip  { background:#f0fdf4; border-left:3px solid #22c55e; padding:10px 14px; border-radius:0 6px 6px 0; font-size:.83rem; color:#166534; }
+    .warn { background:#fefce8; border-left:3px solid #eab308; padding:10px 14px; border-radius:0 6px 6px 0; font-size:.83rem; color:#713f12; }
+    .info { background:#f8fafc; border-left:3px solid #94a3b8; padding:10px 14px; border-radius:0 6px 6px 0; font-size:.83rem; color:#475569; }
+    .future { background:#fdf4ff; border-left:3px solid #c084fc; padding:10px 14px; border-radius:0 6px 6px 0; font-size:.83rem; color:#6b21a8; }
+
+    .divider { height:1px; background:#f1f5f9; margin:4px 0; }
+
+    /* ── Summary ─────────────────────────────────── */
+    .summary {
+      background: #0f172a; color: #e2e8f0;
+      border-radius: 12px; padding: 28px 24px; margin-top: 28px;
+    }
+    .summary h2 { color: #f1f5f9; font-size: 1.05rem; margin-bottom: 18px; }
+    .sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 600px) { .sum-grid { grid-template-columns: 1fr; } }
+    .sum-col h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing:.06em; margin-bottom: 8px; }
+    .sum-ok h3  { color: #86efac; }
+    .sum-sec h3 { color: #fca5a5; }
+    .sum-list { list-style: none; }
+    .sum-list li {
+      font-size: 0.78rem; padding: 4px 0;
+      border-bottom: 1px solid #1e293b;
+      display: flex; align-items: flex-start; gap: 6px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      line-height: 1.4;
+    }
+    .sum-list li::before { content: '→'; color: #475569; flex-shrink: 0; }
+
+    code { background: #e2e8f0; padding: 1px 5px; border-radius: 3px; font-size: .85em; font-family: 'SF Mono', 'Fira Code', monospace; }
+    a { color: #4f46e5; }
+
+    @media print {
+      .save-banner, .sticky-bar { display: none; }
+      body { background: white; }
+      .section { box-shadow: none; border: 1px solid #e2e8f0; }
+    }
+
+    /* ── AI Prompt Box ──────────────────────────── */
+    .ai-prompt-box {
+      border: 2px solid #4f46e5;
+      border-radius: 12px;
+      margin-bottom: 28px;
+      background: #eef2ff;
+      overflow: hidden;
+    }
+    .ai-prompt-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      background: #4f46e5;
+      cursor: pointer;
+      user-select: none;
+    }
+    .ai-prompt-icon { font-size: 1.6rem; flex-shrink: 0; }
+    .ai-prompt-title { font-size: 1rem; font-weight: 700; color: white; margin: 0; }
+    .ai-prompt-sub { font-size: .78rem; color: #c7d2fe; margin: 3px 0 0; }
+    .ai-prompt-toggle {
+      margin-left: auto;
+      background: rgba(255,255,255,.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,.4);
+      border-radius: 6px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: .82rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ai-prompt-body { padding: 18px 20px 20px; }
+    .ai-prompt-instructions {
+      background: #e0e7ff;
+      border: 1px solid #a5b4fc;
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: .82rem;
+      color: #3730a3;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .ai-prompt-text {
+      width: 100%;
+      height: 420px;
+      font-family: 'SF Mono','Fira Code',monospace;
+      font-size: .72rem;
+      line-height: 1.55;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 14px;
+      resize: vertical;
+      background: #1e1b4b;
+      color: #c7d2fe;
+      white-space: pre;
+    }
+    .ai-prompt-text.msg { height: 560px; background: #0f172a; color: #94a3b8; }
+    .ai-prompt-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .btn-copy-prompt {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: .82rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-copy-prompt:hover { background: #4338ca; }
+    .copy-confirm { color: #059669; font-size: .82rem; font-weight: 600; }
+
+    /* ── Send-to-Ben section ───────────────────── */
+    .send-section {
+      border: 2px solid #dc2626;
+      border-radius: 12px;
+      margin-bottom: 28px;
+      background: #fff5f5;
+      overflow: hidden;
+    }
+    .send-section-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #991b1b, #dc2626);
+    }
+    .send-section-head h2 { font-size: 1rem; font-weight: 700; color: white; margin: 0; }
+    .send-section-head p { font-size: .78rem; color: #fecaca; margin: 3px 0 0; }
+    .send-section-body { padding: 18px 20px 20px; }
+    .send-warning {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: .82rem;
+      color: #991b1b;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ HEADER ══════════════════════════════════════════════ -->
+<div class="header">
+  <h1>Lengua — Project Setup Checklist</h1>
+  <p class="sub">Complete these steps before Ben Artzi starts implementing. Color = who does it.</p>
+  <div class="legend">
+    <div class="legend-card legend-kotlar">
+      <div class="who"><span>Kotlar</span> Project Owner</div>
+      <p>Blue items are yours: create accounts, invite Ben Artzi, fill in values, send secrets.</p>
+    </div>
+    <div class="legend-card legend-ben">
+      <div class="who"><span>Ben Artzi</span> Developer (Ben Artzi — GitHub: BenArtzi4)</div>
+      <p>Green items are yours: accept invites, set up local environment, verify access.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STICKY PROGRESS ══════════════════════════════════════ -->
+<div class="sticky-bar">
+  <div class="prog-item">
+    <div class="prog-bar"><div class="prog-fill prog-fill-kotlar" id="kotlarFill"></div></div>
+    <span class="prog-label" id="kotlarLabel" style="color:#1d4ed8;">Kotlar: 0 / 0</span>
+  </div>
+  <div class="prog-item">
+    <div class="prog-bar"><div class="prog-fill prog-fill-ben" id="benFill"></div></div>
+    <span class="prog-label" id="benLabel" style="color:#059669;">Ben Artzi: 0 / 0</span>
+  </div>
+  <div class="prog-item">
+    <span class="prog-label" id="totalLabel" style="color:#64748b;">Total: 0 / 0</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ═══ SAVE BANNER ════════════════════════════════════════════ -->
+<div class="save-banner">
+  <p>
+    <strong>Kotlar:</strong> fill in values below as you create each service. When done,
+    click <em>Save &amp; Download</em> — this bakes the values into the file.
+    Replace <code>planning/owner-setup-checklist.html</code> in the repo with the download and commit.
+    Ben Artzi will pull and open it to see all the URLs and public keys.
+  </p>
+  <button class="btn-save" onclick="saveHTML()">⬇ Save &amp; Download</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- KOTLAR'S CLAUDE CODE PROMPT                             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="ai-prompt-box">
+  <div class="ai-prompt-header" onclick="togglePrompt()">
+    <div class="ai-prompt-icon">🤖</div>
+    <div>
+      <h2 class="ai-prompt-title">Kotlar — Paste This Entire Prompt Into Your Claude Code to Set Everything Up</h2>
+      <p class="ai-prompt-sub">Claude Code will run CLI commands automatically and guide you through browser steps one by one</p>
+    </div>
+    <button class="ai-prompt-toggle" id="promptToggle">▼ Show Prompt</button>
+  </div>
+  <div class="ai-prompt-body" id="promptBody" style="display:none">
+    <div class="ai-prompt-instructions">
+      <strong>How to use:</strong> Open Claude Code in your terminal inside the <code>lengua</code> repo directory.
+      Copy the entire prompt below and paste it as your first message. Claude Code will run <code>gh</code>, <code>gcloud</code>,
+      <code>vercel</code>, <code>supabase</code> CLIs automatically, and will give you numbered browser steps for anything
+      it can't do via CLI. When it asks for a value (e.g. a key you just copied), type <code>! echo "[paste value here]"</code>
+      and it will save the secret. At the end it will generate the credentials message for Ben Artzi.
+    </div>
+    <div class="ai-prompt-actions">
+      <button class="btn-copy-prompt" onclick="copyPrompt()">📋 Copy Prompt</button>
+      <span class="copy-confirm" id="copyConfirm" style="display:none">✓ Copied!</span>
+    </div>
+    <textarea class="ai-prompt-text" id="promptText" readonly>You are helping Kotlar (GitHub: lior-kotlar, project owner) set up the Lengua project so his developer Ben Artzi (GitHub: BenArtzi4, email: benartzi4@gmail.com) can start implementing.
+
+Ben Artzi has already:
+- Cloned the repo to his machine at C:\Users\yulin\repos\lengua
+- Installed all required tools: Node v24.15.0, Python 3.11, Docker v29.4.3, gh v2.92.0, Supabase CLI v2.98.1, gcloud v573.0.0, Vercel CLI v54.6.1
+- Verified write access to lior-kotlar/lengua on GitHub
+
+YOUR MISSION: Work through each step IN ORDER. Use CLI tools for everything you can. For browser-only steps, give Kotlar clear numbered instructions. At the end, generate the full credentials message for Kotlar to send to Ben Artzi.
+
+══════════════════════════════════════════════════════════
+STEP 1 — GITHUB (do now via gh CLI)
+══════════════════════════════════════════════════════════
+
+Check that Kotlar is logged in as the repo owner:
+  gh auth status
+
+If not logged in: tell Kotlar to run:  ! gh auth login
+(choose GitHub.com + HTTPS, then paste the one-time code shown in the browser)
+
+Enable branch protection on main (requires Kotlar to be the owner):
+  gh api repos/lior-kotlar/lengua/branches/main/protection -X PUT \
+    -F "required_status_checks[strict]=true" \
+    -F "enforce_admins=true" \
+    -F "required_pull_request_reviews[required_approving_review_count]=1" \
+    -F "restrictions=null"
+
+Enable Dependabot security alerts:
+  gh api repos/lior-kotlar/lengua/vulnerability-alerts -X PUT
+
+Enable automated security fixes:
+  gh api repos/lior-kotlar/lengua/automated-security-fixes -X PUT
+
+══════════════════════════════════════════════════════════
+STEP 2 — SUPABASE (guide Kotlar through browser)
+══════════════════════════════════════════════════════════
+
+Tell Kotlar to do the following — wait at each step for him to confirm before continuing:
+
+1. Go to supabase.com and sign in (create account if needed)
+2. Create Project #1 (staging):
+   - New Project → name: lengua-staging, region: EU (Frankfurt or West), generate a strong DB password and SAVE IT
+   - Wait a few minutes for it to finish provisioning
+3. Once ready, go to: Settings → API
+   - Copy: Project URL (looks like https://xxxx.supabase.co)
+   - Copy: anon/public key (long JWT)
+   - Copy: service_role key (another long JWT — KEEP PRIVATE)
+   - The project REF is the subdomain in the URL (e.g. xxxx)
+4. Go to: Settings → Configuration → Database
+   - Under "Connection string" choose "URI" with "Transaction" mode (port 6543)
+   - Copy the full URI (replace [YOUR-PASSWORD] with the DB password from step 2)
+5. Go to: Settings → API → JWT Settings
+   - Copy: JWT Secret
+6. Repeat steps 2-5 for Project #2 (name: lengua-prod)
+7. Go to: Account → Access Tokens
+   - Create token named "github-ci", copy it immediately (shown only once)
+8. Invite Ben Artzi to your Supabase organization:
+   - Your organization settings → Members → Invite → benartzi4@gmail.com → role: Developer
+
+As Kotlar provides each value, set it as a GitHub secret using gh CLI:
+  gh secret set SUPABASE_STAGING_URL --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_STAGING_ANON_KEY --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_STAGING_SERVICE_ROLE_KEY --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_STAGING_JWT_SECRET --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_STAGING_DATABASE_URL --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_STAGING_PROJECT_REF --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_PROD_URL --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_PROD_ANON_KEY --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_PROD_SERVICE_ROLE_KEY --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_PROD_JWT_SECRET --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_PROD_DATABASE_URL --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_PROD_PROJECT_REF --body "[value]" -R lior-kotlar/lengua
+  gh secret set SUPABASE_ACCESS_TOKEN --body "[value]" -R lior-kotlar/lengua
+
+══════════════════════════════════════════════════════════
+STEP 3 — GOOGLE CLOUD (mostly CLI after auth)
+══════════════════════════════════════════════════════════
+
+Ask Kotlar to authenticate — tell him to run:
+  ! gcloud auth login
+(opens a browser — Kotlar logs in with his Google account, then returns to terminal)
+
+After login, run:
+  gcloud projects list
+  # If no "Lengua" project exists, create one:
+  gcloud projects create --name="Lengua"
+  # Note the PROJECT_ID from the output (e.g. lengua-123456)
+  gcloud config set project [PROJECT_ID]
+
+Enable required APIs:
+  gcloud services enable run.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com cloudbuild.googleapis.com iam.googleapis.com
+
+IMPORTANT: Billing must be enabled for Cloud Run (free tier is still free, but needs billing account linked).
+Tell Kotlar to:
+  1. Go to console.cloud.google.com → Billing → Link a billing account
+  2. Create a billing account (credit card required but won't be charged within free limits)
+  3. Tell you when done
+
+After billing is enabled:
+  # Add Ben Artzi as editor on the project
+  gcloud projects add-iam-policy-binding [PROJECT_ID] --member="user:benartzi4@gmail.com" --role="roles/editor"
+
+  # Create Artifact Registry
+  gcloud artifacts repositories create lengua --repository-format=docker --location=europe-west1 --description="Lengua Docker images"
+
+  # Create CI service account
+  gcloud iam service-accounts create github-ci --display-name="GitHub CI/CD" --project=[PROJECT_ID]
+  SA="github-ci@[PROJECT_ID].iam.gserviceaccount.com"
+
+  # Grant CI roles
+  for ROLE in roles/run.admin roles/artifactregistry.writer roles/secretmanager.admin roles/iam.serviceAccountUser roles/storage.admin; do
+    gcloud projects add-iam-policy-binding [PROJECT_ID] --member="serviceAccount:$SA" --role="$ROLE"
+  done
+
+  # Download the service account key (KEEP PRIVATE)
+  gcloud iam service-accounts keys create ~/github-ci-key.json --iam-account="$SA"
+  echo "Key saved — do NOT commit ~/github-ci-key.json"
+
+  # Read the key to set as a GitHub secret
+  gh secret set GCP_SA_JSON --body "$(cat ~/github-ci-key.json)" -R lior-kotlar/lengua
+  gh secret set GCP_PROJECT_ID --body "[PROJECT_ID]" -R lior-kotlar/lengua
+
+══════════════════════════════════════════════════════════
+STEP 4 — GOOGLE OAUTH (browser only)
+══════════════════════════════════════════════════════════
+
+Tell Kotlar:
+1. Go to console.cloud.google.com → APIs &amp; Services → Credentials
+2. First configure OAuth consent screen (if not done):
+   - User Type: External
+   - App name: Lengua, support email: Kotlar's email
+   - Scopes: add email, profile, openid
+   - Test users: add benartzi4@gmail.com
+3. Create Credentials → OAuth 2.0 Client ID:
+   - Application type: Web application, Name: Lengua Web
+   - Authorized redirect URIs — add BOTH:
+     https://[STAGING_REF].supabase.co/auth/v1/callback
+     https://[PROD_REF].supabase.co/auth/v1/callback
+4. Click Create → copy Client ID and Client Secret
+5. Also configure this in both Supabase projects:
+   Authentication → Providers → Google → enable → paste Client ID + Secret
+
+  gh secret set GOOGLE_OAUTH_CLIENT_ID --body "[value]" -R lior-kotlar/lengua
+  gh secret set GOOGLE_OAUTH_CLIENT_SECRET --body "[value]" -R lior-kotlar/lengua
+
+══════════════════════════════════════════════════════════
+STEP 5 — VERCEL (CLI + browser for token/invite)
+══════════════════════════════════════════════════════════
+
+Check login: vercel whoami
+If not logged in, tell Kotlar: ! vercel login
+
+Link or create the Vercel project:
+  vercel link --yes 2>/dev/null || vercel --yes
+  vercel project ls | head -5
+
+Get IDs from the Vercel dashboard (vercel.com → project Settings → General):
+  - Project ID and Org/Team ID
+
+Tell Kotlar to:
+  1. Create a Vercel API token: vercel.com → Account Settings → Tokens → Create → name "github-ci"
+  2. Invite Ben Artzi: vercel.com → Project → Settings → Members → Invite → benartzi4@gmail.com → Member role
+
+  gh secret set VERCEL_TOKEN --body "[value]" -R lior-kotlar/lengua
+  gh secret set VERCEL_ORG_ID --body "[value]" -R lior-kotlar/lengua
+  gh secret set VERCEL_PROJECT_ID --body "[value]" -R lior-kotlar/lengua
+
+══════════════════════════════════════════════════════════
+STEP 6 — LLM API KEYS (browser only)
+══════════════════════════════════════════════════════════
+
+GROQ (default dev/staging — free, no credit card):
+Tell Kotlar:
+  1. Go to console.groq.com → sign in (create account if needed)
+  2. API Keys → Create API key → name it "lengua"
+  3. Copy the key immediately
+
+  gh secret set GROQ_API_KEY --body "[value]" -R lior-kotlar/lengua
+
+GEMINI (for prod / later):
+Tell Kotlar:
+  1. Go to aistudio.google.com → Get API key
+  2. Create API key → select the "Lengua" GCP project
+  3. Copy the key
+
+  gh secret set GEMINI_API_KEY --body "[value]" -R lior-kotlar/lengua
+
+══════════════════════════════════════════════════════════
+STEP 7 — EMAIL (RESEND) (browser only)
+══════════════════════════════════════════════════════════
+
+Tell Kotlar:
+  1. Go to resend.com → Create account
+  2. API Keys → Create API key → name "lengua-supabase" → permission: Full access
+  3. Copy the key
+  4. In each Supabase project (staging + prod):
+     Settings → Authentication → SMTP Settings → enable Custom SMTP:
+       Host: smtp.resend.com, Port: 587
+       Username: resend
+       Password: [RESEND_API_KEY]
+       Sender name: Lengua
+       Sender email: onboarding@resend.dev (or your own domain later)
+
+  gh secret set RESEND_API_KEY --body "[value]" -R lior-kotlar/lengua
+
+══════════════════════════════════════════════════════════
+STEP 8 — OBSERVABILITY (browser only)
+══════════════════════════════════════════════════════════
+
+GRAFANA CLOUD (free tier):
+Tell Kotlar:
+  1. Go to grafana.com → Start for free → Create account
+  2. Create a stack (any name, e.g. "lengua")
+  3. Stack → Connections → Add new connection → search "OpenTelemetry"
+  4. Follow wizard to get OTLP endpoint + Basic Auth header
+     (looks like: Authorization=Basic base64encodedkey)
+  5. Copy: OTEL_EXPORTER_OTLP_ENDPOINT and the full OTEL_EXPORTER_OTLP_HEADERS value
+
+  gh secret set OTEL_EXPORTER_OTLP_ENDPOINT --body "[value]" -R lior-kotlar/lengua
+  gh secret set OTEL_EXPORTER_OTLP_HEADERS --body "[value]" -R lior-kotlar/lengua
+
+SENTRY (free tier):
+Tell Kotlar:
+  1. Go to sentry.io → Create account
+  2. Create project: Platform=Python, name=lengua-api → copy DSN
+  3. Create project: Platform=JavaScript/React, name=lengua-web → copy DSN
+  4. Settings → Developer Settings → Internal Integration OR Settings → Auth Tokens
+     → Create token with scopes: project:write, org:read
+  5. Your Sentry org slug is in the URL: sentry.io/organizations/[SLUG]/
+
+  gh secret set SENTRY_AUTH_TOKEN --body "[value]" -R lior-kotlar/lengua
+  gh secret set SENTRY_DSN_API --body "[value]" -R lior-kotlar/lengua
+  gh secret set SENTRY_DSN_WEB --body "[value]" -R lior-kotlar/lengua
+
+══════════════════════════════════════════════════════════
+STEP 9 — FILL IN THE HTML CHECKLIST
+══════════════════════════════════════════════════════════
+
+Open planning/owner-setup-checklist.html in a browser.
+Fill in ALL the highlighted input fields with the values you collected:
+  - Supabase staging URL, anon key, project ref
+  - Supabase prod URL, anon key, project ref
+  - GCP Project ID
+  - Cloud Run staging + prod URLs (fill these after first deploy)
+  - Google OAuth Client ID
+  - Vercel project name + URL + org/project IDs
+  - Grafana stack URL
+  - Sentry org slug
+  - Sender email + name
+
+Click "Save &amp; Download" at the top, then:
+  git add planning/owner-setup-checklist.html
+  git commit -m "chore: fill in setup checklist with all service values"
+  git push
+
+══════════════════════════════════════════════════════════
+STEP 10 — VERIFY ALL SECRETS ARE SET
+══════════════════════════════════════════════════════════
+
+  gh secret list -R lior-kotlar/lengua
+
+You should see all of:
+GCP_PROJECT_ID, GCP_SA_JSON, SUPABASE_STAGING_URL, SUPABASE_STAGING_ANON_KEY,
+SUPABASE_STAGING_SERVICE_ROLE_KEY, SUPABASE_STAGING_JWT_SECRET,
+SUPABASE_STAGING_DATABASE_URL, SUPABASE_STAGING_PROJECT_REF,
+SUPABASE_PROD_URL, SUPABASE_PROD_ANON_KEY, SUPABASE_PROD_SERVICE_ROLE_KEY,
+SUPABASE_PROD_JWT_SECRET, SUPABASE_PROD_DATABASE_URL, SUPABASE_PROD_PROJECT_REF,
+SUPABASE_ACCESS_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID,
+GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET,
+GROQ_API_KEY, GEMINI_API_KEY,
+OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS,
+SENTRY_AUTH_TOKEN, SENTRY_DSN_API, SENTRY_DSN_WEB, RESEND_API_KEY
+
+══════════════════════════════════════════════════════════
+STEP 11 — GENERATE MESSAGE FOR BEN ARTZI
+══════════════════════════════════════════════════════════
+
+Fill in and send this via WhatsApp/Signal/iMessage to Ben Artzi (benartzi4@gmail.com).
+DO NOT post on GitHub or commit this message.
+
+Find the "Send Credentials to Ben Artzi" section at the bottom of the checklist HTML.
+Copy the template, fill in every value, and send it.
+
+All done! Tell Kotlar: "Setup complete! Commit the HTML and send the credentials to Ben Artzi."</textarea>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 0 · FIRST EXCHANGE — Before anything else                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">0</div>
+    <div class="section-title">Before You Start — Exchange Basic Info</div>
+  </div>
+  <div class="section-body">
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text">✓ Done — sent GitHub username (BenArtzi4) to Kotlar
+          <div class="item-detail">Message Kotlar your exact GitHub handle so he can add you to everything.</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Ben Artzi's details — pre-filled from gh CLI (confirmed)</div>
+      <div class="fill-row">
+        <div class="fill-label">Ben Artzi's GitHub Username</div>
+        <div class="fill-hint">Confirmed via gh CLI — use this to add Ben Artzi to all services</div>
+        <input class="fill-input" data-key="ben_github" placeholder="BenArtzi4" value="BenArtzi4">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Ben Artzi's Email (for all service invites)</div>
+        <input class="fill-input" data-key="ben_email" placeholder="benartzi4@gmail.com" value="benartzi4@gmail.com">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text">✓ Already done — Ben Artzi's GitHub username (BenArtzi4) and email (benartzi4@gmail.com) confirmed via gh CLI</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 1 · PREREQUISITES                                        -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">1</div>
+    <div class="section-title">Prerequisites — Install Tools (Both of You)</div>
+  </div>
+  <div class="section-body">
+    <div class="info">Each person needs these on their own machine. Install once.</div>
+
+    <strong style="font-size:.8rem;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em">Kotlar — on your machine</strong>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Docker Desktop</strong>
+          <div class="item-detail">docker.com/products/docker-desktop · needed for Supabase CLI local stack</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Node.js 20+</strong> · <code>node --version</code> to confirm</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Python 3.12+</strong> · <code>python --version</code> to confirm</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Git + GitHub CLI</strong> · <code>gh --version</code> to confirm</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Supabase CLI</strong>
+          <div class="item-detail"><code>npm install -g supabase</code>  OR  <code>brew install supabase/tap/supabase</code></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Google Cloud CLI (gcloud)</strong>
+          <div class="item-detail">cloud.google.com/sdk/docs/install</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Vercel CLI</strong> · <code>npm install -g vercel</code></span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="divider"></div>
+    <strong style="font-size:.8rem;color:#059669;text-transform:uppercase;letter-spacing:.05em">Ben Artzi — on your machine</strong>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>Docker Desktop</strong> · v29.4.3 ✓</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>Node.js 20+</strong> · v24.15.0 ✓</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>Python 3.11</strong> (3.12 recommended, 3.11 works) · all requirements satisfied ✓</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>Git + GitHub CLI</strong> · git 2.45.2, gh 2.92.0 ✓</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>Supabase CLI</strong> · v2.98.1 ✓</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>Google Cloud CLI</strong> · v573.0.0 installed ✓ (run <code>! gcloud auth login</code> after Kotlar sets up the GCP project)</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>Vercel CLI</strong> · v54.6.1 ✓</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 2 · GITHUB                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">2</div>
+    <div class="section-title">GitHub — Repository &amp; Access</div>
+  </div>
+  <div class="section-body">
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>✓ Already done — repository is live at https://github.com/lior-kotlar/lengua</strong>
+          <div class="item-detail">Verified via gh CLI — last push 2026-06-21.</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">GitHub — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">GitHub Repository URL</div>
+        <input class="fill-input" data-key="github_repo_url" placeholder="https://github.com/lior-kotlar/lengua" value="https://github.com/lior-kotlar/lengua">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>✓ Already done — Ben Artzi (BenArtzi4) has Write access</strong>
+          <div class="item-detail">Confirmed via gh CLI. Optional: upgrade to <strong>Maintain</strong> role for PR merge rights:<br>
+          Settings → Collaborators → change Ben Artzi's role from Write → Maintain</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Enable branch protection on <code>main</code></strong> — not yet set up
+          <div class="item-detail">Requires repo Owner/Admin rights (only Kotlar can do this).<br>
+          Settings → Branches → Add branch protection rule → Branch name pattern: <code>main</code><br>
+          ✓ Require a pull request before merging (1 reviewer)<br>
+          ✓ Require status checks to pass before merging (add check names once CI exists)</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Enable Dependabot security alerts &amp; updates</strong> — not yet set up
+          <div class="item-detail">Requires repo Owner rights (only Kotlar can enable this).<br>
+          Settings → Security → Code security and analysis → Enable both Dependabot alerts and Dependabot security updates</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>✓ Already done — Ben Artzi is a collaborator with Write access on lior-kotlar/lengua</strong>
+          <div class="item-detail">Confirmed via gh CLI: BenArtzi4 has push, pull, triage permissions.</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>✓ Already done — repo is cloned locally at C:\Users\yulin\repos\lengua</strong>
+          <div class="item-detail"><code>git fetch --all</code> to make sure all branches are visible</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+        <span class="item-text"><strong>✓ Done — all Python dependencies installed, all core imports verified</strong>
+          <div class="item-detail">All packages from requirements.txt already satisfied. Imports verified: streamlit, lengua.db, lengua.flashcards, lengua.scheduler, lengua.proficiency, lengua.prompts, lengua.models ✓<br>
+          Run <code>python -m streamlit run app.py</code> once you have a <code>.env</code> with an API key to test generation.</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 3 · SUPABASE                                             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">3</div>
+    <div class="section-title">Supabase — Database, Auth &amp; Row-Level Security</div>
+  </div>
+  <div class="section-body">
+    <div class="tip">We need 2 hosted Supabase projects (staging + prod). Local dev uses the Supabase CLI (Docker) and doesn't consume a slot.</div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Supabase account</strong> at supabase.com</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <!-- STAGING -->
+    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Staging Project</strong>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create project <code>lengua-staging</code></strong>
+          <div class="item-detail">Dashboard → New Project · Name: <code>lengua-staging</code><br>
+          Region: <strong>eu-central-1 (Frankfurt)</strong> or another EU region<br>
+          Save the database password somewhere safe (you'll need it for the DB URL)</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Staging — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">Staging Project URL</div>
+        <div class="fill-hint">Settings → API → Project URL</div>
+        <input class="fill-input" data-key="supabase_staging_url" placeholder="https://xxxxxxxxxxxx.supabase.co" value="">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Staging Anon Key (public — safe to expose)</div>
+        <div class="fill-hint">Settings → API → Project API keys → anon public</div>
+        <input class="fill-input" data-key="supabase_staging_anon" placeholder="eyJhbGci..." value="">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Staging Project Ref (short ID)</div>
+        <div class="fill-hint">The 12-char ID from your project URL, e.g. abcdefghijkl</div>
+        <input class="fill-input" data-key="supabase_staging_ref" placeholder="abcdefghijkl" value="">
+      </div>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Staging secrets — send to Ben Artzi SECURELY, never commit</div>
+      <div class="secure-row">
+        <span class="secure-var">SUPABASE_STAGING_SERVICE_ROLE_KEY<br><span style="color:#b45309;font-size:.73rem">Settings → API → service_role (secret)</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+      <div class="secure-row">
+        <span class="secure-var">SUPABASE_STAGING_JWT_SECRET<br><span style="color:#b45309;font-size:.73rem">Settings → API → JWT Settings → JWT Secret</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+      <div class="secure-row">
+        <span class="secure-var">SUPABASE_STAGING_DATABASE_URL<br><span style="color:#b45309;font-size:.73rem">Settings → Database → Connection string → URI (use Transaction mode)</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+      <div class="secure-row">
+        <span class="secure-var">SUPABASE_STAGING_DB_PASSWORD<br><span style="color:#b45309;font-size:.73rem">(the password you set when creating the project)</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+    </div>
+
+    <!-- PROD -->
+    <div class="divider"></div>
+    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Prod Project</strong>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create project <code>lengua-prod</code></strong>
+          <div class="item-detail">Same region as staging. Save DB password.</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Prod — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">Prod Project URL</div>
+        <input class="fill-input" data-key="supabase_prod_url" placeholder="https://xxxxxxxxxxxx.supabase.co" value="">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Prod Anon Key (public)</div>
+        <input class="fill-input" data-key="supabase_prod_anon" placeholder="eyJhbGci..." value="">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Prod Project Ref</div>
+        <input class="fill-input" data-key="supabase_prod_ref" placeholder="abcdefghijkl" value="">
+      </div>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Prod secrets — send to Ben Artzi SECURELY, never commit</div>
+      <div class="secure-row"><span class="secure-var">SUPABASE_PROD_SERVICE_ROLE_KEY</span><span class="secure-badge">SEND SECURELY</span></div>
+      <div class="secure-row"><span class="secure-var">SUPABASE_PROD_JWT_SECRET</span><span class="secure-badge">SEND SECURELY</span></div>
+      <div class="secure-row"><span class="secure-var">SUPABASE_PROD_DATABASE_URL</span><span class="secure-badge">SEND SECURELY</span></div>
+      <div class="secure-row"><span class="secure-var">SUPABASE_PROD_DB_PASSWORD</span><span class="secure-badge">SEND SECURELY</span></div>
+    </div>
+
+    <!-- INVITES & SETTINGS -->
+    <div class="divider"></div>
+    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Both Projects — Invite &amp; Configure</strong>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Invite Ben Artzi to both Supabase projects</strong>
+          <div class="item-detail">In <em>each</em> project: Settings → Team → Invite → <code>benartzi4@gmail.com</code> → Role: <strong>Owner</strong></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Supabase Personal Access Token</strong> for CI/CD
+          <div class="item-detail">Account (top-right avatar) → Access Tokens → Generate new token · name: <code>github-ci</code></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Supabase account-level — send to Ben Artzi SECURELY</div>
+      <div class="secure-row"><span class="secure-var">SUPABASE_ACCESS_TOKEN (Personal Access Token)</span><span class="secure-badge">SEND SECURELY</span></div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Configure SMTP in both projects</strong> (do after Section 9 — Resend)
+          <div class="item-detail">Authentication → SMTP Settings → Enable custom SMTP in both staging and prod</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Enable Google OAuth in both projects</strong> (do after Section 5 — Google OAuth)
+          <div class="item-detail">Authentication → Providers → Google → Enable → paste Client ID &amp; Secret</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="divider"></div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Accept Supabase invite for <code>lengua-staging</code></strong>
+          <div class="item-detail">Check benartzi4@gmail.com for an invitation email from Supabase</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Accept Supabase invite for <code>lengua-prod</code></strong></span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Confirm you can open both project dashboards</strong> at supabase.com</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 4 · GOOGLE CLOUD — CLOUD RUN                             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">4</div>
+    <div class="section-title">Google Cloud — Cloud Run (FastAPI Backend)</div>
+  </div>
+  <div class="section-body">
+    <div class="warn">Billing must be enabled (a card is required) but Cloud Run has 2M free requests/month — you won't pay at our scale. You can set billing alerts at $1 for peace of mind.</div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Sign in to Google Cloud Console</strong>
+          <div class="item-detail">console.cloud.google.com — use your Google account</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a new project named <code>lengua</code></strong>
+          <div class="item-detail">Top navigation bar → project dropdown → New Project</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">GCP Project — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">GCP Project ID</div>
+        <div class="fill-hint">Shown on the project creation screen, e.g. <code>lengua-123456</code></div>
+        <input class="fill-input" data-key="gcp_project_id" placeholder="lengua-123456" value="">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">GCP Region for Cloud Run</div>
+        <div class="fill-hint">Recommend europe-west1 (Belgium) for EU users</div>
+        <input class="fill-input" data-key="gcp_region" placeholder="europe-west1" value="europe-west1">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Enable billing on the project</strong>
+          <div class="item-detail">Billing → Link a billing account (or create one) · Optional: set a budget alert at $1</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Enable all required APIs</strong> (search each in "APIs &amp; Services → Enable APIs")</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="sub-list">
+      <div class="item" data-owner="kotlar"><label><input type="checkbox" class="cb"><span class="cb-box"></span><span class="item-text">Cloud Run API</span></label><span class="badge badge-kotlar">Kotlar</span></div>
+      <div class="item" data-owner="kotlar"><label><input type="checkbox" class="cb"><span class="cb-box"></span><span class="item-text">Artifact Registry API</span></label><span class="badge badge-kotlar">Kotlar</span></div>
+      <div class="item" data-owner="kotlar"><label><input type="checkbox" class="cb"><span class="cb-box"></span><span class="item-text">Secret Manager API</span></label><span class="badge badge-kotlar">Kotlar</span></div>
+      <div class="item" data-owner="kotlar"><label><input type="checkbox" class="cb"><span class="cb-box"></span><span class="item-text">Cloud Build API</span></label><span class="badge badge-kotlar">Kotlar</span></div>
+      <div class="item" data-owner="kotlar"><label><input type="checkbox" class="cb"><span class="cb-box"></span><span class="item-text">IAM Service Account Credentials API</span></label><span class="badge badge-kotlar">Kotlar</span></div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create Artifact Registry Docker repository</strong>
+          <div class="item-detail">Artifact Registry → Create Repository · Name: <code>lengua</code> · Format: Docker · Region: your GCP region</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Grant Ben Artzi editor access to the GCP project</strong>
+          <div class="item-detail">IAM &amp; Admin → IAM → Grant Access → New principal: <code>benartzi4@gmail.com</code> (Ben Artzi)<br>
+          Role: <strong>Basic → Editor</strong>  (or specifically: Cloud Run Admin + Artifact Registry Admin + Secret Manager Admin)</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create the <code>github-ci</code> service account for CI/CD</strong>
+          <div class="item-detail">
+            IAM &amp; Admin → Service Accounts → Create Service Account<br>
+            Name: <code>github-ci</code> · Description: GitHub Actions CI/CD<br>
+            Grant these roles to it:<br>
+            &nbsp;• Cloud Run Admin<br>
+            &nbsp;• Artifact Registry Administrator<br>
+            &nbsp;• Secret Manager Secret Accessor<br>
+            &nbsp;• Service Account User<br>
+            Then: Keys tab → Add Key → Create new key → JSON → Download the file
+          </div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Cloud Run service URLs — fill in after first deployment (later)</div>
+      <div class="fill-row">
+        <div class="fill-label">Cloud Run Staging API URL</div>
+        <div class="fill-hint">Available after Ben Artzi deploys — e.g. https://lengua-api-staging-xxxx-ew.a.run.app</div>
+        <input class="fill-input" data-key="cloud_run_staging_url" placeholder="https://lengua-api-staging-xxxx-ew.a.run.app" value="">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Cloud Run Prod API URL</div>
+        <input class="fill-input" data-key="cloud_run_prod_url" placeholder="https://lengua-api-prod-xxxx-ew.a.run.app" value="">
+      </div>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Google Cloud — send to Ben Artzi SECURELY</div>
+      <div class="secure-row">
+        <span class="secure-var">GCP_SA_JSON<br><span style="color:#b45309;font-size:.73rem">The full contents of the downloaded JSON key file for github-ci</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Accept the GCP IAM invite</strong>
+          <div class="item-detail">Google sends an email to benartzi4@gmail.com when Kotlar grants IAM access</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Verify GCP access from your terminal</strong>
+          <div class="item-detail"><code>gcloud auth login</code> then <code>gcloud projects list</code> — confirm you can see the lengua project</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 5 · GOOGLE OAUTH                                         -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">5</div>
+    <div class="section-title">Google OAuth — "Sign in with Google" for Users</div>
+  </div>
+  <div class="section-body">
+    <div class="info">Separate from GCP access. This lets app users sign into Lengua with their Google account via Supabase Auth.</div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Configure the OAuth consent screen</strong>
+          <div class="item-detail">In GCP Console: APIs &amp; Services → OAuth consent screen → External<br>
+          App name: Lengua · User support email: your email · Developer contact: your email → Save &amp; Continue through all steps</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create OAuth 2.0 Client ID</strong>
+          <div class="item-detail">APIs &amp; Services → Credentials → Create Credentials → OAuth client ID → Application type: <strong>Web application</strong><br>
+          Name: Lengua Auth<br>
+          Authorized redirect URIs — add both (replace refs with your actual Supabase project refs):<br>
+          &nbsp;<code>https://[staging-ref].supabase.co/auth/v1/callback</code><br>
+          &nbsp;<code>https://[prod-ref].supabase.co/auth/v1/callback</code></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Google OAuth Client ID — safe to commit (it's public)</div>
+      <div class="fill-row">
+        <div class="fill-label">Google OAuth Client ID</div>
+        <div class="fill-hint">Ends in .apps.googleusercontent.com — visible in client bundles, safe to share</div>
+        <input class="fill-input" data-key="google_oauth_client_id" placeholder="123456789-xxxx.apps.googleusercontent.com" value="">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Add the Client ID + Client Secret to both Supabase projects</strong>
+          <div class="item-detail">In each Supabase project: Authentication → Providers → Google → Enable → paste both values</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Google OAuth — send to Ben Artzi SECURELY</div>
+      <div class="secure-row"><span class="secure-var">GOOGLE_OAUTH_CLIENT_SECRET</span><span class="secure-badge">SEND SECURELY</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 6 · VERCEL                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">6</div>
+    <div class="section-title">Vercel — React Frontend Hosting</div>
+  </div>
+  <div class="section-body">
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Vercel account</strong> at vercel.com (use GitHub login for easy repo linking)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Import the GitHub repository as a Vercel project</strong>
+          <div class="item-detail">Vercel Dashboard → Add New… → Project → Import Git Repository → select the lengua repo<br>
+          Root Directory: <code>apps/web</code> (Ben Artzi will set this up; leave as default for now)<br>
+          Framework Preset: Vite</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Vercel — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">Vercel Project Name</div>
+        <input class="fill-input" data-key="vercel_project_name" placeholder="lengua" value="lengua">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Vercel Production URL</div>
+        <div class="fill-hint">e.g. lengua.vercel.app (shown in Vercel dashboard)</div>
+        <input class="fill-input" data-key="vercel_url" placeholder="lengua.vercel.app" value="">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Invite Ben Artzi to the Vercel project</strong>
+          <div class="item-detail">If on a personal account: Project Settings → Members (create a team first if needed)<br>
+          Invite <code>benartzi4@gmail.com</code> → Role: <strong>Owner</strong></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Vercel Access Token</strong> for GitHub Actions CI
+          <div class="item-detail">Vercel → Account Settings → Tokens → Create Token · Name: <code>github-ci</code> · Scope: Full Account</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Vercel — send to Ben Artzi SECURELY, do NOT commit</div>
+      <div class="secure-row"><span class="secure-var">VERCEL_TOKEN</span><span class="secure-badge">SEND SECURELY</span></div>
+      <div class="secure-row">
+        <span class="secure-var">VERCEL_ORG_ID<br><span style="color:#b45309;font-size:.73rem">Account Settings → General → Vercel ID (or Team ID if using a team)</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+      <div class="secure-row">
+        <span class="secure-var">VERCEL_PROJECT_ID<br><span style="color:#b45309;font-size:.73rem">Project → Settings → General → Project ID</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Accept the Vercel team invite</strong>
+          <div class="item-detail">Check benartzi4@gmail.com for an invitation email from Vercel</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Verify Vercel access from your terminal</strong>
+          <div class="item-detail"><code>vercel whoami</code> — should show your account linked to the lengua project</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 7 · LLM PROVIDERS                                        -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">7</div>
+    <div class="section-title">LLM Providers — Groq (now) + Gemini (prod)</div>
+  </div>
+  <div class="section-body">
+    <div class="tip">All development and staging runs on Groq (free tier). Gemini is switched in for production via one env var — no code changes. Set up both now.</div>
+
+    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Groq — do this now (default for all dev)</strong>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Groq account</strong> at console.groq.com (free, no card required)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Groq API key</strong>
+          <div class="item-detail">API Keys → Create API Key · name: <code>lengua-dev</code></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="secure-block">
+      <div class="secure-title">🔒 Groq — send to Ben Artzi SECURELY</div>
+      <div class="secure-row"><span class="secure-var">GROQ_API_KEY</span><span class="secure-badge">SEND SECURELY</span></div>
+    </div>
+
+    <div class="divider"></div>
+    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Gemini — can do now or later (production default)</strong>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Get a Gemini API key</strong> at aistudio.google.com
+          <div class="item-detail">Get API key → Create API key in new project → copy key</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="secure-block">
+      <div class="secure-title">🔒 Gemini — send to Ben Artzi SECURELY</div>
+      <div class="secure-row"><span class="secure-var">GEMINI_API_KEY</span><span class="secure-badge">SEND SECURELY</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 8 · EMAIL — RESEND                                       -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">8</div>
+    <div class="section-title">Transactional Email — Resend (for Supabase Auth emails)</div>
+  </div>
+  <div class="section-body">
+    <div class="info">Supabase's built-in sender is rate-limited (dev only). Resend's free tier (3K emails/month) handles signup/verification/reset emails reliably with good deliverability.</div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Resend account</strong> at resend.com (free, no card)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>(Recommended) Add a domain for sending</strong>
+          <div class="item-detail">Resend → Domains → Add Domain → add the DNS records shown (SPF + DKIM)<br>
+          If you don't have a domain, Resend's shared domain works for dev/testing</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Email — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">Sender Email Address</div>
+        <div class="fill-hint">e.g. noreply@yourdomain.com</div>
+        <input class="fill-input" data-key="sender_email" placeholder="noreply@yourdomain.com" value="">
+      </div>
+      <div class="fill-row">
+        <div class="fill-label">Sender Display Name</div>
+        <input class="fill-input" data-key="sender_name" placeholder="Lengua" value="Lengua">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Resend API key</strong>
+          <div class="item-detail">API Keys → Create API Key · name: <code>supabase-smtp</code> · Full access</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Configure SMTP in both Supabase projects</strong>
+          <div class="item-detail">
+            In each project: Authentication → SMTP Settings → Enable Custom SMTP<br>
+            Host: <code>smtp.resend.com</code> · Port: <code>465</code> · User: <code>resend</code><br>
+            Password: your Resend API key · Sender: your sender email · Name: Lengua
+          </div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Resend — send to Ben Artzi SECURELY</div>
+      <div class="secure-row"><span class="secure-var">RESEND_API_KEY</span><span class="secure-badge">SEND SECURELY</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 9 · OBSERVABILITY                                        -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">9</div>
+    <div class="section-title">Observability — Grafana Cloud + Sentry</div>
+  </div>
+  <div class="section-body">
+
+    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Grafana Cloud — traces, logs, metrics</strong>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Grafana Cloud account</strong> at grafana.com → Start for free</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a free stack</strong> — choose EU region · Stack name: <code>lengua</code></span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Grafana Cloud — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">Grafana Stack URL</div>
+        <div class="fill-hint">e.g. https://lengua.grafana.net</div>
+        <input class="fill-input" data-key="grafana_url" placeholder="https://lengua.grafana.net" value="">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Service Account + OTLP token</strong>
+          <div class="item-detail">Administration → Service accounts → Add service account · name: <code>lengua-otel</code><br>
+          Role: Editor (or MetricsPublisher + LogsPublisher + TracesPublisher)<br>
+          Add token → copy it. Also copy the OTLP endpoint from your stack's "Send data" page.</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Invite Ben Artzi to Grafana Cloud</strong>
+          <div class="item-detail">Administration → Users → Invite user → <code>benartzi4@gmail.com</code> → Role: Admin</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Grafana Cloud — send to Ben Artzi SECURELY</div>
+      <div class="secure-row">
+        <span class="secure-var">OTEL_EXPORTER_OTLP_ENDPOINT<br><span style="color:#b45309;font-size:.73rem">From stack "Send data" page, e.g. https://otlp-gateway-prod-eu-west-2.grafana.net/otlp</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+      <div class="secure-row">
+        <span class="secure-var">OTEL_EXPORTER_OTLP_HEADERS<br><span style="color:#b45309;font-size:.73rem">Format: Authorization=Basic base64(instanceId:token)</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <strong style="font-size:.8rem;color:#475569;text-transform:uppercase;letter-spacing:.05em">Sentry — error tracking</strong>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a Sentry account</strong> at sentry.io</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create project <code>lengua-api</code></strong>
+          <div class="item-detail">New Project → Python / FastAPI · name: <code>lengua-api</code></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create project <code>lengua-web</code></strong>
+          <div class="item-detail">New Project → React · name: <code>lengua-web</code></div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="fill-block">
+      <div class="fill-block-title">Sentry — safe to commit</div>
+      <div class="fill-row">
+        <div class="fill-label">Sentry Organization Slug</div>
+        <div class="fill-hint">From your Sentry URL: sentry.io/organizations/YOUR-SLUG</div>
+        <input class="fill-input" data-key="sentry_org" placeholder="your-org-slug" value="">
+      </div>
+    </div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Invite Ben Artzi to Sentry</strong>
+          <div class="item-detail">Settings → Members → Invite Members → <code>benartzi4@gmail.com</code> → Role: Admin</div>
+        </span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+
+    <div class="secure-block">
+      <div class="secure-title">🔒 Sentry — send to Ben Artzi SECURELY</div>
+      <div class="secure-row">
+        <span class="secure-var">SENTRY_AUTH_TOKEN<br><span style="color:#b45309;font-size:.73rem">Settings → Auth Tokens → Create New Token</span></span>
+        <span class="secure-badge">SEND SECURELY</span>
+      </div>
+      <div class="secure-row"><span class="secure-var">SENTRY_DSN_API (lengua-api project → Settings → Client Keys (DSN))</span><span class="secure-badge">SEND SECURELY</span></div>
+      <div class="secure-row"><span class="secure-var">SENTRY_DSN_WEB (lengua-web project → Settings → Client Keys (DSN))</span><span class="secure-badge">SEND SECURELY</span></div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Accept Grafana Cloud invite</strong></span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Accept Sentry invite</strong></span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 10 · GITHUB ACTIONS SECRETS                              -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">10</div>
+    <div class="section-title">GitHub Actions — Repository Secrets for CI/CD</div>
+  </div>
+  <div class="section-body">
+    <div class="info">Go to: Repo → Settings → Secrets and variables → Actions → New repository secret. Add each one below. These are used by the CI pipeline and never reach the built app.</div>
+
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>GCP_PROJECT_ID</code> → your GCP project ID (from Section 4)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>GCP_REGION</code> → your Cloud Run region (e.g. <code>europe-west1</code>)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>GCP_SA_JSON</code> → paste the full contents of the github-ci service account JSON file</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>VERCEL_TOKEN</code> → from Vercel account settings</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>VERCEL_ORG_ID</code> → from Vercel account/team settings</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>VERCEL_PROJECT_ID</code> → from Vercel project settings</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>SUPABASE_ACCESS_TOKEN</code> → personal access token from Supabase account</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>SUPABASE_PROJECT_ID_STAGING</code> → staging project ref (e.g. <code>abcdefghijkl</code>)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>SUPABASE_PROJECT_ID_PROD</code> → prod project ref</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>GROQ_API_KEY</code> → Groq API key</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>GEMINI_API_KEY</code> → Gemini API key (add when ready)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>SENTRY_AUTH_TOKEN</code> → Sentry auth token</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Add <code>SENTRY_ORG</code> → Sentry organization slug</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 11 · BEN ARTZI'S LOCAL DEV SETUP                         -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">11</div>
+    <div class="section-title">Ben's Local Dev Setup — After Receiving Secrets from Kotlar</div>
+  </div>
+  <div class="section-body">
+    <div class="tip">Ben Artzi does this section entirely. Do it after Kotlar has sent all secrets (Sections 3-9 secure items) via a private channel.</div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a <code>.env</code> file in the project root</strong> with all secrets from Kotlar
+          <div class="item-detail">This file is already in <code>.gitignore</code> — never commit it. Variables to add:<br>
+          <code>GROQ_API_KEY=...</code><br>
+          <code>GEMINI_API_KEY=...</code><br>
+          <code>SUPABASE_URL=...</code> (staging URL for local dev)<br>
+          <code>SUPABASE_ANON_KEY=...</code> (staging anon key)<br>
+          <code>SUPABASE_SERVICE_ROLE_KEY=...</code> (staging service role)<br>
+          <code>SUPABASE_JWT_SECRET=...</code> (staging JWT secret)<br>
+          <code>DATABASE_URL=...</code> (staging DB URL)<br>
+          <code>SENTRY_DSN=...</code> (API DSN)<br>
+          <code>OTEL_EXPORTER_OTLP_ENDPOINT=...</code><br>
+          <code>OTEL_EXPORTER_OTLP_HEADERS=...</code></div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Run the existing Streamlit app</strong> to confirm the base setup works
+          <div class="item-detail"><code>pip install -r requirements.txt</code> then <code>python -m streamlit run app.py</code></div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Set up the Supabase CLI local stack</strong>
+          <div class="item-detail">Start Docker Desktop first, then:<br>
+          <code>supabase start</code> (in the repo root — starts Postgres + Auth + Studio locally)<br>
+          <code>supabase status</code> — note the local URL and anon key (for local-only dev)</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Link Supabase CLI to the staging project</strong>
+          <div class="item-detail"><code>supabase link --project-ref [STAGING_REF]</code><br>
+          You'll be prompted for the DB password (Kotlar sent this)</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Verify GCP CLI access</strong>
+          <div class="item-detail"><code>gcloud auth login</code><br>
+          <code>gcloud config set project [GCP_PROJECT_ID]</code><br>
+          <code>gcloud run services list --region=[REGION]</code> — should work (empty list is fine)</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Create a test card with the existing app to confirm Gemini/Groq works</strong>
+          <div class="item-detail">Open the Streamlit app, add a language, generate a card. Confirms the API key is working.</div>
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>Pull this HTML file (after Kotlar commits it with values)</strong> and open it in a browser to see all the project URLs and public keys
+        </span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 12 · MOBILE — DEFERRED TO PHASE 7+                      -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">12</div>
+    <div class="section-title">Mobile App Stores — Deferred to Phase 7+</div>
+  </div>
+  <div class="section-body">
+    <div class="future">
+      <strong>Not needed now.</strong> Mobile setup (Apple Developer Program and Google Play Console) is deferred to Phase 7+.
+      Both have one-time or annual costs and are not required to ship the web app.
+      See <code>planning/08-open-questions-and-costs.md</code> → "Deferred to Phase 7+: Mobile costs" for the full checklist when the time comes.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 13 · FINAL VERIFICATION                                  -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">13</div>
+    <div class="section-title">Final Verification — Both Confirm Before Ben Artzi Starts Building</div>
+  </div>
+  <div class="section-body">
+    <div class="tip">Go through this together. All green means implementation can start.</div>
+
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben Artzi can clone and push to the GitHub repo</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben Artzi can log into supabase.com and see both projects (staging + prod)</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben Artzi can access the GCP Console and see the lengua project</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben Artzi can see the Vercel project dashboard</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben Artzi can access Grafana Cloud stack</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben Artzi can access both Sentry projects (lengua-api + lengua-web)</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben Artzi has all sensitive secrets in a local <code>.env</code> file (received from Kotlar)</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="ben">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">Ben's local Streamlit app runs successfully and can generate cards (confirms LLM key works)</span></label>
+      <span class="badge badge-ben">Ben Artzi</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">This HTML has been saved with all fill-in values and committed to GitHub</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="kotlar">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text">All GitHub Actions secrets are set (Repo → Settings → Secrets and variables → Actions)</span></label>
+      <span class="badge badge-kotlar">Kotlar</span>
+    </div>
+    <div class="item" data-owner="both">
+      <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+        <span class="item-text"><strong>All of the above is done — Ben Artzi can now start implementation! 🚀</strong></span></label>
+      <span class="badge badge-both">BOTH</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SEND CREDENTIALS TO BEN ARTZI                           -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="send-section">
+  <div class="send-section-head">
+    <div class="ai-prompt-icon">📨</div>
+    <div>
+      <h2>Kotlar — Send This to Ben Artzi via Secure Channel (WhatsApp / Signal / iMessage)</h2>
+      <p>Fill in every value below, click Copy, and send. NEVER commit this to GitHub.</p>
+    </div>
+  </div>
+  <div class="send-section-body">
+    <div class="send-warning">
+      ⚠️ These are PRIVATE secrets. Do NOT copy them into the fill-in fields above (those get committed to GitHub).
+      Send only via WhatsApp, Signal, or a private message — NOT email, Slack, or GitHub issues.
+    </div>
+    <div class="ai-prompt-actions">
+      <button class="btn-copy-prompt" onclick="copyMessage()">📋 Copy Message for Ben Artzi</button>
+      <span class="copy-confirm" id="msgConfirm" style="display:none">✓ Copied!</span>
+    </div>
+    <textarea class="ai-prompt-text msg" id="msgText" readonly>Hi Ben Artzi! Here are all the Lengua credentials. Keep these PRIVATE — never commit to GitHub.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPABASE STAGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPABASE_STAGING_SERVICE_ROLE_KEY=
+SUPABASE_STAGING_JWT_SECRET=
+SUPABASE_STAGING_DATABASE_URL=
+SUPABASE_STAGING_DB_PASSWORD=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPABASE PROD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPABASE_PROD_SERVICE_ROLE_KEY=
+SUPABASE_PROD_JWT_SECRET=
+SUPABASE_PROD_DATABASE_URL=
+SUPABASE_PROD_DB_PASSWORD=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPABASE ACCOUNT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUPABASE_ACCESS_TOKEN=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOOGLE CLOUD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GCP_SA_JSON=
+[paste full contents of github-ci-key.json here]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOOGLE OAUTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOOGLE_OAUTH_CLIENT_SECRET=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERCEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERCEL_TOKEN=
+VERCEL_ORG_ID=
+VERCEL_PROJECT_ID=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LLM PROVIDERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GROQ_API_KEY=
+GEMINI_API_KEY=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OBSERVABILITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OTEL_EXPORTER_OTLP_ENDPOINT=
+OTEL_EXPORTER_OTLP_HEADERS=
+SENTRY_AUTH_TOKEN=
+SENTRY_DSN_API=
+SENTRY_DSN_WEB=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESEND_API_KEY=
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PUBLIC URLS (also in the committed HTML — just for convenience)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Supabase staging URL:
+Supabase prod URL:
+GCP Project ID:
+Vercel project URL:
+
+Good luck! — Kotlar</textarea>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SUMMARY                                                  -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="summary">
+  <h2>Quick Reference — What Goes Where</h2>
+  <div class="sum-grid">
+    <div class="sum-col sum-ok">
+      <h3>✓ Committed in this HTML (public / safe)</h3>
+      <ul class="sum-list">
+        <li>GitHub repo URL</li>
+        <li>Supabase staging URL + anon key + ref</li>
+        <li>Supabase prod URL + anon key + ref</li>
+        <li>GCP Project ID + region</li>
+        <li>Cloud Run staging + prod URLs (after deploy)</li>
+        <li>Google OAuth Client ID</li>
+        <li>Vercel project name + URL</li>
+        <li>Grafana stack URL</li>
+        <li>Sentry org slug</li>
+        <li>Sender email + display name</li>
+      </ul>
+    </div>
+    <div class="sum-col sum-sec">
+      <h3>🔒 Send to Ben Artzi via secure channel (NOT GitHub)</h3>
+      <ul class="sum-list">
+        <li>Supabase staging: service role key, JWT secret, DB URL, DB password</li>
+        <li>Supabase prod: service role key, JWT secret, DB URL, DB password</li>
+        <li>SUPABASE_ACCESS_TOKEN</li>
+        <li>GCP_SA_JSON (service account key file)</li>
+        <li>GOOGLE_OAUTH_CLIENT_SECRET</li>
+        <li>VERCEL_TOKEN + VERCEL_ORG_ID + VERCEL_PROJECT_ID</li>
+        <li>GROQ_API_KEY</li>
+        <li>GEMINI_API_KEY</li>
+        <li>OTEL_EXPORTER_OTLP_ENDPOINT + HEADERS</li>
+        <li>SENTRY_AUTH_TOKEN + DSN_API + DSN_WEB</li>
+        <li>RESEND_API_KEY</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Save button bottom -->
+<div style="text-align:center;margin-top:28px;">
+  <button class="btn-save" onclick="saveHTML()" style="padding:12px 28px;font-size:1rem">⬇ Save &amp; Download Completed HTML</button>
+  <p style="color:#64748b;font-size:.8rem;margin-top:8px">Replace <code>planning/owner-setup-checklist.html</code> with this file, then commit.</p>
+</div>
+
+</div><!-- /.container -->
+
+<script>
+/* ── Progress ────────────────────────────────── */
+function updateProgress() {
+  var kotlarAll = 0, kotlarDone = 0, benAll = 0, benDone = 0, total = 0, done = 0;
+  document.querySelectorAll('.item[data-owner]').forEach(function(item) {
+    var cb = item.querySelector('input.cb');
+    if (!cb) return;
+    var owner = item.getAttribute('data-owner');
+    if (owner === 'kotlar') { kotlarAll++; if (cb.checked) kotlarDone++; }
+    else if (owner === 'ben') { benAll++; if (cb.checked) benDone++; }
+    else if (owner === 'both') { /* count in total only */ }
+    total++; if (cb.checked) done++;
+  });
+  var kp = kotlarAll ? Math.round(kotlarDone / kotlarAll * 100) : 0;
+  var bp = benAll ? Math.round(benDone / benAll * 100) : 0;
+  document.getElementById('kotlarFill').style.width = kp + '%';
+  document.getElementById('benFill').style.width = bp + '%';
+  document.getElementById('kotlarLabel').textContent = 'Kotlar: ' + kotlarDone + ' / ' + kotlarAll;
+  document.getElementById('benLabel').textContent = 'Ben Artzi: ' + benDone + ' / ' + benAll;
+  document.getElementById('totalLabel').textContent = 'Total: ' + done + ' / ' + total;
+}
+
+/* ── localStorage ────────────────────────────── */
+var KEY = 'lengua_setup_v3';
+function saveLS() {
+  var s = {};
+  document.querySelectorAll('input.cb').forEach(function(cb, i) { s['cb'+i] = cb.checked; });
+  document.querySelectorAll('input.fill-input').forEach(function(el) { if (el.dataset.key) s['f_'+el.dataset.key] = el.value; });
+  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e) {}
+}
+function loadLS() {
+  var raw; try { raw = localStorage.getItem(KEY); } catch(e) {}
+  if (!raw) return;
+  var s = JSON.parse(raw);
+  document.querySelectorAll('input.cb').forEach(function(cb, i) { if (s['cb'+i] !== undefined) cb.checked = s['cb'+i] || cb.defaultChecked; });
+  document.querySelectorAll('input.fill-input').forEach(function(el) {
+    var v = s['f_'+el.dataset.key];
+    if (v !== undefined && el.getAttribute('value') === '') el.value = v;
+  });
+}
+
+/* ── Save & Download ─────────────────────────── */
+function saveHTML() {
+  document.querySelectorAll('input.fill-input').forEach(function(el) { el.setAttribute('value', el.value); });
+  document.querySelectorAll('input.cb').forEach(function(cb) {
+    if (cb.checked) cb.setAttribute('checked', 'checked');
+    else cb.removeAttribute('checked');
+  });
+  var blob = new Blob(['<!DOCTYPE html>\n' + document.documentElement.outerHTML], { type: 'text/html' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'owner-setup-checklist.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ── AI Prompt Box ───────────────────────────── */
+function togglePrompt() {
+  var body = document.getElementById('promptBody');
+  var toggle = document.getElementById('promptToggle');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    toggle.textContent = '▲ Hide Prompt';
+  } else {
+    body.style.display = 'none';
+    toggle.textContent = '▼ Show Prompt';
+  }
+}
+function copyPrompt() {
+  var txt = document.getElementById('promptText');
+  txt.select();
+  document.execCommand('copy');
+  var conf = document.getElementById('copyConfirm');
+  conf.style.display = 'inline';
+  setTimeout(function() { conf.style.display = 'none'; }, 2500);
+}
+function copyMessage() {
+  var txt = document.getElementById('msgText');
+  txt.select();
+  document.execCommand('copy');
+  var conf = document.getElementById('msgConfirm');
+  conf.style.display = 'inline';
+  setTimeout(function() { conf.style.display = 'none'; }, 2500);
+}
+
+/* ── Wire ────────────────────────────────────── */
+document.querySelectorAll('input.cb').forEach(function(cb) {
+  cb.addEventListener('change', function() { updateProgress(); saveLS(); });
+});
+document.querySelectorAll('input.fill-input').forEach(function(el) {
+  el.addEventListener('input', saveLS);
+});
+loadLS();
+updateProgress();
+</script>
+</body>
+</html>
