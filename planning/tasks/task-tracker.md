@@ -112,19 +112,24 @@ These run *across* phases rather than as a single block — track them continuou
 A readiness validation on **2026-06-25** verified **~47 account/infra items done** (GitHub
 repo + 28 Actions secrets, both Supabase projects, GCP `lengua-prod` + Artifact Registry +
 `github-ci` SA, Vercel project, Groq/Gemini/Resend/Grafana/Sentry keys as CI secrets,
-Ben's local `.env`/gcloud/Docker). **6 owner (Kotlar) items remain outstanding:**
+Ben's local `.env`/gcloud/Docker). Owner (Kotlar) item status (updated 2026-06-25):
 
-1. Branch protection on `main`.
-2. Dependabot vulnerability alerts + automated security fixes.
-3. Two CI secrets (`GCP_REGION`, `SENTRY_ORG`).
-4. Vercel invite for Ben.
-5. Resend custom-SMTP delivery confirmed in both Supabase projects.
-6. Grafana Cloud + Sentry invites for Ben.
+1. Branch protection on `main` — **DEFERRED to launch** (non-blocking; would break the
+   autonomous self-merge flow if enabled now). See [owner-deferred-tasks.md](owner-deferred-tasks.md).
+2. Dependabot vulnerability alerts + automated security fixes — **DEFERRED to launch**
+   (non-blocking). See [owner-deferred-tasks.md](owner-deferred-tasks.md).
+3. Two CI secrets (`GCP_REGION`, `SENTRY_ORG`) — **still outstanding** (needed in Phase 5/6, not
+   Phase 0).
+4. Vercel access for Ben — **RESOLVED**: free-tier single manager seat; Ben is the account
+   holder/manager for `lengua`. Non-blocking.
+5. Resend custom-SMTP delivery confirmed in both Supabase projects — **still outstanding**
+   (needed for Phase 2 auth emails).
+6. Grafana Cloud + Sentry access for Ben — **DONE 2026-06-25** (Ben joined both).
 
-See [../owner-setup-checklist.html](../owner-setup-checklist.html). **None of these block
-writing code** — implementation can start on Phase 0 in parallel. **Paid store accounts**
-(Apple Developer $99/yr, Google Play $25 one-time) are **deferred to Phase 7** and are not
-part of Phase 0.
+So only items **3** (deploy/observability secrets) and **5** (auth email) remain truly open, and
+**1–2** are deferred-by-design to launch — see [owner-deferred-tasks.md](owner-deferred-tasks.md).
+**None of these block writing code.** **Paid store accounts** (Apple Developer $99/yr, Google
+Play $25 one-time) are **deferred to Phase 7** and are not part of Phase 0.
 
 ---
 
