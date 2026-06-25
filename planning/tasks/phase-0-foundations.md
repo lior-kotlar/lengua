@@ -14,12 +14,12 @@
 
 _Context: lift the repo into the `apps/ packages/ infra/` shape from ../01-architecture.md while keeping the legacy Streamlit app runnable so we can dogfood without regressions._
 
-- [ ] **0.1.1** Create the top-level monorepo skeleton (`apps/api/`, `apps/web/`, `packages/`, `infra/`, `docs/`) with `.gitkeep`/README stubs; add a root `README.md` section describing the layout.
+- [x] **0.1.1** Create the top-level monorepo skeleton (`apps/api/`, `apps/web/`, `packages/`, `infra/`, `docs/`) with `.gitkeep`/README stubs; add a root `README.md` section describing the layout.
       verify: `test -d apps/api && test -d apps/web && test -d packages && test -d infra && test -d docs` exits 0; root README lists all four dirs.
 - [ ] **0.1.2** Move the existing `lengua/*` package under `apps/api/lengua_core/` and `pages/`, `app.py` to a clearly-marked legacy location, fixing imports so the Streamlit app still launches.
       verify: `streamlit run app.py` (or the relocated entrypoint) starts without ImportError and serves the home page locally.
       depends: 0.1.1
-- [ ] **0.1.3** Add a root `.gitignore`, `.editorconfig`, and a root `README.md` "Repo layout & how to run each app" section covering api, web, legacy Streamlit.
+- [x] **0.1.3** Add a root `.gitignore`, `.editorconfig`, and a root `README.md` "Repo layout & how to run each app" section covering api, web, legacy Streamlit.
       verify: `git status` shows no stray build/venv/node_modules artifacts after a clean build; README renders the layout tree.
 - [ ] **0.1.4** Add a root `Makefile` (or `justfile`) with `make verify` that fans out to api + web verify targets, and document the one-command local gate in the README.
       verify: `make verify` runs api and web lint/type/test targets and exits 0 on the empty scaffolds.
