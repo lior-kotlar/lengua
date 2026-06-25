@@ -155,9 +155,9 @@ _Context: every free-tier account already exists and is verified (2026-06-25): G
 
 _Context: create the legal/ops docs the store and runbook phases fill in later._
 
-- [ ] **0.8.1** Add `docs/privacy-policy.md` placeholder noting Supabase storage and that vocab/sentences go to the active LLM provider (Groq now / Gemini prod).
+- [x] **0.8.1** Add `docs/privacy-policy.md` placeholder noting Supabase storage and that vocab/sentences go to the active LLM provider (Groq now / Gemini prod).
       verify: `test -f docs/privacy-policy.md` exits 0 and the file names Supabase + the LLM data flow.
-- [ ] **0.8.2** Add `docs/runbook.md` placeholder with empty sections for health checks, deploy/rollback, and on-call.
+- [x] **0.8.2** Add `docs/runbook.md` placeholder with empty sections for health checks, deploy/rollback, and on-call.
       verify: `test -f docs/runbook.md` exits 0 and the file has the three section headers.
 
 ---
