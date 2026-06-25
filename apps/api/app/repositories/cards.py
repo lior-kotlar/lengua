@@ -110,6 +110,38 @@ class CardsRepository:
         await self._session.flush()
         return card
 
+    async def for_sentence(
+        self, user_id: uuid.UUID, language_id: int, sentence: str
+    ) -> Sequence[Card]:
+        """The user's cards whose target sentence is ``sentence`` (the production cards).
+
+        A production card's ``back`` is the target sentence (its ``front`` is the English gloss),
+        so ``back == sentence`` selects exactly the cards that render tap-a-word for it — the home
+        of the cached ``word_explanations``.
+        """
+        stmt = (
+            select(Card)
+            .where(
+                Card.user_id == user_id,
+                Card.language_id == language_id,
+                Card.back == sentence,
+            )
+            .order_by(Card.id)
+        )
+        result = await self._session.scalars(stmt)
+        return result.all()
+
+    async def set_explanation(self, card: Card, word: str, note: str) -> Card:
+        """Cache one tap-a-word ``note`` (keyed by bare ``word``) into the card's explanations.
+
+        Reassigns the JSONB dict (rather than mutating in place) so SQLAlchemy detects the change.
+        """
+        notes: dict[str, Any] = dict(card.word_explanations or {})
+        notes[word] = note
+        card.word_explanations = notes
+        await self._session.flush()
+        return card
+
     async def known_words(self, user_id: uuid.UUID, language_id: int) -> list[str]:
         """Deduplicated, sorted vocabulary the user has a saved card for (feeds Discover)."""
         stmt = select(Card.used_words).where(

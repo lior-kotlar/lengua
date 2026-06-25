@@ -163,16 +163,35 @@ _Context: routers for the whole API surface in 03-backend.md, wired to services;
       verify: `pytest apps/api/tests/api/test_cards_save.py` saves a generated batch then asserts the rows exist (`saved=true`) scoped to the dev user.
 - [x] **1.5.5** `review` router: `GET /review/due` (new vs due split) and `POST /review/{card_id}/grade` (Again/Hard/Good/Easy → FSRS reschedule + proficiency nudge).
       verify: `pytest apps/api/tests/api/test_review.py` grades a due card, asserts the card's `due` moved forward and a `reviews` row + proficiency change were recorded.
-- [ ] **1.5.6** `discover` router: `POST /discover {topic?, count?}` → provider suggests new words (preview) → accept path feeds generate.
+- [x] **1.5.6** `discover` router: `POST /discover {topic?, count?}` → provider suggests new words (preview) → accept path feeds generate.
       verify: `pytest apps/api/tests/api/test_discover.py` with a fake provider returns a preview word list and the accept path produces cards.
-- [ ] **1.5.7** `explain` router: `POST /explain {word, sentence, translation, language_id}` → tap-a-word explanation, persisted/cached in `word_explanations`.
+- [x] **1.5.7** `explain` router: `POST /explain {word, sentence, translation, language_id}` → tap-a-word explanation, persisted/cached in `word_explanations`.
       verify: `pytest apps/api/tests/api/test_explain.py` returns an explanation and a second identical call is served from cache (provider called once — assert via mock call count).
-- [ ] **1.5.8** `proficiency` router: `GET/PUT /proficiency/{language_id}` (read level + manual override).
+- [x] **1.5.8** `proficiency` router: `GET/PUT /proficiency/{language_id}` (read level + manual override).
       verify: `pytest apps/api/tests/api/test_proficiency.py` PUTs an override and GETs the new score back.
-- [ ] **1.5.9** `settings` router: `GET/PUT /settings` (per-user daily limits, discover count).
+- [x] **1.5.9** `settings` router: `GET/PUT /settings` (per-user daily limits, discover count).
       verify: `pytest apps/api/tests/api/test_settings.py` PUTs a daily-limit value and GETs it back unchanged.
-- [ ] **1.5.10** End-to-end loop integration test: Generate → Save → due appears in Review → grade → Discover, all over HTTP for the seeded user.
+- [x] **1.5.10** End-to-end loop integration test: Generate → Save → due appears in Review → grade → Discover, all over HTTP for the seeded user.
       verify: `pytest apps/api/tests/api/test_full_loop.py` walks the whole loop against a throwaway Postgres and asserts a 200 at each step with a graded card showing a future `due`.
+
+> **Implemented (group 1.5b, tasks 1.5.6–1.5.10):** the rest of the HTTP surface now completes the
+> full loop, all wired into `create_app()` and following the same thin-router pattern (DTOs in/out,
+> domain errors → HTTP codes, all logic in `app/services/`, SQL only in `app/repositories/`).
+> `POST /discover` previews new words (excludes saved vocabulary; `count` bounded 1..20) and
+> `POST /discover/accept` feeds chosen words into generate+save. `POST /explain` is the tap-a-word
+> endpoint: there is **no `word_explanations` table** — the new `ExplainService` caches the note in
+> the **`cards.word_explanations` JSONB column** (keyed by bare word) on the production card whose
+> `back` is the sentence (matching the legacy Streamlit behaviour); a repeat call is served from
+> that cache, so the provider is hit exactly once (two new `CardsRepository` methods, `for_sentence`
+> + `set_explanation`, are the only added SQL). `GET/PUT /proficiency/{language_id}` reads the level
+> and overrides it by raw `score` or CEFR `band` (the DTO enforces exactly one); GET is now
+> ownership-validated (404 on a non-owned language). `GET/PUT /settings` reads/upserts the per-user
+> `{key: value}` map (PUT merges). `tests/api/test_full_loop.py` walks
+> Generate→Save→Review→grade→Discover over HTTP, asserting a 200 at each step and a future `due`
+> (the graded card drops out of the next due batch). All five DB-backed test files are
+> `@pytest.mark.integration` (run in CI / local Supabase); the new `tests/api/test_settings.py`
+> sits in the `tests.api` package so it does not collide with `tests/test_settings.py`
+> (`app.settings`). README's API table updated to the full surface.
 
 ## 1.6 — OpenAPI schema + `packages/api-types` codegen  ·  S
 
