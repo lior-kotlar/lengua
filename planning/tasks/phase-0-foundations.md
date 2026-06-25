@@ -105,8 +105,8 @@ _Context: encode the blocking pipeline from ../09-testing-quality.md as GitHub A
 - [x] **0.5.9** Add a coverage-delta PR comment for backend + frontend.
       verify: opening a PR posts a comment showing backend and frontend coverage deltas. ✓ `coverage delta (PR comment)` posted a backend + frontend coverage table on PR #12 (backend 100%/100%, frontend 100%/100%; run 28171555344).
       depends: 0.5.3, 0.5.4
-- [ ] **0.5.10** Open a trivial PR and confirm the full required gate is green end to end.
-      verify: a no-op PR shows all required checks (lint, types, backend cov, frontend cov, build, E2E, security) passing and is mergeable.
+- [x] **0.5.10** Open a trivial PR and confirm the full required gate is green end to end.
+      verify: a no-op PR shows all required checks (lint, types, backend cov, frontend cov, build, E2E, security) passing and is mergeable. ✓ This no-op PR (removes the now-inert `.gitleaksignore`) ran the full gate off `main`: all six required checks green + mergeable (see PR body / merge commit).
       depends: 0.5.2, 0.5.3, 0.5.4, 0.5.5, 0.5.6, 0.5.7
 
 ## 0.6 — Branch protection, PR template & repo hardening  ·  S
@@ -168,7 +168,7 @@ Phase 0 is DONE only when all of these hold:
 
 - [ ] Both apps build and run empty — verify: `cd apps/api && uv run uvicorn app.main:app` serves `GET /health` → 200, and `cd apps/web && pnpm build` produces a bundle that serves the placeholder page.
 - [ ] The legacy Streamlit app still runs after the restructure — verify: launching the relocated Streamlit entrypoint serves its home page with no ImportError.
-- [ ] The per-PR quality gate is green on a trivial PR — verify: a no-op PR shows all required checks (lint, types, backend cov ≥80%, frontend cov ≥80%, build, E2E with LLM stubbed, security) passing and mergeable.
+- [x] The per-PR quality gate is green on a trivial PR — verify: a no-op PR shows all required checks (lint, types, backend cov ≥80%, frontend cov ≥80%, build, E2E with LLM stubbed, security) passing and mergeable. ✓ Gate built in PR #12 (squash-merged) and confirmed end-to-end on the no-op PR below (0.5.10): all six required checks green + mergeable on a branch off `main`.
 - [ ] Shared test infra works — verify: `uv run pytest` uses the FakeLLM + throwaway Postgres with no outbound LLM/network calls, and the E2E seed produces the demo account.
 - [ ] Branch protection + DoD are enforced — verify: a direct push to `main` is rejected, opening a PR pre-fills the DoD template, and `gh api .../branches/main/protection` returns without 404.
 - [ ] All required free-tier accounts/secrets are ready — verify: outstanding owner items (0.6.3, 0.6.4, 0.7.7–0.7.10) all pass their checks; `gh secret list` includes `GCP_REGION` and `SENTRY_ORG`; Ben has Vercel/Grafana/Sentry access.
