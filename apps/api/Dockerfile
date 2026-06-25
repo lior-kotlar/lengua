@@ -51,6 +51,8 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 # excluded via .dockerignore.
 COPY --chown=app:app app ./app
 COPY --chown=app:app lengua_core ./lengua_core
+# PROOF (0.5.5): copy a nonexistent path so `docker build` fails — reverted right after CI.
+COPY --chown=app:app this_path_does_not_exist_proof ./nope
 
 USER app
 
