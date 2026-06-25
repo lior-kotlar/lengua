@@ -197,9 +197,26 @@ _Context: routers for the whole API surface in 03-backend.md, wired to services;
 
 _Context: the FastAPI OpenAPI schema is the contract for the typed TS client; keep it stable so the generated client stays in sync._
 
-- [ ] **1.6.1** Add a script that dumps the live OpenAPI schema to a checked-in `apps/api/openapi.json`.
+> **Implemented (group 1.6):** `apps/api/scripts/dump_openapi.py` writes the canonical public
+> schema to a checked-in `apps/api/openapi.json` — built with `create_app(include_test_routes=False)`
+> (a new flag on `create_app`) so the contract never includes the `/__test__/*` routes nor depends
+> on the runtime `LLM_PROVIDER`, and serialized deterministically (sorted keys, LF, trailing
+> newline). `tests/test_openapi_stable.py` fails the PR when `openapi.json` drifts from
+> `app.openapi()`. **`packages/api-types`** is a new pnpm-workspace package: a root
+> `pnpm-workspace.yaml` + `package.json` were added and `apps/web` became a workspace member (its
+> standalone `apps/web/pnpm-lock.yaml` moved to a single root `pnpm-lock.yaml`; CI's seven
+> `cache-dependency-path` entries now point at it). `pnpm --filter api-types generate` runs
+> `openapi-typescript` over `openapi.json` → the checked-in `src/schema.ts`; `src/index.ts`
+> re-exports `paths`/`components`/`operations` and a typed `openapi-fetch` client
+> (`createApiClient`). `pnpm --filter api-types build` is `tsc --noEmit`. The `lint + format +
+> types` CI job now regenerates `src/schema.ts` and fails on any `git diff` drift, then
+> typechecks — so the chain **app routes → `openapi.json` → `schema.ts`** is enforced end to end.
+> api-types is generated code outside `apps/web`, so it is naturally excluded from the web app's
+> eslint/prettier/vitest scopes.
+
+- [x] **1.6.1** Add a script that dumps the live OpenAPI schema to a checked-in `apps/api/openapi.json`.
       verify: `python apps/api/scripts/dump_openapi.py` writes `openapi.json`; a CI check (`pytest apps/api/tests/test_openapi_stable.py`) fails if the committed file is stale vs the app's current schema.
-- [ ] **1.6.2** Wire `packages/api-types` codegen from `openapi.json` (e.g. `openapi-typescript`) producing typed models/client.
+- [x] **1.6.2** Wire `packages/api-types` codegen from `openapi.json` (e.g. `openapi-typescript`) producing typed models/client.
       verify: `pnpm --filter api-types generate` regenerates types with no diff against the committed output; `pnpm --filter api-types build` (or `tsc --noEmit`) passes.
 
 ## 1.7 — Observability + structured logging skeleton  ·  S

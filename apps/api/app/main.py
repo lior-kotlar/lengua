@@ -31,8 +31,15 @@ def _llm_provider() -> str:
     return os.getenv("LLM_PROVIDER", "groq").strip().lower()
 
 
-def create_app() -> FastAPI:
-    """Build the FastAPI app, mounting test-only routes only under ``LLM_PROVIDER=fake``."""
+def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
+    """Build the FastAPI app.
+
+    The test-only router (:mod:`app.testing`) is mounted when ``include_test_routes`` is True or,
+    when it is ``None`` (the default), when ``LLM_PROVIDER=fake`` — so the E2E stack still gets
+    the ``/__test__/*`` routes while a real provider never does. Pass ``include_test_routes=False``
+    to build the canonical **public** schema (used by ``scripts/dump_openapi.py`` + the drift
+    test) so the committed ``openapi.json`` never depends on the runtime LLM provider.
+    """
     application = FastAPI(title="Lengua API")
 
     @application.get("/health")
@@ -51,7 +58,9 @@ def create_app() -> FastAPI:
     application.include_router(proficiency.router)
     application.include_router(settings.router)
 
-    if _llm_provider() == "fake":
+    if include_test_routes is None:
+        include_test_routes = _llm_provider() == "fake"
+    if include_test_routes:
         # Imported lazily so the test-only module is never loaded for a real provider.
         from app.testing import router as testing_router
 

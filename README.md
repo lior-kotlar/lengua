@@ -18,17 +18,22 @@ at [`planning/tasks/task-tracker.md`](planning/tasks/task-tracker.md).
 apps/
   api/        FastAPI service (uv) — scaffolded in Phase 0 group 0.2
   web/        React + TS + Vite app (pnpm, Tailwind + shadcn/ui) — group 0.3
-packages/     shared packages, e.g. api-types (OpenAPI-generated TS client) — Phase 1+
+packages/
+  api-types/  OpenAPI-generated TS types + typed client for the API (Phase 1.6)
 infra/        infra & CI/CD docs (the CI gate lives in .github/workflows/)
 docs/         privacy policy, runbook, legal — group 0.8
 planning/     productionization plan & per-phase task files
 supabase/     Supabase CLI config, initial migration, seed
 ```
 
+`apps/web` and `packages/*` form a single **pnpm workspace** (`pnpm-workspace.yaml` at the repo
+root, one root `pnpm-lock.yaml`). `apps/api` is a separate uv/Python project.
+
 | App | Location | How to run | Status |
 | --- | --- | --- | --- |
 | API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
-| Web | `apps/web/` | `cd apps/web && pnpm install && pnpm dev` (placeholder home); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
+| Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (placeholder home); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
+| API types | `packages/api-types/` | `pnpm --filter api-types generate` (re-derive TS types from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
 ### API endpoints (Phase 1 — full loop)
@@ -52,6 +57,22 @@ stack) and seed it with `uv run python scripts/seed_dev_user.py`.
 | `GET/PUT /settings` | Read/upsert per-user preferences (daily limits, discover count) as a `{key: value}` map. |
 
 The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E).
+
+### API contract & typed client (`packages/api-types`)
+
+The FastAPI OpenAPI schema is the contract the web app's typed client is generated from. It is
+checked in as `apps/api/openapi.json` and kept in lockstep by two CI drift checks:
+
+```bash
+python apps/api/scripts/dump_openapi.py   # rewrite apps/api/openapi.json from the live app
+pnpm --filter api-types generate          # re-derive packages/api-types/src/schema.ts from it
+```
+
+Regenerate both whenever the HTTP surface changes (routers/schemas). CI fails the PR if
+`openapi.json` is stale versus `app.openapi()` (`tests/test_openapi_stable.py`) or if the
+generated TS types are stale versus `openapi.json` (a `git diff` check). `packages/api-types`
+exports the generated `paths` / `components` / `operations` types plus a typed `openapi-fetch`
+client via `createApiClient(...)`.
 
 ### One-command verify (local quality gate)
 

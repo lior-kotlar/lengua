@@ -75,7 +75,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install web deps (populate pnpm store)
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
@@ -130,7 +130,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: web deps
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
@@ -143,6 +143,19 @@ jobs:
       - name: tsc --noEmit
         working-directory: apps/web
         run: pnpm typecheck
+
+      # packages/api-types (1.6.2) — the generated TS client must stay in sync with the
+      # committed contract. The `web deps` step above installs the whole workspace, so api-types'
+      # toolchain is present. Regenerate src/schema.ts from apps/api/openapi.json and fail on any
+      # drift, then typecheck the generated types + the client wrapper. (The backend job
+      # separately asserts openapi.json itself matches app.openapi() via test_openapi_stable.py,
+      # so the chain app routes -> openapi.json -> schema.ts is enforced end to end.)
+      - name: api-types — regenerate from openapi.json (assert no drift)
+        run: |
+          pnpm --filter api-types generate
+          git diff --exit-code -- packages/api-types/src/schema.ts
+      - name: api-types — typecheck (tsc)
+        run: pnpm --filter api-types build
 
   # ── 0.5.3 — backend tests + coverage (against the Supabase CLI test Postgres) ────────────────
   backend-tests:
@@ -206,7 +219,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: web deps
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
@@ -259,7 +272,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: web deps
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
@@ -374,7 +387,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: web deps
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
@@ -462,7 +475,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: pnpm audit (web)
         working-directory: apps/web
         run: pnpm audit --audit-level high --prod
@@ -497,7 +510,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: web deps
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
