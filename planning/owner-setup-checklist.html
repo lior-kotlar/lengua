@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lengua — Remaining Setup Items</title>
+  <title>Lengua — Setup Status</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -15,7 +15,7 @@
     .header { background:linear-gradient(135deg,#1e3a8a 0%,#4f46e5 60%,#7c3aed 100%); color:#fff; padding:30px 32px 26px; }
     .header h1 { font-size:1.6rem; font-weight:800; margin-bottom:4px; }
     .header .sub { opacity:.85; font-size:.9rem; }
-    .header .stamp { margin-top:10px; font-size:.78rem; opacity:.8; }
+    .header .stamp { margin-top:10px; font-size:.78rem; opacity:.9; line-height:1.55; }
     .sticky-bar { position:sticky; top:0; z-index:100; background:#fff; border-bottom:1px solid #e2e8f0;
       padding:10px 24px; display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
     .prog-item { display:flex; align-items:center; gap:8px; font-size:.8rem; }
@@ -47,9 +47,6 @@
     .item-detail { font-size:.78rem; color:#64748b; margin-top:4px; line-height:1.55; }
     .item-detail code, .item-text code { background:#e2e8f0; padding:0 4px; border-radius:3px;
       font-family:'SF Mono','Fira Code',monospace; font-size:.85em; }
-    .badge { font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
-      padding:2px 7px; border-radius:20px; flex-shrink:0; margin-top:3px; line-height:1.4; color:#fff; }
-    .badge-kotlar { background:var(--kotlar-badge); } .badge-ben { background:var(--ben-badge); }
     .warn { background:#fefce8; border-left:3px solid #eab308; padding:9px 13px; border-radius:0 6px 6px 0; font-size:.8rem; color:#713f12; }
     .info { background:#f8fafc; border-left:3px solid #94a3b8; padding:9px 13px; border-radius:0 6px 6px 0; font-size:.8rem; color:#475569; }
     details.done { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.07); padding:14px 22px; margin-bottom:20px; }
@@ -58,28 +55,36 @@
     details.done li { font-size:.8rem; color:#475569; padding:3px 0; display:flex; gap:8px; }
     details.done li::before { content:'✓'; color:#10b981; font-weight:800; }
     code { font-family:'SF Mono','Fira Code',monospace; }
-    /* Agent prompt box */
-    .ai-prompt-box { border:2px solid #4f46e5; border-radius:12px; margin-bottom:22px; background:#eef2ff; overflow:hidden; }
-    .ai-prompt-head { padding:15px 20px; background:#4f46e5; color:#fff; }
-    .ai-prompt-head h2 { font-size:1rem; font-weight:700; margin:0; }
-    .ai-prompt-head p { font-size:.78rem; color:#c7d2fe; margin:3px 0 0; }
-    .ai-prompt-body { padding:16px 20px 18px; }
-    .ai-prompt-note { background:#e0e7ff; border:1px solid #a5b4fc; border-radius:8px; padding:10px 13px;
-      font-size:.8rem; color:#3730a3; margin-bottom:12px; line-height:1.5; }
-    .ai-actions { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
-    .btn-copy { background:#4f46e5; color:#fff; border:none; border-radius:6px; padding:8px 16px; font-size:.82rem; cursor:pointer; font-weight:600; }
-    .btn-copy:hover { background:#4338ca; }
-    .copy-ok { color:#059669; font-size:.82rem; font-weight:600; display:none; }
-    .ai-text { width:100%; height:440px; font-family:'SF Mono','Fira Code',monospace; font-size:.72rem; line-height:1.55;
-      border:1px solid #c7d2fe; border-radius:8px; padding:13px; resize:vertical; background:#1e1b4b; color:#c7d2fe; white-space:pre; }
+    /* Validation result rows */
+    .vrow { display:flex; gap:11px; align-items:flex-start; padding:9px 0; border-bottom:1px solid #f1f5f9; }
+    .vrow:last-child { border-bottom:none; }
+    .vrow .vtext { flex:1; font-size:.86rem; }
+    .vrow .vtext .vd { font-size:.76rem; color:#64748b; margin-top:3px; line-height:1.5; }
+    .vrow .vtext code { background:#e2e8f0; padding:0 4px; border-radius:3px; font-size:.85em; }
+    .pill { font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+      padding:3px 8px; border-radius:20px; color:#fff; white-space:nowrap; flex-shrink:0; margin-top:2px; }
+    .pill-pass { background:#10b981; } .pill-wait { background:#f59e0b; } .pill-info { background:#64748b; }
+    /* Vercel explainer */
+    .vercel-box { border:2px solid #0f172a; border-radius:12px; margin-bottom:20px; background:#fff; overflow:hidden; }
+    .vercel-head { padding:14px 20px; background:#0f172a; color:#fff; }
+    .vercel-head h2 { font-size:1rem; font-weight:700; margin:0; }
+    .vercel-head p { font-size:.78rem; color:#cbd5e1; margin:3px 0 0; }
+    .vercel-body { padding:16px 20px 18px; font-size:.84rem; color:#334155; }
+    .vercel-body p { margin-bottom:10px; }
+    .vercel-body code { background:#e2e8f0; padding:0 4px; border-radius:3px; font-size:.85em; }
+    .vercel-body .ok { color:#065f46; font-weight:700; }
+    .vercel-body .no { color:#9f1239; font-weight:700; }
   </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Lengua — Remaining Setup Items</h1>
-  <p class="sub">Only the items still outstanding. Blue = Kotlar · Green = Ben.</p>
-  <p class="stamp">Validated 2026-06-25 — 47 setup items verified complete (collapsed below). LLM provider = <strong>Groq</strong> (<code>llama-3.1-8b-instant</code>) until further notice; Gemini reserved for prod.</p>
+  <h1>Lengua — Setup Status</h1>
+  <p class="sub">Kotlar's checklist re-validated against live infra. Blue = Kotlar · Green = Ben.</p>
+  <p class="stamp">Re-validated 2026-06-25 by Ben. <strong>Branch protection ✓</strong>, <strong>GCP_REGION + SENTRY_ORG ✓</strong>
+    (all 31 CI secrets present, incl. 3 Vercel + Resend), <strong>Resend SMTP confirmed by Kotlar</strong>.
+    Grafana + Sentry invites accepted ✓, Supabase CLI linked to staging ✓. Only <strong>Dependabot</strong> remains, and Kotlar has parked it for now. Vercel dashboard access is a non-issue — deploys run via GitHub Actions.
+    LLM provider = <strong>Groq</strong> (<code>llama-3.1-8b-instant</code>); Gemini reserved for prod.</p>
 </div>
 
 <div class="sticky-bar">
@@ -91,193 +96,121 @@
 
 <div class="container">
 
-  <!-- ════ AGENT PROMPT FOR KOTLAR ════ -->
-  <div class="ai-prompt-box">
-    <div class="ai-prompt-head">
-      <h2>🤖 Kotlar — paste this into your Claude Code agent</h2>
-      <p>It will do and <strong>validate</strong> each remaining task, and won't report "done" until it actually verifies it.</p>
-    </div>
-    <div class="ai-prompt-body">
-      <div class="ai-prompt-note">
-        <strong>How to use:</strong> open Claude Code in your local <code>lengua</code> repo (pull the
-        <code>docs/productionization-plan</code> branch first). Click <em>Copy</em>, paste as your first message, and follow
-        the agent. It runs <code>gh</code> / <code>gcloud</code> / <code>vercel</code> / <code>supabase</code> automatically and gives you
-        browser steps for the rest. Each task is validated before it's marked done — only message Ben once the agent confirms all checks pass.
+  <!-- ════ VALIDATION RESULTS ════ -->
+  <div class="section">
+    <div class="section-head"><div class="section-num">✓</div><div class="section-title">Validation results — Kotlar's 6 tasks (checked 2026-06-25)</div></div>
+    <div class="section-body" style="gap:0;">
+
+      <div class="vrow">
+        <span class="pill pill-pass">Pass</span>
+        <div class="vtext"><strong>Task 1 — Branch protection on <code>main</code></strong>
+          <div class="vd">Verified: <code>gh api repos/lior-kotlar/lengua/branches/main</code> → <code>protected: true</code>.
+            The exact rule (require PR + 1 approval) is readable only to a repo admin, so that detail is taken on Kotlar's word — but protection is definitively active.</div>
+        </div>
       </div>
-      <div class="ai-actions">
-        <button class="btn-copy" onclick="copyPrompt()">📋 Copy Prompt</button>
-        <span class="copy-ok" id="copyOk">✓ Copied!</span>
+
+      <div class="vrow">
+        <span class="pill pill-pass">Pass</span>
+        <div class="vtext"><strong>Task 3 — CI secrets <code>GCP_REGION</code> + <code>SENTRY_ORG</code></strong>
+          <div class="vd">Verified via <code>gh secret list</code>: both present, set 2026-06-25 08:32. All <strong>31</strong> CI secrets confirmed,
+            including <code>VERCEL_TOKEN</code> / <code>VERCEL_ORG_ID</code> / <code>VERCEL_PROJECT_ID</code> and <code>RESEND_API_KEY</code>;
+            Supabase refs use the correct <code>SUPABASE_*_PROJECT_REF</code> names.</div>
+        </div>
       </div>
-      <textarea class="ai-text" id="promptText" readonly>You are helping Kotlar (GitHub: lior-kotlar, OWNER of the repo lior-kotlar/lengua) finish and VALIDATE the last setup tasks before his developer Ben (GitHub: BenArtzi4, email benartzi4@gmail.com) continues implementation.
 
-ALREADY VERIFIED DONE on 2026-06-25 — do NOT redo:
-- All 28 GitHub Actions secrets exist.
-- Supabase staging (ref rydclyotzdwcbbeyitcx) and prod (ref ptyqlxjykbprfzhnxgla) are live; Ben has org access to both.
-- GCP project lengua-prod with Ben as Editor and a github-ci service account; Artifact Registry europe-west1-docker.pkg.dev/lengua-prod/lengua.
-- Google OAuth wired into Supabase; Groq/Gemini/Resend/Grafana/Sentry keys all set as CI secrets.
+      <div class="vrow">
+        <span class="pill pill-info">Kotlar-confirmed</span>
+        <div class="vtext"><strong>Task 5 — Resend SMTP on staging + prod</strong>
+          <div class="vd">Kotlar confirmed both. Corroborated by <code>RESEND_API_KEY</code> set today (08:56). Can't be re-tested from Ben's side without Supabase admin — trusting Kotlar's send-test.</div>
+        </div>
+      </div>
 
-YOU HAVE the gh, gcloud, vercel, supabase CLIs. Kotlar is the repo OWNER, so admin-only API calls will work.
+      <div class="vrow">
+        <span class="pill pill-pass">Pass</span>
+        <div class="vtext"><strong>Task 6 — Grafana + Sentry invites</strong>
+          <div class="vd">Ben accepted both (2026-06-25): Grafana <code>joyfulmayfly1575.grafana.net</code> and Sentry org <code>kotlar-y7</code>.</div>
+        </div>
+      </div>
 
-RULES:
-- Work through the tasks IN ORDER. For each: DO it (CLI where possible, else give Kotlar exact browser steps), then VALIDATE it with the command shown, and only mark it DONE when the validation output is correct.
-- For browser-only steps, ask Kotlar to confirm he actually did it AND validate via CLI/API wherever possible.
-- Do NOT tell Kotlar "all done" until tasks 1-3 validate via CLI and tasks 4-6 are confirmed (invites require Ben to accept).
-- Never print secret values.
+      <div class="vrow">
+        <span class="pill pill-info">Deferred</span>
+        <div class="vtext"><strong>Task 2 — Dependabot alerts + automated security updates</strong>
+          <div class="vd"><strong>Parked by Kotlar for now</strong> — not blocking. Worth turning on later (one-click in <em>Settings → Code security</em>) but no action required to start coding.</div>
+        </div>
+      </div>
 
-First confirm identity:  gh auth status   (must be lior-kotlar; if not: ! gh auth login)
+      <div class="vrow">
+        <span class="pill pill-info">Resolved</span>
+        <div class="vtext"><strong>Task 4 — Vercel access for Ben</strong>
+          <div class="vd">Dropped by design — can't be done on Vercel's free Hobby plan, and isn't needed. Deploys go through GitHub Actions (CI secrets present). Full explanation below.</div>
+        </div>
+      </div>
 
-=== TASK 1 - Branch protection on main ===
-DO:
-  gh api -X PUT repos/lior-kotlar/lengua/branches/main/protection -F required_status_checks=null -F enforce_admins=true -F "required_pull_request_reviews[required_approving_review_count]=1" -F restrictions=null
-VALIDATE (expect enabled=true, reviews=1, and NO 404):
-  gh api repos/lior-kotlar/lengua/branches/main/protection --jq "{admins:.enforce_admins.enabled, reviews:.required_pull_request_reviews.required_approving_review_count}"
-
-=== TASK 2 - Dependabot alerts + automated security fixes ===
-DO:
-  gh api -X PUT repos/lior-kotlar/lengua/vulnerability-alerts
-  gh api -X PUT repos/lior-kotlar/lengua/automated-security-fixes
-VALIDATE (expect HTTP 204, NOT 404):
-  gh api repos/lior-kotlar/lengua/vulnerability-alerts -i | head -1
-
-=== TASK 3 - Add the two missing CI secrets ===
-(Deploy workflows expect these; they are currently absent.)
-DO:
-  gh secret set GCP_REGION --body "europe-west1" -R lior-kotlar/lengua
-  gh secret set SENTRY_ORG --body "kotlar-y7" -R lior-kotlar/lengua
-VALIDATE (both must appear):
-  gh secret list -R lior-kotlar/lengua | grep -E "GCP_REGION|SENTRY_ORG"
-NOTE: the Supabase project refs are already stored as SUPABASE_STAGING_PROJECT_REF and SUPABASE_PROD_PROJECT_REF. Any workflow YAML must use those exact names (NOT SUPABASE_PROJECT_ID_STAGING/PROD).
-
-=== TASK 4 - Invite Ben to Vercel (he never got an invite) ===
-A personal Vercel account cannot have project members. If "lengua" is on your personal account:
-  1. vercel.com -> Add Team (any name).
-  2. Move/import the lengua project into that Team.
-  3. Team -> Settings -> Members -> Invite benartzi4@gmail.com (role Member or higher).
-VALIDATE:
-  - In the Vercel dashboard, confirm benartzi4@gmail.com shows under the Team's Members.
-  - Then tell Ben to run:  vercel project ls   -> it must list "lengua".
-  This task is DONE only after Ben confirms he can see the project.
-
-=== TASK 5 - Confirm Resend SMTP in BOTH Supabase projects ===
-For staging AND prod: supabase.com -> project -> Authentication -> SMTP Settings -> Custom SMTP enabled
-(host smtp.resend.com, port 587, username "resend", password = your Resend API key, sender set).
-VALIDATE: in each project, Authentication -> Users -> send yourself a recovery/invite email and confirm it ARRIVES.
-(Staging has email auto-confirm OFF, so sign-up emails MUST work.)
-
-=== TASK 6 - Confirm Ben is invited to Grafana Cloud and Sentry ===
-  Grafana -> Administration -> Users -> Invite benartzi4@gmail.com.
-  Sentry  -> Settings -> Members -> Invite benartzi4@gmail.com.
-VALIDATE: each shows a pending invite; then Ben confirms he received and accepted both.
-
-=== FINAL - re-validate and report ===
-Re-run:
-  gh api repos/lior-kotlar/lengua/branches/main/protection --jq ".enforce_admins.enabled"
-  gh api repos/lior-kotlar/lengua/vulnerability-alerts -i | head -1
-  gh secret list -R lior-kotlar/lengua | grep -E "GCP_REGION|SENTRY_ORG"
-Print all 6 tasks as PASS/FAIL. Tasks 4 and 6 are PASS only once Ben confirms acceptance.
-When tasks 1-3 pass and 4-6 are confirmed, give Kotlar ONE short message to send Ben, e.g.:
-"Branch protection + Dependabot on, GCP_REGION + SENTRY_ORG added, Vercel/Grafana/Sentry invites sent, Resend SMTP confirmed - pull docs/productionization-plan and continue."</textarea>
     </div>
   </div>
 
+  <!-- ════ VERCEL EXPLAINER ════ -->
+  <div class="vercel-box">
+    <div class="vercel-head">
+      <h2>▲ Vercel — why you can't see the repo, and why that's fine</h2>
+      <p>The "import <code>lior-kotlar/lengua</code> into your own Vercel account" path is a dead end. You don't need it.</p>
+    </div>
+    <div class="vercel-body">
+      <p>You're logged into <strong>your own</strong> Vercel account (<code>benartzi4-4739</code>); <code>vercel project ls</code> shows no projects.
+        The <code>lengua</code> project lives on <strong>Kotlar's</strong> Vercel account.</p>
+      <p>In <em>Repository access → Select repository</em> you only ever see repos owned by <strong>BenArtzi4</strong>.
+        <code>lior-kotlar/lengua</code> belongs to Kotlar's personal account, and <span class="no">only the repo owner can authorize the Vercel GitHub App on it</span> — a collaborator can't.
+        That's why the repo never appears for you. <strong>Stop trying to import it.</strong></p>
+      <p>On the free <strong>Hobby</strong> plan Kotlar also can't add you as a member, so there's no Vercel invite to wait for.</p>
+      <p class="ok">You don't need any of that. Deploys run through GitHub Actions using <code>VERCEL_TOKEN</code> / <code>VERCEL_ORG_ID</code> / <code>VERCEL_PROJECT_ID</code>
+        — all three are already in CI secrets and point at Kotlar's project. The deploy targets the right place without you ever opening the Vercel dashboard.</p>
+      <p style="margin-bottom:0;"><strong>One thing to confirm with Kotlar (not blocking):</strong> that his <code>lengua</code> Vercel project is linked to the repo so the Actions deploy lands on the correct project.
+        (Optional alternative: he enables Vercel's Git integration on his side so pushes auto-deploy — that also needs zero dashboard access for you.)
+        Note the deploy <em>workflow YAML</em> itself doesn't exist yet (<code>.github/workflows/</code> is empty) — writing it is Phase 6 implementation work, not owner setup.</p>
+    </div>
+  </div>
+
+  <!-- DEFERRED -->
+  <div class="section">
+    <div class="section-head"><div class="section-num">⏸</div><div class="section-title">Deferred — not blocking</div></div>
+    <div class="section-body">
+
+      <div class="item" data-owner="kotlar">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Dependabot alerts &amp; automated security updates</strong> <em>(Task 2)</em>
+            <div class="item-detail">Kotlar has parked this for now. Turn on later in <em>Settings → Code security</em>, or via
+              <code>gh api -X PUT repos/lior-kotlar/lengua/vulnerability-alerts</code> + <code>.../automated-security-fixes</code> (expect <code>HTTP 204</code>). No action needed to start coding.</div>
+          </span></label><span class="badge badge-kotlar">Kotlar</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="info"><strong>Setup is closed.</strong> Both Grafana + Sentry invites accepted, Supabase CLI linked to staging, all infra verified. The only open item (Dependabot) is deferred and doesn't block anything. Implementation of the FastAPI/React code can begin now.</div>
+
   <details class="done">
-    <summary>✓ 47 items already verified complete (2026-06-25) — click to expand</summary>
+    <summary>✓ 53 items verified complete — click to expand</summary>
     <ul>
-      <li><strong>GitHub:</strong> repo live, Ben has Write access, all 28 Actions secrets present</li>
+      <li><strong>Grafana + Sentry:</strong> Ben accepted both invites (Grafana <code>joyfulmayfly1575</code>, Sentry org <code>kotlar-y7</code>)</li>
+      <li><strong>Supabase CLI:</strong> linked to staging (<code>rydclyotzdwcbbeyitcx</code>) on Ben's machine</li>
+      <li><strong>Branch protection on <code>main</code>:</strong> ON (<code>protected: true</code>, verified by Ben 2026-06-25)</li>
+      <li><strong>CI secrets <code>GCP_REGION</code> + <code>SENTRY_ORG</code>:</strong> added 2026-06-25; all 31 Actions secrets confirmed via <code>gh secret list</code></li>
+      <li><strong>Vercel CI deploy wired:</strong> <code>VERCEL_TOKEN</code> / <code>VERCEL_ORG_ID</code> / <code>VERCEL_PROJECT_ID</code> all present (deploy via GitHub Actions, no dashboard access needed)</li>
+      <li><strong>Resend SMTP:</strong> confirmed on staging + prod by Kotlar; <code>RESEND_API_KEY</code> set as CI secret</li>
+      <li><strong>GitHub:</strong> repo live, Ben has access, all Actions secrets present</li>
       <li><strong>Supabase staging</strong> (<code>rydclyotzdwcbbeyitcx</code>) &amp; <strong>prod</strong> (<code>ptyqlxjykbprfzhnxgla</code>) created; Ben is in the org and sees both; CI access token set</li>
       <li><strong>Supabase auth:</strong> email + Google providers enabled (staging verified); anon/service-role keys cryptographically verified against the JWT secret</li>
       <li><strong>GCP:</strong> project <code>lengua-prod</code>, Artifact Registry <code>europe-west1-docker.pkg.dev/lengua-prod/lengua</code>, <code>github-ci</code> service account, Ben has <code>roles/editor</code> (verified via CLI)</li>
       <li><strong>Google OAuth:</strong> consent screen + client created and wired into Supabase</li>
-      <li><strong>Vercel:</strong> account, project imported, CI token/IDs set (Ben dashboard access still pending — see below)</li>
-      <li><strong>LLM:</strong> Groq key verified working; default model corrected to <code>llama-3.1-8b-instant</code> (old <code>gemma2-9b-it</code> was decommissioned); Gemini key held in CI for prod</li>
-      <li><strong>Email/Observability:</strong> Resend, Grafana OTLP, and Sentry (lengua-api + lengua-web DSNs) all set as CI secrets</li>
+      <li><strong>LLM:</strong> Groq key verified working; default model <code>llama-3.1-8b-instant</code> (old <code>gemma2-9b-it</code> was decommissioned); Gemini key held in CI for prod</li>
+      <li><strong>Observability:</strong> Grafana OTLP and Sentry (lengua-api + lengua-web DSNs) all set as CI secrets</li>
       <li><strong>Ben local:</strong> <code>.env</code> created (staging creds), <code>gcloud</code> logged in (Editor on lengua-prod), Docker Desktop running</li>
     </ul>
   </details>
 
-  <!-- KOTLAR — OUTSTANDING -->
-  <div class="section">
-    <div class="section-head"><div class="section-num">1</div><div class="section-title">Kotlar — Outstanding</div></div>
-    <div class="section-body">
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Enable branch protection on <code>main</code></strong> <em>(Task 1)</em>
-            <div class="item-detail">Verified NOT set. Require a PR + 1 approval. Validate: <code>gh api repos/lior-kotlar/lengua/branches/main/protection</code> returns without 404.</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Enable Dependabot alerts &amp; security updates</strong> <em>(Task 2)</em>
-            <div class="item-detail">Verified NOT enabled. Validate: <code>gh api .../vulnerability-alerts -i</code> returns HTTP 204.</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Add missing CI secrets <code>GCP_REGION</code> + <code>SENTRY_ORG</code></strong> <em>(Task 3)</em>
-            <div class="item-detail">Currently absent. Values: <code>europe-west1</code> and <code>kotlar-y7</code>. Workflows must use <code>SUPABASE_STAGING_PROJECT_REF</code>/<code>SUPABASE_PROD_PROJECT_REF</code> (not <code>SUPABASE_PROJECT_ID_*</code>).</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Invite Ben to Vercel</strong> <em>(Task 4)</em>
-            <div class="item-detail">Ben got no email; <code>vercel project ls</code> shows no <code>lengua</code>. Create a Team if it's a personal account, then invite <code>benartzi4@gmail.com</code>. Done only when Ben sees the project.</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Confirm Resend SMTP in BOTH Supabase projects</strong> <em>(Task 5)</em>
-            <div class="item-detail">Staging email auto-confirm is OFF, so sign-ups need working SMTP. Validate by sending yourself a test email from each project.</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Invite Ben to Grafana Cloud + Sentry</strong> <em>(Task 6)</em>
-            <div class="item-detail">Ben hasn't received/accepted either. Grafana: Administration → Users. Sentry: Settings → Members.</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- BEN — OUTSTANDING -->
-  <div class="section">
-    <div class="section-head"><div class="section-num">2</div><div class="section-title">Ben — Outstanding (mostly waiting on the invites above)</div></div>
-    <div class="section-body">
-
-      <div class="item" data-owner="ben">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Accept Vercel invite, then confirm</strong>
-            <div class="item-detail">After Kotlar invites you: accept the email, then <code>vercel project ls</code> should list <code>lengua</code>.</div>
-          </span></label><span class="badge badge-ben">Ben</span>
-      </div>
-
-      <div class="item" data-owner="ben">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Accept Grafana + Sentry invites</strong>
-            <div class="item-detail">Confirm you can open the Grafana stack and both Sentry projects (lengua-api, lengua-web).</div>
-          </span></label><span class="badge badge-ben">Ben</span>
-      </div>
-
-      <div class="item" data-owner="ben">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>(Optional, when coding) Link Supabase CLI to staging</strong>
-            <div class="item-detail"><code>supabase link --project-ref rydclyotzdwcbbeyitcx</code> for migrations. Local stack: <code>supabase start</code> (Docker is up).</div>
-          </span></label><span class="badge badge-ben">Ben</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="warn">When all of the above is checked, setup is fully closed out. Implementation can already begin in parallel — none of these block writing the FastAPI/React code.</div>
-
 </div>
 
 <script>
-  var KEY='lengua_setup_remaining_v1';
+  var KEY='lengua_setup_status_v2';
   function update(){
     var all=document.querySelectorAll('input.cb'), done=0;
     all.forEach(function(c){ if(c.checked) done++; });
@@ -289,10 +222,6 @@ When tasks 1-3 pass and 4-6 are confirmed, give Kotlar ONE short message to send
     try{localStorage.setItem(KEY,JSON.stringify(s));}catch(e){} }
   function load(){ var r; try{r=localStorage.getItem(KEY);}catch(e){} if(!r)return; var s=JSON.parse(r);
     document.querySelectorAll('input.cb').forEach(function(c,i){ if(s['cb'+i]!==undefined) c.checked=s['cb'+i]||c.defaultChecked; }); }
-  function copyPrompt(){ var t=document.getElementById('promptText'); t.select(); t.setSelectionRange(0,99999);
-    try{ document.execCommand('copy'); }catch(e){}
-    if(navigator.clipboard){ navigator.clipboard.writeText(t.value).catch(function(){}); }
-    var ok=document.getElementById('copyOk'); ok.style.display='inline'; setTimeout(function(){ok.style.display='none';},2500); }
   document.querySelectorAll('input.cb').forEach(function(c){ c.addEventListener('change',function(){update();save();}); });
   load(); update();
 </script>
