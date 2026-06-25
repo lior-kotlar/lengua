@@ -27,7 +27,7 @@ supabase/     Supabase CLI config, initial migration, seed
 
 | App | Location | How to run | Status |
 | --- | --- | --- | --- |
-| API | `apps/api/` | `cd apps/api && uv run uvicorn app.main:app` | scaffold in 0.2.x |
+| API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
 | Web | `apps/web/` | `cd apps/web && pnpm dev` | scaffold in 0.3.x |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 

@@ -29,18 +29,18 @@ _Context: lift the repo into the `apps/ packages/ infra/` shape from ../01-archi
 
 _Context: stand up the FastAPI service shell with `uv`, ruff, mypy, pytest, and pytest-cov so backend PRs have a real gate from day one. LLM provider defaults to Groq (`llama-3.1-8b-instant`) for all dev/CI._
 
-- [ ] **0.2.1** Initialize `apps/api` with `uv` + `pyproject.toml` (FastAPI, uvicorn, pydantic, httpx, pytest, pytest-cov, ruff, mypy as dev deps); pin Python version.
+- [x] **0.2.1** Initialize `apps/api` with `uv` + `pyproject.toml` (FastAPI, uvicorn, pydantic, httpx, pytest, pytest-cov, ruff, mypy as dev deps); pin Python version.
       verify: `uv sync` resolves and `uv run python -c "import fastapi"` exits 0.
-- [ ] **0.2.2** Add a minimal FastAPI app exposing `GET /health` returning `{"status":"ok"}` and run it under uvicorn.
+- [x] **0.2.2** Add a minimal FastAPI app exposing `GET /health` returning `{"status":"ok"}` and run it under uvicorn.
       verify: `uv run uvicorn app.main:app` then `curl -s localhost:8000/health` returns 200 with `{"status":"ok"}`.
       depends: 0.2.1
-- [ ] **0.2.3** Configure ruff (lint + format) and mypy (strict-ish) with config in `pyproject.toml`; clean the scaffold.
+- [x] **0.2.3** Configure ruff (lint + format) and mypy (strict-ish) with config in `pyproject.toml`; clean the scaffold.
       verify: `uv run ruff check . && uv run ruff format --check . && uv run mypy .` all exit 0.
       depends: 0.2.1
-- [ ] **0.2.4** Configure pytest + pytest-cov with `--cov-fail-under=80` and branch coverage; add a first test for `/health`. Add an `api` make/uv target `verify` that runs lint+format+types+tests.
+- [x] **0.2.4** Configure pytest + pytest-cov with `--cov-fail-under=80` and branch coverage; add a first test for `/health`. Add an `api` make/uv target `verify` that runs lint+format+types+tests.
       verify: `uv run pytest --cov --cov-branch` passes with coverage ≥80% on the scaffold; the verify target exits 0.
       depends: 0.2.2, 0.2.3
-- [ ] **0.2.5** Add a config/settings module reading env (incl. `LLM_PROVIDER` default `groq`, model `llama-3.1-8b-instant`) and a `.env.example` documenting required vars; exclude settings boilerplate from coverage.
+- [x] **0.2.5** Add a config/settings module reading env (incl. `LLM_PROVIDER` default `groq`, model `llama-3.1-8b-instant`) and a `.env.example` documenting required vars; exclude settings boilerplate from coverage.
       verify: app boots with only `.env.example` values copied to `.env`; `LLM_PROVIDER` defaults to `groq` when unset (asserted in a unit test).
 
 ## 0.3 — Frontend tooling (apps/web)  ·  M
