@@ -1,0 +1,28 @@
+# Normalize line endings across platforms.
+#
+# Without this, a Windows checkout with core.autocrlf=true rewrites committed-LF text
+# files to CRLF in the working tree, and `prettier --check` (endOfLine: "lf" by default)
+# then reports every file as a style issue — breaking `pnpm verify` / `make verify` on
+# Windows even though the committed content is unchanged. Forcing LF in the working tree
+# keeps the toolchain (prettier, eslint, ruff) identical on Windows and Unix.
+
+# Default: treat files as text and check out with LF everywhere.
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.db binary
+
+# Lockfiles are managed by their tools; keep LF and don't let diffs churn.
+pnpm-lock.yaml text eol=lf
+uv.lock text eol=lf
