@@ -3,9 +3,11 @@ import re
 
 import streamlit as st
 
-from lengua_core import flashcards, proficiency
+from lengua_core import proficiency
 from lengua_core.gemini import generate_cards
-from lengua_core.ui import render_sidebar
+
+from legacy_streamlit import store
+from legacy_streamlit.ui import render_sidebar
 
 st.set_page_config(page_title="Generate · Lengua", page_icon="✍️", layout="centered")
 
@@ -16,7 +18,7 @@ if active is None:
     st.warning("Add and select a language in the sidebar first.")
     st.stop()
 
-gen_score = proficiency.get_score(active["id"])
+gen_score = store.get_score(active["id"])
 gen_band = proficiency.band_for_score(gen_score)
 st.caption(f"Active language: **{active['name']}** · level **{gen_band}**. Just enter "
            "words — the rules prompt, language, and your level are added automatically.")
@@ -60,7 +62,7 @@ if cards and st.session_state.get("generated_lang_id") == active["id"]:
     if st.button("💾 Save all as flashcards"):
         from lengua_core.models import GeneratedCard
 
-        n = flashcards.save_cards(
+        n = store.save_cards(
             active["id"], [GeneratedCard(**c) for c in cards], gen_level=gen_score
         )
         st.success(

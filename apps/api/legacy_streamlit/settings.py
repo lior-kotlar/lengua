@@ -1,10 +1,14 @@
-"""Typed accessors for user-configurable app settings stored in the settings table.
+"""Typed accessors for user-configurable app settings stored in the settings table (legacy app).
 
-All keys and defaults live here so no magic strings scatter elsewhere.
-Config constants (config.py / env vars) remain as fallback defaults — the DB takes
-precedence when a value has been explicitly set by the user.
+All keys and defaults live here so no magic strings scatter elsewhere. Non-secret tuning
+constants come from :mod:`lengua_core.config`; the DB takes precedence when a value has been
+explicitly set by the user. The Gemini model is operator config read from the environment
+(``GEMINI_MODEL``), not a DB-stored secret.
 """
-from . import config
+import os
+
+from lengua_core import config
+
 from .db import get_setting, set_setting
 
 _DAILY_NEW      = "daily_new_limit"
@@ -23,7 +27,7 @@ def discover_word_count() -> int:
     return int(get_setting(_DISCOVER_COUNT, "3"))
 
 def gemini_model() -> str:
-    return get_setting(_MODEL, config.MODEL)
+    return get_setting(_MODEL, os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
 
 
 def set_daily_new_limit(n: int) -> None:

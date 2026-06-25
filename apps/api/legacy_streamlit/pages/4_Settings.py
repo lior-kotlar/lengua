@@ -1,8 +1,8 @@
 """Settings page: configure app-wide behaviour stored in the local database."""
 import streamlit as st
 
-from lengua_core import settings as app_settings
-from lengua_core.ui import render_sidebar
+from legacy_streamlit import settings as app_settings
+from legacy_streamlit.ui import render_sidebar
 
 st.set_page_config(page_title="Settings · Lengua", page_icon="⚙️", layout="centered")
 

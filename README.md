@@ -139,34 +139,40 @@ only affect writing style, not format.
 
 ## Project layout
 
-The legacy Streamlit app and its domain package now live under `apps/api/`:
+The domain logic lives in a **pure** `lengua_core/` package (no database, no web framework), and
+the legacy Streamlit app — including all of its SQLite persistence — lives under
+`legacy_streamlit/`. Both sit under `apps/api/`:
 
 ```
 apps/api/
-  legacy_streamlit/
+  legacy_streamlit/    legacy single-user Streamlit app + its SQLite store
     app.py             Streamlit entry point / home page
     pages/
       1_Generate.py    words in -> sentences out
       2_Review.py      daily flashcard review (FSRS)
       3_Discover.py    auto-pick new vocab at your level -> sentences out
       4_Settings.py    app-wide settings
-  lengua_core/
-    config.py          loads .env, model name, paths, daily limits, level tuning
     db.py              SQLite connection + schema (+ idempotent migrations)
-    models.py          GeneratedCard (sentence / translation / used_words / word_notes)
-    prompts.py         the editable rules + output-format + level prompt
-    gemini.py          Gemini wrapper: words -> structured cards; tap-a-word explanations
     languages.py       learned languages + active-language setting
-    flashcards.py      persist generated cards (recognition + production) into the deck
-    scheduler.py       FSRS: new-card state, due batch, grading
-    proficiency.py     per-language CEFR level: scoring, review-driven updates, override
+    settings.py        per-user app settings (daily limits, discover count, model)
+    store.py           SQLite persistence wiring the pure core to the database
     ui.py              shared sidebar (language selector + level)
+  lengua_core/         pure domain core — no DB, no FastAPI (unit-testable, portable)
+    config.py          non-secret CEFR/level tuning constants + legacy DB path
+    models.py          GeneratedCard / WordNote (sentence / translation / used_words / notes)
+    prompts.py         the editable rules + output-format + level prompt
+    cards.py           pure card-building: one sentence -> recognition + production pair
+    scheduler.py       pure FSRS: new-card state, due-batch selection, grading
+    proficiency.py     pure CEFR scoring: bands, progress, review-driven nudges
+    gemini.py          Gemini provider wrapper: words -> cards; tap-a-word explanations
+    llm/               provider seam (base protocol, deterministic fake, selector)
 ```
 
 ## Configuration knobs
 
-Optional environment variables (see
-[`apps/api/lengua_core/config.py`](apps/api/lengua_core/config.py)):
+Optional environment variables (the `LENGUA_*` knobs live in
+[`apps/api/lengua_core/config.py`](apps/api/lengua_core/config.py); `GEMINI_MODEL` is read from
+the environment by [`apps/api/lengua_core/gemini.py`](apps/api/lengua_core/gemini.py)):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

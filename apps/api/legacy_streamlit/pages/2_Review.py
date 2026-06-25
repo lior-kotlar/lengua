@@ -4,8 +4,10 @@ import json
 import streamlit as st
 from fsrs import Rating
 
-from lengua_core import flashcards, gemini, proficiency, scheduler
-from lengua_core.ui import render_sidebar
+from lengua_core import gemini
+
+from legacy_streamlit import store
+from legacy_streamlit.ui import render_sidebar
 
 # Style the per-word buttons so they read as inline sentence text, with a
 # hover lift + highlight. Scoped to the keyed container Streamlit emits as
@@ -81,17 +83,17 @@ lang_id = active["id"]
 # Load today's batch once per language, then walk through it in session state.
 batch_key = f"review_batch_{lang_id}"
 if batch_key not in st.session_state:
-    st.session_state[batch_key] = scheduler.due_cards(lang_id)
+    st.session_state[batch_key] = store.due_cards(lang_id)
     st.session_state[f"review_idx_{lang_id}"] = 0
     st.session_state[f"review_show_{lang_id}"] = False
 
 batch = st.session_state[batch_key]
 idx = st.session_state[f"review_idx_{lang_id}"]
 
-total_saved = flashcards.count_saved(lang_id)
-new_count = sum(1 for c in batch if scheduler.is_new_card(c))
+total_saved = store.count_saved(lang_id)
+new_count = sum(1 for c in batch if store.is_new_card(c))
 due_count = len(batch) - new_count
-level_band = proficiency.get_band(lang_id)
+level_band = store.get_band(lang_id)
 st.caption(
     f"Level **{level_band}** · {new_count} new · {due_count} due · "
     f"{total_saved} cards in your {active['name']} deck"
@@ -115,7 +117,7 @@ card = batch[idx]
 show = st.session_state[f"review_show_{lang_id}"]
 
 # Prompt depends on the card direction (legacy cards without one are recognition).
-if card.get("direction") == flashcards.PRODUCTION:
+if card.get("direction") == store.PRODUCTION:
     prompt_label = f"✍️ Build the sentence in {active['name']}"
     reveal_label = "Show answer"
 else:
@@ -131,7 +133,7 @@ if not show:
         st.session_state[f"review_show_{lang_id}"] = True
         st.rerun()
 else:
-    if card.get("direction") == flashcards.PRODUCTION:
+    if card.get("direction") == store.PRODUCTION:
         card_id = card["id"]
         sel_key = f"word_sel_{card_id}"
         selected_word = st.session_state.get(sel_key)
@@ -140,7 +142,7 @@ else:
         row_key = f"lwrow-rtl-{card_id}" if _is_rtl(card["back"]) else f"lwrow-{card_id}"
         with st.container(horizontal=True, key=row_key):
             for i, token in enumerate(card["back"].split()):
-                bare = flashcards.bare_word(token)
+                bare = store.bare_word(token)
                 if not bare:
                     st.markdown(token)
                     continue
@@ -172,7 +174,7 @@ else:
                         )
                         cache[selected_word] = note
                         # Persist so it's instant next time (covers imported cards).
-                        flashcards.save_word_explanation(card_id, selected_word, note)
+                        store.save_word_explanation(card_id, selected_word, note)
                     except Exception as exc:  # surface API issues instead of crashing
                         cache[selected_word] = f"⚠️ Couldn't fetch an explanation: {exc}"
             exp_col, close_col = st.columns([0.92, 0.08], vertical_alignment="top")
@@ -196,7 +198,7 @@ else:
         if col.button(
             label, key=f"rate-{label.lower()}-{lang_id}", use_container_width=True
         ):
-            scheduler.grade(card["id"], rating)
+            store.grade(card["id"], rating)
             st.session_state[f"review_idx_{lang_id}"] = idx + 1
             st.session_state[f"review_show_{lang_id}"] = False
             st.rerun()

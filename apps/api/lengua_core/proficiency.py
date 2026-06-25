@@ -1,19 +1,34 @@
-"""Per-language proficiency level: a continuous CEFR score that shapes generation
-and self-updates from review answers.
+"""Per-language proficiency level: a continuous CEFR score that shapes generation and
+self-updates from review answers.
 
-The score runs 0..6 on the CEFR scale (band = ``CEFR_BANDS[floor(score)]``). It rises
-on "Easy", drifts down on "Again"/"Hard", and treats production cards (English->target,
-the harder direction) asymmetrically — more credit for success, less penalty for a
-struggle. Only reviews of roughly current-level material count, so a backlog of old or
-below-level cards can't inflate the level.
+The score runs 0..6 on the CEFR scale (band = ``CEFR_BANDS[floor(score)]``). It rises on
+"Easy", drifts down on "Again"/"Hard", and treats production cards (English->target, the
+harder direction) asymmetrically — more credit for success, less penalty for a struggle. Only
+reviews of roughly current-level material count, so a backlog of old or below-level cards can't
+inflate the level.
 
-State is keyed by ``(user_id, language_id)`` with a single default user for now.
+This module is **pure**: it computes scores and bands but never persists anything.
+:func:`register_review` takes the current score and returns the new one; storing it (keyed by
+``(user_id, language_id)``) is the caller's job — the legacy SQLite store or the API's
+proficiency repository.
 """
+
+from __future__ import annotations
+
 from . import config
-from .db import connect
+from .cards import PRODUCTION
+
+__all__ = [
+    "clamp_score",
+    "band_for_score",
+    "score_for_band",
+    "band_progress",
+    "register_review",
+]
 
 
-def _clamp(score: float) -> float:
+def clamp_score(score: float) -> float:
+    """Clamp a score into the valid CEFR range ``[LEVEL_MIN, LEVEL_MAX]``."""
     return max(config.LEVEL_MIN, min(config.LEVEL_MAX, score))
 
 
@@ -39,63 +54,27 @@ def band_progress(score: float) -> float:
     return score - int(score)
 
 
-def get_score(language_id: int, user_id: int = config.DEFAULT_USER_ID) -> float:
-    """The learner's continuous score for a language (0.0 / A1 if not set yet)."""
-    with connect() as conn:
-        row = conn.execute(
-            "SELECT score FROM proficiency WHERE user_id = ? AND language_id = ?",
-            (user_id, language_id),
-        ).fetchone()
-    return float(row["score"]) if row else config.LEVEL_MIN
-
-
-def get_band(language_id: int, user_id: int = config.DEFAULT_USER_ID) -> str:
-    return band_for_score(get_score(language_id, user_id))
-
-
-def set_score(
-    language_id: int, score: float, user_id: int = config.DEFAULT_USER_ID
-) -> float:
-    """Upsert the clamped score and return the stored value."""
-    score = _clamp(score)
-    with connect() as conn:
-        conn.execute(
-            "INSERT INTO proficiency (user_id, language_id, score) VALUES (?, ?, ?) "
-            "ON CONFLICT(user_id, language_id) DO UPDATE SET "
-            "score = excluded.score, updated_at = datetime('now')",
-            (user_id, language_id, score),
-        )
-    return score
-
-
-def set_band(
-    language_id: int, band: str, user_id: int = config.DEFAULT_USER_ID
-) -> float:
-    """Manually place the learner at a CEFR band (sets the score to its lower bound)."""
-    return set_score(language_id, score_for_band(band), user_id)
-
-
 def register_review(
-    language_id: int,
+    current_score: float,
     rating: int,
     direction: str | None,
     gen_level: float | None,
-    user_id: int = config.DEFAULT_USER_ID,
-) -> None:
-    """Nudge the language score after one review.
+) -> float:
+    """Return the new language score after one review (pure — no persistence).
 
-    `gen_level` is the score the reviewed card was generated at (None for legacy/imported
-    cards, which always count). `direction` weights the nudge: production cards get more
-    credit for success and less penalty for a struggle.
+    ``current_score`` is the learner's score before this review. ``gen_level`` is the score the
+    reviewed card was generated at (``None`` for legacy/imported cards, which always count); a
+    card more than :data:`config.LEVEL_WINDOW` bands from the current score is ignored so old or
+    below-level cards can't move the level. ``direction`` weights the nudge: production cards get
+    more credit for success and less penalty for a struggle. When nothing should move, the
+    unchanged ``current_score`` is returned.
     """
-    score = get_score(language_id, user_id)
-    if gen_level is not None and abs(gen_level - score) > config.LEVEL_WINDOW:
-        return  # not current-level material — ignore so old/easy cards don't inflate
+    if gen_level is not None and abs(gen_level - current_score) > config.LEVEL_WINDOW:
+        return current_score  # not current-level material — ignore
 
     delta = config.LEVEL_DELTAS.get(int(rating), 0.0)
-    from .flashcards import PRODUCTION  # deferred: flashcards -> scheduler -> proficiency
-
     if direction == PRODUCTION:
         delta *= config.PROD_POS_WEIGHT if delta > 0 else config.PROD_NEG_WEIGHT
-    if delta:
-        set_score(language_id, score + delta, user_id)
+    if not delta:
+        return current_score
+    return clamp_score(current_score + delta)
