@@ -28,7 +28,7 @@ supabase/     Supabase CLI config, initial migration, seed
 | App | Location | How to run | Status |
 | --- | --- | --- | --- |
 | API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
-| Web | `apps/web/` | `cd apps/web && pnpm dev` | scaffold in 0.3.x |
+| Web | `apps/web/` | `cd apps/web && pnpm install && pnpm dev` (placeholder home); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
 The sections below document the **legacy Streamlit app**, which stays runnable throughout the
