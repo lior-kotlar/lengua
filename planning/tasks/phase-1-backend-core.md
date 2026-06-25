@@ -54,9 +54,25 @@ _Context: one `llm` interface picked by `LLM_PROVIDER`; default `groq` (OpenAI-c
 
 _Context: replace the SQLite layer with an async SQLAlchemy 2.x layer; routers → services → repositories → DB, with `lengua_core` staying DB-agnostic._
 
-- [ ] **1.3.1** Add the async SQLAlchemy engine + sessionmaker (`asyncpg`) and a `get_db` session dependency reading `DATABASE_URL`.
+> **Implemented (group 1.3a, tasks 1.3.1 + 1.3.2):** the async persistence foundation lives under
+> `app/db/` (inside the ruff + mypy `--strict` + coverage gate; `lengua_core` stays SQL-free):
+> `app/db/session.py` (lazy process-wide async engine + `async_sessionmaker` + `get_db`
+> dependency + `dispose_engine`; `async_dsn()` rewrites the stored `postgresql://` DSN to
+> `postgresql+asyncpg://`), `app/db/base.py` (`DeclarativeBase` with a Postgres naming
+> convention), and `app/db/models.py` (SQLAlchemy 2.0 typed `Mapped[]` models for all eight
+> tables — profiles, languages, cards, reviews, proficiency, user_settings **plus** llm_usage +
+> llm_budget — matching `supabase/migrations/20260621000000_initial_schema.sql` exactly). Two
+> deliberate Phase-1 choices: (a) `profiles.id` is a plain `uuid` PK with **no** `auth.users` FK
+> (the auth FK + RLS are Phase-2 Supabase concerns); (b) the cost-guard tables are `llm_usage` /
+> `llm_budget` (the committed provider-agnostic names), superseding the stale `gemini_*` names in
+> the 1.4.3 task text. A reusable async `db_session` pytest fixture (own engine, outer
+> transaction rolled back per test via `join_transaction_mode="create_savepoint"`) is in
+> `tests/conftest.py` for groups 1.3b/1.5. Deps added: `sqlalchemy[asyncio]`, `asyncpg`,
+> `pytest-asyncio`.
+
+- [x] **1.3.1** Add the async SQLAlchemy engine + sessionmaker (`asyncpg`) and a `get_db` session dependency reading `DATABASE_URL`.
       verify: `pytest apps/api/tests/db/test_session.py` opens a session against a throwaway Postgres (testcontainers/local Supabase) and runs `SELECT 1`.
-- [ ] **1.3.2** Define ORM models for `profiles`, `languages`, `cards`, `reviews`, `proficiency`, `user_settings` with `user_id UUID`, `timestamptz`, `jsonb` columns, real FKs (`ON DELETE CASCADE`), and per-user uniqueness (`languages` UNIQUE `(user_id, name)`; `user_settings` PK `(user_id, key)`).
+- [x] **1.3.2** Define ORM models for `profiles`, `languages`, `cards`, `reviews`, `proficiency`, `user_settings` with `user_id UUID`, `timestamptz`, `jsonb` columns, real FKs (`ON DELETE CASCADE`), and per-user uniqueness (`languages` UNIQUE `(user_id, name)`; `user_settings` PK `(user_id, key)`).
       verify: `pytest apps/api/tests/db/test_models_metadata.py` asserts column types (UUID/timestamptz/jsonb), the FKs, and the unique constraints exist on `Base.metadata`.
 - [ ] **1.3.3** Implement `repositories/languages.py` + `repositories/cards.py` (the only modules that touch the DB) with create/list/delete + save-cards methods, all taking `user_id` explicitly.
       verify: `pytest apps/api/tests/repositories/test_cards_repo.py` saves a pair of cards for the seeded user and reads them back scoped by `user_id`.

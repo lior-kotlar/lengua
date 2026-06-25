@@ -5,7 +5,9 @@ The FastAPI backend service, managed with [`uv`](https://docs.astral.sh/uv/) on 
 ## Structure
 
 - `app/` — HTTP layer: `main.py` (FastAPI app + `GET /health`), `settings.py`
-  (pydantic-settings config). Routers, auth, quota, and OTel wiring land in Phase 1.
+  (pydantic-settings config), `db/` (async SQLAlchemy 2.0 engine/session via `get_db` plus the
+  typed ORM models in `db/models.py`, matching the canonical Supabase schema). Routers, auth,
+  quota, and OTel wiring land in Phase 1.
 - `lengua_core/` — domain logic (LLM provider seam, scheduler, proficiency, prompts, models);
   ported here in task 0.1.2 (renamed from the old root `lengua/` package).
 - `legacy_streamlit/` — the legacy Streamlit app (`app.py` + `pages/`), relocated here in task
@@ -74,7 +76,9 @@ uv run pytest                       # unit + integration (integration auto-skips
 The fixtures auto-source `DATABASE_URL` / `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` from
 `supabase status` when unset, so no manual env export is needed for a local stack. Isolation:
 each test module starts from a `TRUNCATE … RESTART IDENTITY CASCADE` of the app tables, and each
-test runs inside a `SAVEPOINT` that is rolled back at teardown.
+test runs inside a transaction rolled back at teardown — the sync `db` (psycopg) fixture and the
+async `db_session` (SQLAlchemy `AsyncSession`, via `pytest-asyncio`) fixture both follow this
+rollback-per-test pattern.
 
 The LLM is never called in tests: `FakeLLM` (`LLM_PROVIDER=fake`) is a deterministic, network-free
 stand-in (`tests/test_fake_llm.py` runs with `pytest-socket --disable-socket` to prove it).
