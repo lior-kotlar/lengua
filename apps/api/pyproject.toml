@@ -12,6 +12,10 @@ dependencies = [
     # FSRS spaced-repetition algorithm — used by the pure lengua_core.scheduler the API's
     # review service builds on (and by the legacy Streamlit store).
     "fsrs>=5.0",
+    # LLM provider SDKs behind the lengua_core.llm seam (selected by LLM_PROVIDER):
+    # groq = the OpenAI-compatible default for all dev/CI; google-genai = Gemini (prod).
+    "groq>=1.5.0",
+    "google-genai>=2.10.0",
 ]
 
 [dependency-groups]

@@ -39,15 +39,15 @@ _Context: lift the existing domain logic into `apps/api/lengua_core/` with no Fa
 
 _Context: one `llm` interface picked by `LLM_PROVIDER`; default `groq` (OpenAI-compatible JSON mode), with the existing `gemini` impl behind the same interface — flipping providers is a config change, never code._
 
-- [ ] **1.2.1** Define `lengua_core/llm/base.py`: a `Provider` protocol with `generate_cards` / `suggest_new_words` / `explain_word`, all returning the existing Pydantic models, plus `get_provider()` that reads `LLM_PROVIDER` once and fails fast if the selected provider's key is unset.
+- [x] **1.2.1** Define `lengua_core/llm/base.py`: a `Provider` protocol with `generate_cards` / `suggest_new_words` / `explain_word`, all returning the existing Pydantic models, plus `get_provider()` that reads `LLM_PROVIDER` once and fails fast if the selected provider's key is unset.
       verify: `pytest apps/api/tests/llm/test_get_provider.py` asserts an unknown `LLM_PROVIDER` raises at startup and a missing `GROQ_API_KEY` (with provider `groq`) raises a clear error.
-- [ ] **1.2.2** Implement `lengua_core/llm/groq.py` (default): OpenAI-compatible client in JSON mode for `generate_cards`, parsing the JSON response into `list[GeneratedCard]` (incl. `word_notes` → `WordNote`).
+- [x] **1.2.2** Implement `lengua_core/llm/groq.py` (default): OpenAI-compatible client in JSON mode for `generate_cards`, parsing the JSON response into `list[GeneratedCard]` (incl. `word_notes` → `WordNote`).
       verify: `pytest apps/api/tests/llm/test_groq_generate.py` feeds a recorded JSON payload through the parser and asserts a valid `GeneratedCard` list; no live network in the test.
-- [ ] **1.2.3** Add Groq `suggest_new_words` and `explain_word` in JSON/text mode, returning `list[str]` and a string respectively, matching the Gemini signatures.
+- [x] **1.2.3** Add Groq `suggest_new_words` and `explain_word` in JSON/text mode, returning `list[str]` and a string respectively, matching the Gemini signatures.
       verify: `pytest apps/api/tests/llm/test_groq_discover_explain.py` parses recorded responses into a word list and an explanation string.
-- [ ] **1.2.4** Port the existing Gemini impl to `lengua_core/llm/gemini.py` behind the same `Provider` protocol, unchanged logic (native schema-parsed output), selectable via `LLM_PROVIDER=gemini`.
+- [x] **1.2.4** Port the existing Gemini impl to `lengua_core/llm/gemini.py` behind the same `Provider` protocol, unchanged logic (native schema-parsed output), selectable via `LLM_PROVIDER=gemini`.
       verify: `LLM_PROVIDER=gemini` with a fake `GEMINI_API_KEY` makes `get_provider()` return the Gemini impl; `pytest apps/api/tests/llm/test_provider_switch.py` passes.
-- [ ] **1.2.5** Preserve retry/backoff (transient 429/5xx) in a shared helper used by both providers; cap output tokens and words-per-request at the call boundary.
+- [x] **1.2.5** Preserve retry/backoff (transient 429/5xx) in a shared helper used by both providers; cap output tokens and words-per-request at the call boundary.
       verify: `pytest apps/api/tests/llm/test_retry.py` simulates two 503s then success and asserts exactly three attempts with backoff (no real sleeps — patched clock).
 
 ## 1.3 — SQLAlchemy 2.x persistence + repository/service boundary  ·  L

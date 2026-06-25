@@ -11,8 +11,12 @@ The FastAPI backend service, managed with [`uv`](https://docs.astral.sh/uv/) on 
 - `legacy_streamlit/` — the legacy Streamlit app (`app.py` + `pages/`), relocated here in task
   0.1.2; run with `cd apps/api && streamlit run legacy_streamlit/app.py`.
 - `lengua_core/llm/` — the provider-agnostic LLM seam: a `LLMProvider` Protocol (`base.py`),
-  the deterministic offline `FakeLLM` (`fake.py`), and `get_provider()` selecting the provider
-  from `LLM_PROVIDER` (`provider.py`). Added in task 0.4.2.
+  `get_provider()` selecting the impl from `LLM_PROVIDER` and failing fast on a missing key
+  (`provider.py`), and the implementations behind it — `groq.py` (default; Groq's
+  OpenAI-compatible JSON mode), `gemini.py` (reserved for prod; `google-genai` schema output),
+  the deterministic offline `FakeLLM` (`fake.py`), and a shared retry/backoff + request-cap
+  helper (`retry.py`). Switching providers is a config flip of `LLM_PROVIDER`, never a code
+  change.
 - `scripts/` — dev/ops scripts: `verify.py` (the local gate) and `seed_e2e.py` (E2E demo-account seeder).
 - `tests/` — pytest suite. Unit tests (`test_health.py`, `test_settings.py`, `test_factories.py`,
   `test_fake_llm.py`) plus DB-backed integration tests (`test_db_fixture.py`, `test_seed.py`).
