@@ -1,0 +1,174 @@
+"""Shared pytest fixtures, including the Supabase-CLI test-Postgres wiring (task 0.4.3).
+
+Isolation strategy (per the test-infra design):
+
+- **Module-scoped clean DB** — :func:`clean_db` opens one autocommit connection per test module
+  and ``TRUNCATE … RESTART IDENTITY CASCADE`` of the 8 app tables, giving each module a known
+  empty starting point (and resetting identity sequences so ids are predictable).
+- **Per-test SAVEPOINT rollback** — :func:`db` hands each test a connection inside a transaction
+  with a ``SAVEPOINT``; whatever the test writes is rolled back at teardown, so tests in a
+  module don't see each other's rows. Fast, and no re-truncation between tests.
+- **Offline-safe** — DB tests are marked ``@pytest.mark.integration``; the autouse
+  :func:`_skip_integration_without_db` fixture ``pytest.skip``s them when ``DATABASE_URL`` can't
+  be reached, so the plain unit suite still passes with no Postgres running.
+
+``DATABASE_URL`` defaults to the local Supabase CLI Postgres (``…@127.0.0.1:54322/postgres``).
+"""
+
+from __future__ import annotations
+
+import functools
+import os
+import shutil
+import subprocess
+from collections.abc import Iterator
+
+import psycopg
+import pytest
+
+from scripts.seed_e2e import SeedResult, seed
+
+# Map ``supabase status -o env`` keys → the env vars our seed/DB code reads. Auto-sourced once
+# at import so the literal verify (``uv run pytest tests/test_seed.py``) works against a running
+# local stack without the caller exporting anything; explicit env always wins.
+_SUPABASE_ENV_MAP = {
+    "API_URL": "SUPABASE_URL",
+    "SERVICE_ROLE_KEY": "SUPABASE_SERVICE_ROLE_KEY",
+    "DB_URL": "DATABASE_URL",
+}
+
+
+def _source_supabase_env() -> None:
+    """Best-effort: fill missing Supabase env vars from ``supabase status -o env``.
+
+    No-op when the CLI isn't on PATH or the stack isn't running — the integration tests then
+    simply skip (DB unreachable), keeping the unit suite green offline.
+    """
+    if all(os.getenv(v) for v in _SUPABASE_ENV_MAP.values()):
+        return
+    if shutil.which("supabase") is None:
+        return
+    try:
+        out = subprocess.run(
+            ["supabase", "status", "-o", "env"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    for line in out.splitlines():
+        key, sep, value = line.partition("=")
+        if not sep or key.strip() not in _SUPABASE_ENV_MAP:
+            continue
+        target = _SUPABASE_ENV_MAP[key.strip()]
+        if not os.getenv(target):  # never override an explicit value
+            os.environ[target] = value.strip().strip('"')
+
+
+_source_supabase_env()
+
+# The 8 application tables from the initial migration, child-before-parent so an explicit
+# order would work; CASCADE makes order moot but we keep it tidy. ``llm_budget`` is global.
+APP_TABLES = (
+    "reviews",
+    "cards",
+    "proficiency",
+    "user_settings",
+    "llm_usage",
+    "languages",
+    "profiles",
+    "llm_budget",
+)
+
+# Local Supabase CLI default DSN (postgres superuser, port 54322).
+DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+
+
+def database_url() -> str:
+    """The test database DSN (``DATABASE_URL`` env, else the local Supabase default)."""
+    return os.getenv("DATABASE_URL") or DEFAULT_DATABASE_URL
+
+
+@functools.cache
+def _db_reachable() -> bool:
+    """True if a short-timeout connection to :func:`database_url` succeeds.
+
+    Cached for the session so we pay the connect probe once, not once per integration test
+    (a 2s timeout per test adds up when no DB is running).
+    """
+    try:
+        with psycopg.connect(database_url(), connect_timeout=2) as conn:
+            conn.execute("SELECT 1")
+        return True
+    except Exception:
+        return False
+
+
+def _skip_if_db_unreachable() -> None:
+    """``pytest.skip`` (not error) when the test DB can't be reached.
+
+    Called both from the autouse guard (for marker-only tests) and from the DB fixtures
+    themselves, so a missing Postgres yields a *skip* even though the connection attempt lives
+    inside fixture setup (where a raised exception would otherwise surface as an ERROR).
+    """
+    if not _db_reachable():
+        pytest.skip(f"DATABASE_URL unreachable ({database_url()}); skipping integration test")
+
+
+@pytest.fixture(autouse=True)
+def _skip_integration_without_db(request: pytest.FixtureRequest) -> None:
+    """Skip any ``@pytest.mark.integration`` test when the database is unreachable.
+
+    Keeps the unit suite green offline (no Docker/Supabase) while still running DB tests in CI
+    and locally once ``supabase start`` is up.
+    """
+    if request.node.get_closest_marker("integration"):
+        _skip_if_db_unreachable()
+
+
+@pytest.fixture(scope="module")
+def clean_db() -> Iterator[None]:
+    """Module-scoped: truncate the app tables once so the module starts from an empty DB."""
+    # Belt-and-suspenders: skip here too, so an unreachable DB during *fixture setup* surfaces
+    # as a skip rather than a connection-timeout ERROR (fixture/autouse ordering is not
+    # guaranteed across scopes).
+    _skip_if_db_unreachable()
+    with psycopg.connect(database_url(), autocommit=True) as conn:
+        conn.execute(f"TRUNCATE {', '.join(APP_TABLES)} RESTART IDENTITY CASCADE")
+        yield
+
+
+@pytest.fixture
+def demo_account() -> SeedResult:
+    """Seed the deterministic demo/reviewer account and return the :class:`SeedResult`.
+
+    Wraps :func:`scripts.seed_e2e.seed` (Auth-Admin create → trigger makes the profile → insert
+    a language + due cards). Idempotent, so it's safe whether or not the account already exists.
+    Used by ``test_seed.py`` and available to any future E2E/integration test (and reused for
+    store-review later). Skips when the DB/Auth stack is unreachable.
+    """
+    _skip_if_db_unreachable()
+    return seed()
+
+
+@pytest.fixture
+def db(clean_db: None) -> Iterator[psycopg.Connection]:
+    """Per-test connection wrapped in a transaction + SAVEPOINT that is rolled back at teardown.
+
+    Depends on :func:`clean_db` so the module is truncated before the first test. Each test sees
+    a connection where its writes are isolated and automatically undone, so tests within a
+    module don't leak rows into one another.
+    """
+    conn = psycopg.connect(database_url())
+    try:
+        # Open an outer transaction and a savepoint; rolling back to the savepoint undoes the
+        # test's writes without ending the connection.
+        conn.execute("BEGIN")
+        conn.execute("SAVEPOINT test_savepoint")
+        yield conn
+        conn.execute("ROLLBACK TO SAVEPOINT test_savepoint")
+        conn.rollback()
+    finally:
+        conn.close()

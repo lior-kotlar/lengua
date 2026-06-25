@@ -16,6 +16,8 @@ dev = [
     "httpx>=0.28",
     "pytest>=8.3",
     "pytest-cov>=6.0",
+    "pytest-socket>=0.7",
+    "psycopg[binary]>=3.2",
     "ruff>=0.9",
     "mypy>=1.14",
 ]
@@ -58,12 +60,19 @@ ignore_missing_imports = true
 follow_imports = "skip"
 
 # ── Pytest + coverage ─────────────────────────────────────────────────────────
+# Coverage is scoped to the FastAPI shell (`app`) plus the new provider-agnostic LLM
+# seam (`lengua_core.llm`) added in 0.4.2. The rest of `lengua_core` and all of
+# `legacy_streamlit` are pre-existing and untested — intentionally OUT of this gate
+# (see the ruff/mypy scoping note above), so they are not measured here.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing"
+addopts = "--cov=app --cov=lengua_core/llm --cov-branch --cov-fail-under=80 --cov-report=term-missing"
+markers = [
+    "integration: tests that require a live Postgres (Supabase CLI). Auto-skipped when DATABASE_URL is unreachable.",
+]
 
 [tool.coverage.run]
-source = ["app"]
+source = ["app", "lengua_core/llm"]
 branch = true
 omit = [
     "app/settings.py",  # settings boilerplate — values come from env, not logic

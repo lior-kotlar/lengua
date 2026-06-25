@@ -34,7 +34,7 @@ phase file to do the work.
 
 | Phase | File | Focus | Effort | Depends on | Tasks | Status |
 |------:|------|-------|:------:|------------|:-----:|--------|
-| 0 | [phase-0-foundations.md](phase-0-foundations.md) | Monorepo, tooling, CI quality gate, accounts | S–M | — | 45 | in progress (0.1.1–0.1.3, 0.2.1–0.2.5, 0.3.1–0.3.5 done) |
+| 0 | [phase-0-foundations.md](phase-0-foundations.md) | Monorepo, tooling, CI quality gate, accounts | S–M | — | 45 | in progress (0.1.1–0.1.3, 0.2.1–0.2.5, 0.3.1–0.3.5, 0.4.1–0.4.4 done) |
 | 1 | [phase-1-backend-core.md](phase-1-backend-core.md) | FastAPI + Postgres core loop, LLM seam, OpenAPI | L | 0 | 34 | not started |
 | 2 | [phase-2-auth-multitenancy.md](phase-2-auth-multitenancy.md) | Supabase Auth, per-user scoping, RLS, account lifecycle | M | 1 | 28 | not started |
 | 3 | [phase-3-llm-quota.md](phase-3-llm-quota.md) | LLM quota, rate-limit, cost-guard kill-switch | M | 2 | 26 | not started |
