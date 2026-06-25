@@ -34,7 +34,7 @@ phase file to do the work.
 
 | Phase | File | Focus | Effort | Depends on | Tasks | Status |
 |------:|------|-------|:------:|------------|:-----:|--------|
-| 0 | [phase-0-foundations.md](phase-0-foundations.md) | Monorepo, tooling, CI quality gate, accounts | S–M | — | 45 | in progress (0.1.x, 0.2.x, 0.3.x, 0.4.x, **0.5 CI gate (0.5.1–0.5.10)**, 0.6.1, **0.6.2**, 0.7.1–0.7.6, 0.7.11, 0.8.x done; remaining: owner items 0.6.3/0.6.4/0.7.7–0.7.10) |
+| 0 | [phase-0-foundations.md](phase-0-foundations.md) | Monorepo, tooling, CI quality gate, accounts | S–M | — | 45 | **impl complete** — 0.1–0.5 (CI gate 0.5.1–0.5.10), 0.6.1–0.6.2, 0.7.1–0.7.6/0.7.9/0.7.10/0.7.11, 0.8.x all merged green; gate live + green on `main`. Remaining = OWNER-only (non-blocking): 0.6.3/0.6.4 deferred to launch, 0.7.7/0.7.8 open. Does not block Phase 1. |
 | 1 | [phase-1-backend-core.md](phase-1-backend-core.md) | FastAPI + Postgres core loop, LLM seam, OpenAPI | L | 0 | 34 | not started |
 | 2 | [phase-2-auth-multitenancy.md](phase-2-auth-multitenancy.md) | Supabase Auth, per-user scoping, RLS, account lifecycle | M | 1 | 28 | not started |
 | 3 | [phase-3-llm-quota.md](phase-3-llm-quota.md) | LLM quota, rate-limit, cost-guard kill-switch | M | 2 | 26 | not started |
