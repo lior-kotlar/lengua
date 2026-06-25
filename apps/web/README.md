@@ -20,10 +20,13 @@ shadcn `Button`.
 
 ## Common commands
 
-Run all of these from `apps/web/` (prefix with `corepack ` if `pnpm` isn't on your PATH):
+This app is part of the root **pnpm workspace** (`pnpm-workspace.yaml`, with `packages/*`), so
+there is a single `pnpm-lock.yaml` at the repo root. Run these from `apps/web/` (prefix with
+`corepack ` if `pnpm` isn't on your PATH); `pnpm install` resolves the whole workspace whether you
+run it here or at the root:
 
 ```bash
-pnpm install                 # install dependencies
+pnpm install                 # install workspace dependencies (web + packages/*)
 pnpm dev                     # Vite dev server (placeholder home at http://localhost:5173)
 pnpm build                   # tsc --noEmit + vite build → dist/
 pnpm preview                 # serve the built dist/ locally

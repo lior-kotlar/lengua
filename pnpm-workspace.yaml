@@ -1,0 +1,11 @@
+# pnpm workspace (monorepo root).
+#
+# Before this, apps/web was a standalone pnpm project with its own lockfile. packages/api-types
+# (the OpenAPI-generated TS client, task 1.6.2) is consumed by the web app via `pnpm --filter`,
+# which requires a workspace — and a pnpm-workspace.yaml at the repo root is discovered by `pnpm`
+# run anywhere beneath it, so apps/web must be a member too. There is now a single root
+# pnpm-lock.yaml (apps/web/pnpm-lock.yaml was removed). apps/api is a uv/Python project and is
+# intentionally NOT a member.
+packages:
+  - 'apps/web'
+  - 'packages/*'

@@ -1,8 +1,8 @@
 # packages
 
-Shared packages used across the apps.
+Shared packages used across the apps, part of the root pnpm workspace
+(`pnpm-workspace.yaml`).
 
-Planned: `api-types/` — the OpenAPI-generated TypeScript client/types consumed by `apps/web`
-(added in Phase 1+, and excluded from coverage as generated code).
-
-> Placeholder.
+- **[`api-types/`](api-types/)** — the OpenAPI-generated TypeScript types + a typed client for
+  the Lengua API, derived from `apps/api/openapi.json`. Generated code; excluded from the web
+  app's lint/coverage scopes. Regenerate with `pnpm --filter api-types generate`.

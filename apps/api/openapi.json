@@ -1,0 +1,1285 @@
+{
+  "components": {
+    "schemas": {
+      "CardOut": {
+        "description": "A persisted flashcard row as returned by the API.",
+        "properties": {
+          "back": {
+            "title": "Back",
+            "type": "string"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "due": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due"
+          },
+          "front": {
+            "title": "Front",
+            "type": "string"
+          },
+          "gen_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gen Level"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "saved": {
+            "title": "Saved",
+            "type": "boolean"
+          },
+          "used_words": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used Words"
+          },
+          "word_explanations": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Word Explanations"
+          }
+        },
+        "required": [
+          "id",
+          "language_id",
+          "direction",
+          "front",
+          "back",
+          "used_words",
+          "word_explanations",
+          "gen_level",
+          "saved",
+          "due"
+        ],
+        "title": "CardOut",
+        "type": "object"
+      },
+      "DiscoverAcceptRequest": {
+        "description": "Request body for ``POST /discover/accept`` — turn accepted words into saved cards.",
+        "properties": {
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "language_id",
+          "words"
+        ],
+        "title": "DiscoverAcceptRequest",
+        "type": "object"
+      },
+      "DiscoverRequest": {
+        "description": "Request body for ``POST /discover`` — preview new vocabulary.",
+        "properties": {
+          "count": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic"
+          }
+        },
+        "required": [
+          "language_id"
+        ],
+        "title": "DiscoverRequest",
+        "type": "object"
+      },
+      "DiscoverResponse": {
+        "description": "The preview: new words the learner does not already have a card for.",
+        "properties": {
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "title": "DiscoverResponse",
+        "type": "object"
+      },
+      "DueResponse": {
+        "description": "The due batch for a language, split into never-reviewed (``new``) vs. ``due`` cards.",
+        "properties": {
+          "due": {
+            "items": {
+              "$ref": "#/components/schemas/CardOut"
+            },
+            "title": "Due",
+            "type": "array"
+          },
+          "new": {
+            "items": {
+              "$ref": "#/components/schemas/CardOut"
+            },
+            "title": "New",
+            "type": "array"
+          }
+        },
+        "required": [
+          "new",
+          "due"
+        ],
+        "title": "DueResponse",
+        "type": "object"
+      },
+      "ExplainRequest": {
+        "description": "Request body for ``POST /explain`` — a tapped word in a card's sentence.\n\n``sentence`` is the target-language sentence (the production card's back) and ``translation``\nits English gloss, mirroring ``lengua_core.gemini.explain_word`` so any provider is a drop-in.",
+        "properties": {
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "sentence": {
+            "minLength": 1,
+            "title": "Sentence",
+            "type": "string"
+          },
+          "translation": {
+            "title": "Translation",
+            "type": "string"
+          },
+          "word": {
+            "minLength": 1,
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "sentence",
+          "translation",
+          "language_id"
+        ],
+        "title": "ExplainRequest",
+        "type": "object"
+      },
+      "ExplainResponse": {
+        "description": "A short explanation of the tapped word (served from the card's cache when available).",
+        "properties": {
+          "explanation": {
+            "title": "Explanation",
+            "type": "string"
+          },
+          "word": {
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "explanation"
+        ],
+        "title": "ExplainResponse",
+        "type": "object"
+      },
+      "GenerateRequest": {
+        "description": "Request body for ``POST /generate``.",
+        "properties": {
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "language_id"
+        ],
+        "title": "GenerateRequest",
+        "type": "object"
+      },
+      "GeneratedCardModel": {
+        "description": "One built (unsaved) flashcard direction — a generate preview / a save input item.",
+        "properties": {
+          "back": {
+            "title": "Back",
+            "type": "string"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "front": {
+            "title": "Front",
+            "type": "string"
+          },
+          "gen_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gen Level"
+          },
+          "used_words": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Used Words",
+            "type": "array"
+          },
+          "word_explanations": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Word Explanations"
+          }
+        },
+        "required": [
+          "direction",
+          "front",
+          "back",
+          "used_words"
+        ],
+        "title": "GeneratedCardModel",
+        "type": "object"
+      },
+      "GradeRequest": {
+        "description": "Request body for ``POST /review/{card_id}/grade`` — an FSRS rating 1..4.",
+        "properties": {
+          "rating": {
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rating"
+        ],
+        "title": "GradeRequest",
+        "type": "object"
+      },
+      "GradeResponse": {
+        "description": "The outcome of grading a card.",
+        "properties": {
+          "card_id": {
+            "title": "Card Id",
+            "type": "integer"
+          },
+          "due": {
+            "format": "date-time",
+            "title": "Due",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "score_changed": {
+            "title": "Score Changed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "card_id",
+          "due",
+          "score",
+          "score_changed"
+        ],
+        "title": "GradeResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LanguageCreate": {
+        "description": "Request body for ``POST /languages``.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "vowelized": {
+            "default": false,
+            "title": "Vowelized",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "LanguageCreate",
+        "type": "object"
+      },
+      "LanguageOut": {
+        "description": "A language as returned by the API.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "vowelized": {
+            "title": "Vowelized",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "code",
+          "vowelized"
+        ],
+        "title": "LanguageOut",
+        "type": "object"
+      },
+      "LanguageUpdate": {
+        "description": "Request body for ``PATCH /languages/{id}`` — toggle the ``vowelized`` flag.",
+        "properties": {
+          "vowelized": {
+            "title": "Vowelized",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "vowelized"
+        ],
+        "title": "LanguageUpdate",
+        "type": "object"
+      },
+      "ProficiencyOut": {
+        "description": "A learner's level for one language: continuous score, CEFR band, intra-band progress.",
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "progress": {
+            "title": "Progress",
+            "type": "number"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "score",
+          "band",
+          "progress"
+        ],
+        "title": "ProficiencyOut",
+        "type": "object"
+      },
+      "ProficiencyUpdate": {
+        "description": "Request body for ``PUT /proficiency/{language_id}`` — override by score *or* CEFR band.\n\nExactly one of ``score`` / ``band`` must be supplied; ``score`` is clamped to the valid\nrange and ``band`` is mapped to that band's lower-bound score by the service.",
+        "properties": {
+          "band": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "title": "ProficiencyUpdate",
+        "type": "object"
+      },
+      "SaveCardsRequest": {
+        "description": "Request body for ``POST /cards/save`` — the generate previews to persist.",
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedCardModel"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "language_id",
+          "cards"
+        ],
+        "title": "SaveCardsRequest",
+        "type": "object"
+      },
+      "SettingsOut": {
+        "description": "All of the user's settings as a ``{key: value}`` map.",
+        "properties": {
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "title": "SettingsOut",
+        "type": "object"
+      },
+      "SettingsUpdate": {
+        "description": "Request body for ``PUT /settings`` — upsert (merge) one or more settings.\n\nOnly the keys present are written; existing keys not listed are left untouched.",
+        "properties": {
+          "values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "minProperties": 1,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "title": "SettingsUpdate",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Lengua API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/cards/save": {
+      "post": {
+        "description": "Persist generated recognition+production previews into the current user's deck (saved).",
+        "operationId": "save_cards_cards_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCardsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CardOut"
+                  },
+                  "title": "Response Save Cards Cards Save Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Cards",
+        "tags": [
+          "cards"
+        ]
+      }
+    },
+    "/discover": {
+      "post": {
+        "description": "Preview new words at the learner's level, excluding vocabulary they already know.",
+        "operationId": "discover_discover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover",
+        "tags": [
+          "discover"
+        ]
+      }
+    },
+    "/discover/accept": {
+      "post": {
+        "description": "Generate and save cards for the accepted ``words`` (delegates to the generate flow).",
+        "operationId": "accept_discover_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverAcceptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CardOut"
+                  },
+                  "title": "Response Accept Discover Accept Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept",
+        "tags": [
+          "discover"
+        ]
+      }
+    },
+    "/explain": {
+      "post": {
+        "description": "Explain a tapped word in a sentence (served from the card's cache when available).",
+        "operationId": "explain_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Explain",
+        "tags": [
+          "explain"
+        ]
+      }
+    },
+    "/generate": {
+      "post": {
+        "description": "Generate recognition+production card previews for ``words`` (nothing is persisted yet).",
+        "operationId": "generate_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GeneratedCardModel"
+                  },
+                  "title": "Response Generate Generate Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate",
+        "tags": [
+          "generate"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Liveness probe used by Cloud Run and CI smoke checks.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/languages": {
+      "get": {
+        "description": "List the current user's languages, oldest first.",
+        "operationId": "list_languages_languages_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LanguageOut"
+                  },
+                  "title": "Response List Languages Languages Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Languages",
+        "tags": [
+          "languages"
+        ]
+      },
+      "post": {
+        "description": "Add a language (idempotent on the per-user ``UNIQUE (user_id, name)``).",
+        "operationId": "add_language_languages_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LanguageCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Language",
+        "tags": [
+          "languages"
+        ]
+      }
+    },
+    "/languages/{language_id}": {
+      "delete": {
+        "description": "Delete a language (its cards/proficiency cascade).",
+        "operationId": "remove_language_languages__language_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "language_id",
+            "required": true,
+            "schema": {
+              "title": "Language Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Language",
+        "tags": [
+          "languages"
+        ]
+      },
+      "patch": {
+        "description": "Toggle a language's ``vowelized`` flag.",
+        "operationId": "set_vowelized_languages__language_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "language_id",
+            "required": true,
+            "schema": {
+              "title": "Language Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LanguageUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Vowelized",
+        "tags": [
+          "languages"
+        ]
+      }
+    },
+    "/proficiency/{language_id}": {
+      "get": {
+        "description": "Return the learner's level for one of their languages.",
+        "operationId": "get_proficiency_proficiency__language_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "language_id",
+            "required": true,
+            "schema": {
+              "title": "Language Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProficiencyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Proficiency",
+        "tags": [
+          "proficiency"
+        ]
+      },
+      "put": {
+        "description": "Override the level by raw ``score`` or CEFR ``band`` (exactly one; enforced by the DTO).",
+        "operationId": "set_proficiency_proficiency__language_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "language_id",
+            "required": true,
+            "schema": {
+              "title": "Language Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProficiencyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProficiencyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Proficiency",
+        "tags": [
+          "proficiency"
+        ]
+      }
+    },
+    "/review/due": {
+      "get": {
+        "description": "Return the user's due batch for a language, split into new vs. previously-reviewed.",
+        "operationId": "review_due_review_due_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "language_id",
+            "required": true,
+            "schema": {
+              "title": "Language Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Due",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/review/{card_id}/grade": {
+      "post": {
+        "description": "Grade a card (1=Again .. 4=Easy): FSRS reschedule + review log + proficiency nudge.",
+        "operationId": "grade_card_review__card_id__grade_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "card_id",
+            "required": true,
+            "schema": {
+              "title": "Card Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GradeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Grade Card",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/settings": {
+      "get": {
+        "description": "Return all of the current user's settings.",
+        "operationId": "get_settings_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Settings",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "description": "Upsert (merge) the supplied settings and return the full updated map.",
+        "operationId": "put_settings_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Settings",
+        "tags": [
+          "settings"
+        ]
+      }
+    }
+  }
+}

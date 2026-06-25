@@ -1,0 +1,10 @@
+{
+  "name": "lengua-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lengua monorepo workspace root (apps/web + packages/*). apps/api is a separate uv/Python project.",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
