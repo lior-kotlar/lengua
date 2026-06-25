@@ -58,6 +58,20 @@
     details.done li { font-size:.8rem; color:#475569; padding:3px 0; display:flex; gap:8px; }
     details.done li::before { content:'✓'; color:#10b981; font-weight:800; }
     code { font-family:'SF Mono','Fira Code',monospace; }
+    /* Agent prompt box */
+    .ai-prompt-box { border:2px solid #4f46e5; border-radius:12px; margin-bottom:22px; background:#eef2ff; overflow:hidden; }
+    .ai-prompt-head { padding:15px 20px; background:#4f46e5; color:#fff; }
+    .ai-prompt-head h2 { font-size:1rem; font-weight:700; margin:0; }
+    .ai-prompt-head p { font-size:.78rem; color:#c7d2fe; margin:3px 0 0; }
+    .ai-prompt-body { padding:16px 20px 18px; }
+    .ai-prompt-note { background:#e0e7ff; border:1px solid #a5b4fc; border-radius:8px; padding:10px 13px;
+      font-size:.8rem; color:#3730a3; margin-bottom:12px; line-height:1.5; }
+    .ai-actions { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+    .btn-copy { background:#4f46e5; color:#fff; border:none; border-radius:6px; padding:8px 16px; font-size:.82rem; cursor:pointer; font-weight:600; }
+    .btn-copy:hover { background:#4338ca; }
+    .copy-ok { color:#059669; font-size:.82rem; font-weight:600; display:none; }
+    .ai-text { width:100%; height:440px; font-family:'SF Mono','Fira Code',monospace; font-size:.72rem; line-height:1.55;
+      border:1px solid #c7d2fe; border-radius:8px; padding:13px; resize:vertical; background:#1e1b4b; color:#c7d2fe; white-space:pre; }
   </style>
 </head>
 <body>
@@ -77,6 +91,95 @@
 
 <div class="container">
 
+  <!-- ════ AGENT PROMPT FOR KOTLAR ════ -->
+  <div class="ai-prompt-box">
+    <div class="ai-prompt-head">
+      <h2>🤖 Kotlar — paste this into your Claude Code agent</h2>
+      <p>It will do and <strong>validate</strong> each remaining task, and won't report "done" until it actually verifies it.</p>
+    </div>
+    <div class="ai-prompt-body">
+      <div class="ai-prompt-note">
+        <strong>How to use:</strong> open Claude Code in your local <code>lengua</code> repo (pull the
+        <code>docs/productionization-plan</code> branch first). Click <em>Copy</em>, paste as your first message, and follow
+        the agent. It runs <code>gh</code> / <code>gcloud</code> / <code>vercel</code> / <code>supabase</code> automatically and gives you
+        browser steps for the rest. Each task is validated before it's marked done — only message Ben once the agent confirms all checks pass.
+      </div>
+      <div class="ai-actions">
+        <button class="btn-copy" onclick="copyPrompt()">📋 Copy Prompt</button>
+        <span class="copy-ok" id="copyOk">✓ Copied!</span>
+      </div>
+      <textarea class="ai-text" id="promptText" readonly>You are helping Kotlar (GitHub: lior-kotlar, OWNER of the repo lior-kotlar/lengua) finish and VALIDATE the last setup tasks before his developer Ben (GitHub: BenArtzi4, email benartzi4@gmail.com) continues implementation.
+
+ALREADY VERIFIED DONE on 2026-06-25 — do NOT redo:
+- All 28 GitHub Actions secrets exist.
+- Supabase staging (ref rydclyotzdwcbbeyitcx) and prod (ref ptyqlxjykbprfzhnxgla) are live; Ben has org access to both.
+- GCP project lengua-prod with Ben as Editor and a github-ci service account; Artifact Registry europe-west1-docker.pkg.dev/lengua-prod/lengua.
+- Google OAuth wired into Supabase; Groq/Gemini/Resend/Grafana/Sentry keys all set as CI secrets.
+
+YOU HAVE the gh, gcloud, vercel, supabase CLIs. Kotlar is the repo OWNER, so admin-only API calls will work.
+
+RULES:
+- Work through the tasks IN ORDER. For each: DO it (CLI where possible, else give Kotlar exact browser steps), then VALIDATE it with the command shown, and only mark it DONE when the validation output is correct.
+- For browser-only steps, ask Kotlar to confirm he actually did it AND validate via CLI/API wherever possible.
+- Do NOT tell Kotlar "all done" until tasks 1-3 validate via CLI and tasks 4-6 are confirmed (invites require Ben to accept).
+- Never print secret values.
+
+First confirm identity:  gh auth status   (must be lior-kotlar; if not: ! gh auth login)
+
+=== TASK 1 - Branch protection on main ===
+DO:
+  gh api -X PUT repos/lior-kotlar/lengua/branches/main/protection -F required_status_checks=null -F enforce_admins=true -F "required_pull_request_reviews[required_approving_review_count]=1" -F restrictions=null
+VALIDATE (expect enabled=true, reviews=1, and NO 404):
+  gh api repos/lior-kotlar/lengua/branches/main/protection --jq "{admins:.enforce_admins.enabled, reviews:.required_pull_request_reviews.required_approving_review_count}"
+
+=== TASK 2 - Dependabot alerts + automated security fixes ===
+DO:
+  gh api -X PUT repos/lior-kotlar/lengua/vulnerability-alerts
+  gh api -X PUT repos/lior-kotlar/lengua/automated-security-fixes
+VALIDATE (expect HTTP 204, NOT 404):
+  gh api repos/lior-kotlar/lengua/vulnerability-alerts -i | head -1
+
+=== TASK 3 - Add the two missing CI secrets ===
+(Deploy workflows expect these; they are currently absent.)
+DO:
+  gh secret set GCP_REGION --body "europe-west1" -R lior-kotlar/lengua
+  gh secret set SENTRY_ORG --body "kotlar-y7" -R lior-kotlar/lengua
+VALIDATE (both must appear):
+  gh secret list -R lior-kotlar/lengua | grep -E "GCP_REGION|SENTRY_ORG"
+NOTE: the Supabase project refs are already stored as SUPABASE_STAGING_PROJECT_REF and SUPABASE_PROD_PROJECT_REF. Any workflow YAML must use those exact names (NOT SUPABASE_PROJECT_ID_STAGING/PROD).
+
+=== TASK 4 - Invite Ben to Vercel (he never got an invite) ===
+A personal Vercel account cannot have project members. If "lengua" is on your personal account:
+  1. vercel.com -> Add Team (any name).
+  2. Move/import the lengua project into that Team.
+  3. Team -> Settings -> Members -> Invite benartzi4@gmail.com (role Member or higher).
+VALIDATE:
+  - In the Vercel dashboard, confirm benartzi4@gmail.com shows under the Team's Members.
+  - Then tell Ben to run:  vercel project ls   -> it must list "lengua".
+  This task is DONE only after Ben confirms he can see the project.
+
+=== TASK 5 - Confirm Resend SMTP in BOTH Supabase projects ===
+For staging AND prod: supabase.com -> project -> Authentication -> SMTP Settings -> Custom SMTP enabled
+(host smtp.resend.com, port 587, username "resend", password = your Resend API key, sender set).
+VALIDATE: in each project, Authentication -> Users -> send yourself a recovery/invite email and confirm it ARRIVES.
+(Staging has email auto-confirm OFF, so sign-up emails MUST work.)
+
+=== TASK 6 - Confirm Ben is invited to Grafana Cloud and Sentry ===
+  Grafana -> Administration -> Users -> Invite benartzi4@gmail.com.
+  Sentry  -> Settings -> Members -> Invite benartzi4@gmail.com.
+VALIDATE: each shows a pending invite; then Ben confirms he received and accepted both.
+
+=== FINAL - re-validate and report ===
+Re-run:
+  gh api repos/lior-kotlar/lengua/branches/main/protection --jq ".enforce_admins.enabled"
+  gh api repos/lior-kotlar/lengua/vulnerability-alerts -i | head -1
+  gh secret list -R lior-kotlar/lengua | grep -E "GCP_REGION|SENTRY_ORG"
+Print all 6 tasks as PASS/FAIL. Tasks 4 and 6 are PASS only once Ben confirms acceptance.
+When tasks 1-3 pass and 4-6 are confirmed, give Kotlar ONE short message to send Ben, e.g.:
+"Branch protection + Dependabot on, GCP_REGION + SENTRY_ORG added, Vercel/Grafana/Sentry invites sent, Resend SMTP confirmed - pull docs/productionization-plan and continue."</textarea>
+    </div>
+  </div>
+
   <details class="done">
     <summary>✓ 47 items already verified complete (2026-06-25) — click to expand</summary>
     <ul>
@@ -88,7 +191,7 @@
       <li><strong>Vercel:</strong> account, project imported, CI token/IDs set (Ben dashboard access still pending — see below)</li>
       <li><strong>LLM:</strong> Groq key verified working; default model corrected to <code>llama-3.1-8b-instant</code> (old <code>gemma2-9b-it</code> was decommissioned); Gemini key held in CI for prod</li>
       <li><strong>Email/Observability:</strong> Resend, Grafana OTLP, and Sentry (lengua-api + lengua-web DSNs) all set as CI secrets</li>
-      <li><strong>Ben local:</strong> <code>.env</code> created (staging creds), <code>gcloud</code> logged in, Docker Desktop running</li>
+      <li><strong>Ben local:</strong> <code>.env</code> created (staging creds), <code>gcloud</code> logged in (Editor on lengua-prod), Docker Desktop running</li>
     </ul>
   </details>
 
@@ -99,55 +202,43 @@
 
       <div class="item" data-owner="kotlar">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Enable branch protection on <code>main</code></strong>
-            <div class="item-detail">Verified NOT set. Settings → Branches → Add rule for <code>main</code>:
-            require a PR before merging (1 approval); add CI status checks once the workflows exist.</div>
+          <span class="item-text"><strong>Enable branch protection on <code>main</code></strong> <em>(Task 1)</em>
+            <div class="item-detail">Verified NOT set. Require a PR + 1 approval. Validate: <code>gh api repos/lior-kotlar/lengua/branches/main/protection</code> returns without 404.</div>
           </span></label><span class="badge badge-kotlar">Kotlar</span>
       </div>
 
       <div class="item" data-owner="kotlar">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Enable Dependabot alerts &amp; security updates</strong>
-            <div class="item-detail">Verified NOT enabled. Settings → Code security and analysis → turn on both Dependabot alerts and security updates.</div>
+          <span class="item-text"><strong>Enable Dependabot alerts &amp; security updates</strong> <em>(Task 2)</em>
+            <div class="item-detail">Verified NOT enabled. Validate: <code>gh api .../vulnerability-alerts -i</code> returns HTTP 204.</div>
           </span></label><span class="badge badge-kotlar">Kotlar</span>
       </div>
 
       <div class="item" data-owner="kotlar">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Invite Ben to Vercel</strong>
-            <div class="item-detail">Ben received no email and <code>vercel project ls</code> shows no <code>lengua</code> project.
-            If the project is on a personal account, create a Team first, then Project → Settings → Members → invite <code>benartzi4@gmail.com</code>.</div>
+          <span class="item-text"><strong>Add missing CI secrets <code>GCP_REGION</code> + <code>SENTRY_ORG</code></strong> <em>(Task 3)</em>
+            <div class="item-detail">Currently absent. Values: <code>europe-west1</code> and <code>kotlar-y7</code>. Workflows must use <code>SUPABASE_STAGING_PROJECT_REF</code>/<code>SUPABASE_PROD_PROJECT_REF</code> (not <code>SUPABASE_PROJECT_ID_*</code>).</div>
           </span></label><span class="badge badge-kotlar">Kotlar</span>
       </div>
 
       <div class="item" data-owner="kotlar">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Reconcile CI secret names before first deploy</strong>
-            <div class="item-detail">Actual secrets use <code>SUPABASE_STAGING_PROJECT_REF</code> / <code>SUPABASE_PROD_PROJECT_REF</code>
-            (not <code>SUPABASE_PROJECT_ID_*</code>). Missing: <code>GCP_REGION</code> (= <code>europe-west1</code>) and
-            <code>SENTRY_ORG</code> (= <code>kotlar-y7</code>). Either add those two secrets or have the workflows use the existing names / hardcode the values.</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- VERIFY IN DASHBOARD -->
-  <div class="section">
-    <div class="section-head"><div class="section-num">2</div><div class="section-title">Confirm in Dashboard — couldn't verify via CLI</div></div>
-    <div class="section-body">
-      <div class="info">These may already be done — tick them once confirmed in the respective dashboards.</div>
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Custom SMTP (Resend) enabled in BOTH Supabase projects</strong>
-            <div class="item-detail">Staging has email auto-confirm OFF, so sign-ups need working SMTP. Authentication → SMTP Settings in staging + prod.</div>
+          <span class="item-text"><strong>Invite Ben to Vercel</strong> <em>(Task 4)</em>
+            <div class="item-detail">Ben got no email; <code>vercel project ls</code> shows no <code>lengua</code>. Create a Team if it's a personal account, then invite <code>benartzi4@gmail.com</code>. Done only when Ben sees the project.</div>
           </span></label><span class="badge badge-kotlar">Kotlar</span>
       </div>
 
       <div class="item" data-owner="kotlar">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Ben invited to Grafana Cloud + Sentry</strong>
-            <div class="item-detail">Ben hasn't received/accepted either invite. Grafana: Administration → Users. Sentry: Settings → Members.</div>
+          <span class="item-text"><strong>Confirm Resend SMTP in BOTH Supabase projects</strong> <em>(Task 5)</em>
+            <div class="item-detail">Staging email auto-confirm is OFF, so sign-ups need working SMTP. Validate by sending yourself a test email from each project.</div>
+          </span></label><span class="badge badge-kotlar">Kotlar</span>
+      </div>
+
+      <div class="item" data-owner="kotlar">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Invite Ben to Grafana Cloud + Sentry</strong> <em>(Task 6)</em>
+            <div class="item-detail">Ben hasn't received/accepted either. Grafana: Administration → Users. Sentry: Settings → Members.</div>
           </span></label><span class="badge badge-kotlar">Kotlar</span>
       </div>
     </div>
@@ -155,19 +246,19 @@
 
   <!-- BEN — OUTSTANDING -->
   <div class="section">
-    <div class="section-head"><div class="section-num">3</div><div class="section-title">Ben — Outstanding</div></div>
+    <div class="section-head"><div class="section-num">2</div><div class="section-title">Ben — Outstanding (mostly waiting on the invites above)</div></div>
     <div class="section-body">
 
       <div class="item" data-owner="ben">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Accept Vercel invite, then confirm access</strong> <em>(blocked on Kotlar item above)</em>
-            <div class="item-detail">Once invited: accept the email, then <code>vercel project ls</code> should list <code>lengua</code>.</div>
+          <span class="item-text"><strong>Accept Vercel invite, then confirm</strong>
+            <div class="item-detail">After Kotlar invites you: accept the email, then <code>vercel project ls</code> should list <code>lengua</code>.</div>
           </span></label><span class="badge badge-ben">Ben</span>
       </div>
 
       <div class="item" data-owner="ben">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Accept Grafana + Sentry invites</strong> <em>(when they arrive)</em>
+          <span class="item-text"><strong>Accept Grafana + Sentry invites</strong>
             <div class="item-detail">Confirm you can open the Grafana stack and both Sentry projects (lengua-api, lengua-web).</div>
           </span></label><span class="badge badge-ben">Ben</span>
       </div>
@@ -175,7 +266,7 @@
       <div class="item" data-owner="ben">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
           <span class="item-text"><strong>(Optional, when coding) Link Supabase CLI to staging</strong>
-            <div class="item-detail">For migrations/CI: <code>supabase link --project-ref rydclyotzdwcbbeyitcx</code>. Local stack: <code>supabase start</code> (Docker is up).</div>
+            <div class="item-detail"><code>supabase link --project-ref rydclyotzdwcbbeyitcx</code> for migrations. Local stack: <code>supabase start</code> (Docker is up).</div>
           </span></label><span class="badge badge-ben">Ben</span>
       </div>
     </div>
@@ -198,6 +289,10 @@
     try{localStorage.setItem(KEY,JSON.stringify(s));}catch(e){} }
   function load(){ var r; try{r=localStorage.getItem(KEY);}catch(e){} if(!r)return; var s=JSON.parse(r);
     document.querySelectorAll('input.cb').forEach(function(c,i){ if(s['cb'+i]!==undefined) c.checked=s['cb'+i]||c.defaultChecked; }); }
+  function copyPrompt(){ var t=document.getElementById('promptText'); t.select(); t.setSelectionRange(0,99999);
+    try{ document.execCommand('copy'); }catch(e){}
+    if(navigator.clipboard){ navigator.clipboard.writeText(t.value).catch(function(){}); }
+    var ok=document.getElementById('copyOk'); ok.style.display='inline'; setTimeout(function(){ok.style.display='none';},2500); }
   document.querySelectorAll('input.cb').forEach(function(c){ c.addEventListener('change',function(){update();save();}); });
   load(); update();
 </script>
