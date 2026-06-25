@@ -222,3 +222,23 @@ data/
 *.db
 stash/
 .vercel
+
+# ── Node / web (apps/web) ──────────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+*.local
+
+# JS/TS test + coverage output
+coverage/
+
+# Playwright (web E2E)
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# Monorepo task runner cache
+.turbo/

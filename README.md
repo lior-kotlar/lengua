@@ -8,6 +8,32 @@ It replaces the manual workflow of pasting words + a long "rules" prompt into a 
 the rules, the generation instruction, and your active language are attached
 automatically on every request, so you only ever supply the words.
 
+## Repository layout & how to run each app
+
+Lengua is being productionized from a single Streamlit app into a monorepo (FastAPI API +
+React web app + Supabase + Cloud Run). The full plan lives in [`planning/`](planning/) — start
+at [`planning/tasks/task-tracker.md`](planning/tasks/task-tracker.md).
+
+```
+apps/
+  api/        FastAPI service (uv) — scaffolded in Phase 0 group 0.2
+  web/        React + TS + Vite app (pnpm, Tailwind + shadcn/ui) — group 0.3
+packages/     shared packages, e.g. api-types (OpenAPI-generated TS client) — Phase 1+
+infra/        infra & CI/CD docs (the CI gate lives in .github/workflows/)
+docs/         privacy policy, runbook, legal — group 0.8
+planning/     productionization plan & per-phase task files
+supabase/     Supabase CLI config, initial migration, seed
+```
+
+| App | Location | How to run | Status |
+| --- | --- | --- | --- |
+| API | `apps/api/` | `cd apps/api && uv run uvicorn app.main:app` | scaffold in 0.2.x |
+| Web | `apps/web/` | `cd apps/web && pnpm dev` | scaffold in 0.3.x |
+| Legacy Streamlit | repo root today → `apps/api/legacy_streamlit/` after task 0.1.2 | `python -m streamlit run app.py` | runnable now |
+
+The sections below document the **legacy Streamlit app**, which stays runnable throughout the
+migration.
+
 ## How it works
 
 1. **Pick a language** in the sidebar (e.g. Spanish, Arabic). It's saved and stays active
