@@ -11,6 +11,7 @@ for a real provider, so it cannot appear in dev/staging/prod.
 from __future__ import annotations
 
 import os
+import sys  # PROOF: unused import to trip ruff F401 (0.5.2) — reverted right after CI.
 
 from fastapi import FastAPI
 
