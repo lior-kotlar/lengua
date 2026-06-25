@@ -60,6 +60,20 @@ select = [
     "SIM", # flake8-simplify
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's Depends()/Query()/... in argument defaults is the framework idiom (the call is
+# resolved per-request by FastAPI), not the mutable-default bug B008 guards against.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.File",
+    "fastapi.Form",
+]
+
 # ── Mypy (strict-ish), scoped to app/ + tests/ only ───────────────────────────
 [tool.mypy]
 python_version = "3.12"
@@ -109,6 +123,10 @@ source = [
     "lengua_core.config",
 ]
 branch = true
+# The async API handlers are driven over ASGI and call async SQLAlchemy, whose async->sync bridge
+# runs in greenlets; without this, coverage misses lines resumed after an ``await`` in the
+# top-level endpoint coroutines (they execute — proven by the HTTP tests — but go unrecorded).
+concurrency = ["thread", "greenlet"]
 omit = [
     "app/settings.py",  # settings boilerplate — values come from env, not logic
     "tests/*",

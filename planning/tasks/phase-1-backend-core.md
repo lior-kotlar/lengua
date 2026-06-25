@@ -134,15 +134,34 @@ _Context: Alembic owns the schema; the first migration is the entire multi-tenan
 
 _Context: routers for the whole API surface in 03-backend.md, wired to services; `current_user` resolves to the seeded dev user for now (no JWT until Phase 2)._
 
-- [ ] **1.5.1** Create the FastAPI app (`app/main.py`) + `app/deps.py` with `get_db` and a `current_user` dependency that returns the seeded dev UUID (placeholder for Phase 2 JWT).
+> **Implemented (group 1.5a, tasks 1.5.1–1.5.5):** the core-loop HTTP surface is live and wired
+> into `create_app()`. `app/deps.py` provides `get_db` (re-exported from `app.db.session`),
+> `current_user` (returns the fixed seeded dev UUID — placeholder until Phase 2 JWT; a drift test
+> asserts it matches `scripts.seed_dev_user.DEV_USER_ID` / `tests.factories.DEMO_USER_ID`), and
+> `get_llm_provider` (the `lengua_core.llm` seam, overridden with `FakeLLM` in tests). Routers
+> (`app/routers/`) are thin: DTOs in/out (`app/schemas/`), domain errors → HTTP codes
+> (`NotFoundError`→404, `ValidationError`→422), all logic in `app/services/` (no SQL in routers).
+> `POST /languages` returns **200** (idempotent add), `DELETE`→204; `vowelized` toggles via
+> `PATCH /languages/{id}`. `GET /review/due?language_id=` returns the new-vs-due split (new
+> `ReviewService.due_split`; `due_batch` now delegates to it). `GenerateService.provider` is now
+> optional so the cards router can save without constructing a provider. API tests
+> (`tests/api/`, `@pytest.mark.integration`) drive the app in-process over ASGI
+> (`httpx.AsyncClient`) with `get_db` overridden to the rolled-back test session and `FakeLLM` as
+> the provider, seeding the fixed dev user first. Added `concurrency = ["thread", "greenlet"]` to
+> the coverage config so lines resumed after `await` in the async handlers (atop async
+> SQLAlchemy's greenlet bridge) are recorded. Ruff now allowlists FastAPI's `Depends()`/`Query()`/…
+> in argument defaults (B008). 1.5.6–1.5.10 (discover/explain/proficiency/settings + full-loop)
+> remain.
+
+- [x] **1.5.1** Create the FastAPI app (`app/main.py`) + `app/deps.py` with `get_db` and a `current_user` dependency that returns the seeded dev UUID (placeholder for Phase 2 JWT).
       verify: `curl -s localhost:8000/health` returns 200 with `{"status":"ok"}`; `pytest apps/api/tests/api/test_health.py` passes.
-- [ ] **1.5.2** `languages` router: `GET/POST/DELETE /languages` (list/add/remove, toggle `vowelized`), scoped to `current_user`.
+- [x] **1.5.2** `languages` router: `GET/POST/DELETE /languages` (list/add/remove, toggle `vowelized`), scoped to `current_user`.
       verify: `pytest apps/api/tests/api/test_languages.py` POSTs a language, GETs it back, DELETEs it (200/200/204) against a throwaway Postgres.
-- [ ] **1.5.3** `generate` router: `POST /generate {words, language_id}` → calls the generate service (stubbed provider in tests) → returns created (unsaved) cards.
+- [x] **1.5.3** `generate` router: `POST /generate {words, language_id}` → calls the generate service (stubbed provider in tests) → returns created (unsaved) cards.
       verify: `pytest apps/api/tests/api/test_generate.py` posts two words with a fake provider and asserts the response contains two cards per sentence with `gen_level` set.
-- [ ] **1.5.4** `cards` router: `POST /cards/save` persists generated recognition+production cards into the deck for `current_user`.
+- [x] **1.5.4** `cards` router: `POST /cards/save` persists generated recognition+production cards into the deck for `current_user`.
       verify: `pytest apps/api/tests/api/test_cards_save.py` saves a generated batch then asserts the rows exist (`saved=true`) scoped to the dev user.
-- [ ] **1.5.5** `review` router: `GET /review/due` (new vs due split) and `POST /review/{card_id}/grade` (Again/Hard/Good/Easy → FSRS reschedule + proficiency nudge).
+- [x] **1.5.5** `review` router: `GET /review/due` (new vs due split) and `POST /review/{card_id}/grade` (Again/Hard/Good/Easy → FSRS reschedule + proficiency nudge).
       verify: `pytest apps/api/tests/api/test_review.py` grades a due card, asserts the card's `due` moved forward and a `reviews` row + proficiency change were recorded.
 - [ ] **1.5.6** `discover` router: `POST /discover {topic?, count?}` → provider suggests new words (preview) → accept path feeds generate.
       verify: `pytest apps/api/tests/api/test_discover.py` with a fake provider returns a preview word list and the accept path produces cards.

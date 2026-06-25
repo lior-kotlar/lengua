@@ -14,6 +14,8 @@ import os
 
 from fastapi import FastAPI
 
+from app.routers import cards, generate, languages, review
+
 
 def _llm_provider() -> str:
     """The configured LLM provider name (``LLM_PROVIDER`` env, default ``groq``)."""
@@ -28,6 +30,13 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         """Liveness probe used by Cloud Run and CI smoke checks."""
         return {"status": "ok"}
+
+    # Core-loop routers (languages -> generate -> save -> review). current_user resolves to the
+    # seeded dev user until Phase 2 JWT; discover/explain/proficiency/settings land in 1.5.6+.
+    application.include_router(languages.router)
+    application.include_router(generate.router)
+    application.include_router(cards.router)
+    application.include_router(review.router)
 
     if _llm_provider() == "fake":
         # Imported lazily so the test-only module is never loaded for a real provider.
