@@ -14,6 +14,7 @@ import os
 
 from fastapi import FastAPI
 
+from app.observability import configure_observability
 from app.routers import (
     cards,
     discover,
@@ -41,6 +42,11 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     test) so the committed ``openapi.json`` never depends on the runtime LLM provider.
     """
     application = FastAPI(title="Lengua API")
+
+    # Observability (Phase 1.7): OTel tracing (FastAPI/SQLAlchemy/httpx auto-instrumentation,
+    # no-op exporter unless OTEL_EXPORTER_OTLP_ENDPOINT is set) + one structured JSON access-log
+    # line per request, with a trace_id for correlation.
+    configure_observability(application)
 
     @application.get("/health")
     def health() -> dict[str, str]:
