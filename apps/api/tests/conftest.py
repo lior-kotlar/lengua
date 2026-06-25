@@ -21,11 +21,14 @@ import functools
 import os
 import shutil
 import subprocess
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 
 import psycopg
 import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
+from app.db.session import async_dsn
 from scripts.seed_e2e import SeedResult, seed
 
 # Map ``supabase status -o env`` keys → the env vars our seed/DB code reads. Auto-sourced once
@@ -172,3 +175,34 @@ def db(clean_db: None) -> Iterator[psycopg.Connection]:
         conn.rollback()
     finally:
         conn.close()
+
+
+@pytest_asyncio.fixture
+async def db_session(clean_db: None) -> AsyncIterator[AsyncSession]:
+    """Per-test async :class:`AsyncSession` whose writes are rolled back at teardown.
+
+    The async analogue of :func:`db` (used by the SQLAlchemy repository/service tests in groups
+    1.3b/1.5, and by ``tests/db/test_session.py``): it opens a connection, begins an outer
+    transaction, and binds an ``AsyncSession`` with ``join_transaction_mode="create_savepoint"``
+    so that even code under test which calls ``commit()`` only releases a SAVEPOINT — the outer
+    transaction is rolled back at teardown, isolating each test. Depends on :func:`clean_db` so
+    the module starts from a truncated DB with predictable identity ids (and so an unreachable
+    database surfaces as a skip rather than an error). A fresh engine is created per test and
+    disposed at teardown, keeping every connection bound to the test's own event loop.
+    """
+    engine = create_async_engine(async_dsn(database_url()))
+    conn = await engine.connect()
+    trans = await conn.begin()
+    session = AsyncSession(
+        bind=conn,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    try:
+        yield session
+    finally:
+        await session.close()
+        if trans.is_active:
+            await trans.rollback()
+        await conn.close()
+        await engine.dispose()
