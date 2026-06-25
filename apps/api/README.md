@@ -19,12 +19,16 @@ The FastAPI backend service, managed with [`uv`](https://docs.astral.sh/uv/) on 
   the deterministic offline `FakeLLM` (`fake.py`), and a shared retry/backoff + request-cap
   helper (`retry.py`). Switching providers is a config flip of `LLM_PROVIDER`, never a code
   change.
-- `scripts/` — dev/ops scripts: `verify.py` (the local gate) and `seed_e2e.py` (E2E demo-account seeder).
+- `scripts/` — dev/ops scripts: `verify.py` (the local gate), `seed_e2e.py` (E2E demo-account
+  seeder), and `seed_dev_user.py` (the fixed dev-user profile used as the placeholder
+  `current_user` until Phase 2).
 - `tests/` — pytest suite. Unit tests (`test_health.py`, `test_settings.py`, `test_factories.py`,
-  `test_fake_llm.py`) plus DB-backed integration tests (`test_db_fixture.py`, `test_seed.py`).
+  `test_fake_llm.py`) plus DB-backed integration tests (`test_db_fixture.py`, `test_seed.py`, and
+  the migration tests under `tests/db/` — `test_schema_roundtrip.py`, `test_seed_dev_user.py`).
   Shared fixtures + the Supabase-CLI Postgres wiring live in `conftest.py`; deterministic builders
   in `factories.py`.
-- `migrations/` — Alembic (Phase 1+).
+- `migrations/` — Alembic: `env.py` (async, targets `app.db.Base.metadata`, URL from
+  `DATABASE_URL`) + the first migration (the full schema). See [migrations/README.md](migrations/README.md).
 - `Dockerfile`, `pyproject.toml`.
 
 > `lengua_core/` and `legacy_streamlit/` are pre-existing and intentionally **out of scope**
@@ -88,6 +92,27 @@ Auth Admin API, then a language + a set of due cards) for E2E:
 
 ```
 uv run python scripts/seed_e2e.py
+```
+
+## Migrations (Alembic)
+
+Alembic owns the schema. The database URL is resolved at runtime from `DATABASE_URL` (via
+`app.settings`), so nothing is hard-coded in `alembic.ini`. Run from `apps/api`:
+
+```
+uv run alembic current              # applied revision (empty on a fresh DB)
+uv run alembic upgrade head         # apply all migrations
+uv run alembic downgrade base       # revert everything
+uv run alembic check                # fail if the migrations drift from the ORM models
+```
+
+The first migration is the entire schema (the 6 app tables + the `llm_usage` / `llm_budget`
+cost-guard tables), kept equivalent to `supabase/migrations/…_initial_schema.sql` and applyable
+on a bare Postgres (no `auth.users` FK, no RLS — those stay Supabase / Phase-2 concerns). After
+`upgrade head`, seed the fixed dev-user profile (idempotent):
+
+```
+uv run python scripts/seed_dev_user.py
 ```
 
 ## Configuration
