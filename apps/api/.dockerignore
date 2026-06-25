@@ -1,0 +1,29 @@
+# Build context hygiene for the API image (task 0.5.5).
+# Keep the image small and reproducible: ship only the source + lockfiles.
+
+# Python / uv build artifacts
+.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Tests & local data are not needed at runtime
+tests/
+data/
+*.db
+
+# Legacy Streamlit app is not part of the API service image
+legacy_streamlit/
+
+# VCS / editor noise
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+README.md

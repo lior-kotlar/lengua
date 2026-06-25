@@ -1,0 +1,599 @@
+# Lengua — per-PR quality gate (Phase 0 group 0.5).
+#
+# Encodes the blocking pipeline from planning/09-testing-quality.md as a single multi-job
+# workflow. Every PR must be 100% green on the REQUIRED jobs before it can merge:
+#
+#   lint-and-types · backend-tests · frontend-tests · build · e2e · security
+#
+# Advisory (non-blocking) jobs add visibility without gating merges:
+#
+#   a11y-perf (axe + Lighthouse CI) · coverage-comment (backend + frontend coverage delta)
+#
+# The LLM seam is never hit for real in CI: backend/E2E run against the deterministic FakeLLM
+# (LLM_PROVIDER=fake) with NO Groq/Gemini keys, and the E2E job asserts zero real LLM calls via
+# the test-only /__test__/* router (apps/api/app/testing.py). A throwaway test Postgres is the
+# local Supabase CLI stack (`supabase start`) — the same mechanism apps/api/tests/conftest.py
+# already auto-sources, so CI reuses the existing DB/seed wiring rather than reinventing it.
+#
+# `push: main` runs too, purely to warm the dependency/browser caches so the first PR run off a
+# fresh main already gets cache hits.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# One in-flight run per ref; a new push cancels the previous (saves minutes, keeps the latest
+# commit's result authoritative). `main` is never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Default to read-only; jobs that need to comment on the PR opt in explicitly.
+permissions:
+  contents: read
+
+env:
+  # Pin the toolchain versions used across jobs so caches are stable and builds reproducible.
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '22'
+  UV_VERSION: '0.11.22'
+  # Make uv's cache deterministic and CI-friendly.
+  UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
+
+jobs:
+  # ── 0.5.1 — setup + cache warming (uv + pnpm + Playwright browsers) ──────────────────────────
+  # This job exists to (a) prove dependency resolution works and (b) populate the shared caches
+  # so every later job (and the next PR run) restores them instead of re-downloading. A second
+  # run of this workflow shows cache hits here and in the consumer jobs.
+  setup:
+    name: setup (warm caches)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # uv — restores/saves a cache keyed on uv.lock (enable-cache: true).
+      - name: Set up uv (api deps cache)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: Resolve api deps (populate uv cache)
+        working-directory: apps/api
+        run: uv sync --frozen
+
+      # pnpm + Node — setup-node caches the pnpm store keyed on pnpm-lock.yaml.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - name: Set up Node (pnpm store cache)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: Install web deps (populate pnpm store)
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
+      # Playwright browser binaries — cached separately keyed on the installed Playwright version
+      # so the E2E job restores them instead of re-downloading Chromium each run.
+      - name: Resolve Playwright version
+        id: pw
+        working-directory: apps/web
+        run: echo "version=$(pnpm ls @playwright/test --depth 0 --parseable --long 2>/dev/null | sed -n 's/.*@playwright\/test@//p' | head -1)" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browsers (populate cache)
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+  # ── 0.5.2 — lint + format + typecheck (api + web) ───────────────────────────────────────────
+  lint-and-types:
+    name: lint + format + types
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+
+      # API: ruff lint + ruff format --check + mypy.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: api deps
+        working-directory: apps/api
+        run: uv sync --frozen
+      - name: ruff check
+        working-directory: apps/api
+        run: uv run ruff check .
+      - name: ruff format --check
+        working-directory: apps/api
+        run: uv run ruff format --check .
+      - name: mypy
+        working-directory: apps/api
+        run: uv run mypy .
+
+      # Web: eslint + prettier --check + tsc --noEmit.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: eslint
+        working-directory: apps/web
+        run: pnpm lint
+      - name: prettier --check
+        working-directory: apps/web
+        run: pnpm format:check
+      - name: tsc --noEmit
+        working-directory: apps/web
+        run: pnpm typecheck
+
+  # ── 0.5.3 — backend tests + coverage (against the Supabase CLI test Postgres) ────────────────
+  backend-tests:
+    name: backend tests + coverage
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: api deps
+        working-directory: apps/api
+        run: uv sync --frozen
+
+      # Throwaway test Postgres + Auth: the local Supabase stack. `supabase start` applies the
+      # initial migration (the 8 app tables + RLS + handle_new_user trigger) and the seed, giving
+      # the integration tests (test_db_fixture / test_seed) a real DB. conftest.py auto-sources
+      # the connection env from `supabase status -o env`, so we only need the stack running.
+      # The CLI is not preinstalled on the runner — install it first (pinned for reproducibility).
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: 2.98.1
+      - name: Start Supabase (test Postgres + Auth)
+        run: supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
+
+      - name: pytest (coverage, branch, fail-under=80)
+        working-directory: apps/api
+        env:
+          # No LLM keys here: unit/integration use FakeLLM; a real call is impossible.
+          LLM_PROVIDER: fake
+        run: uv run pytest --cov-report=xml:coverage.xml --cov-report=term-missing
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup || true
+
+      - name: Upload backend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: apps/api/coverage.xml
+          if-no-files-found: warn
+
+  # ── 0.5.4 — frontend tests + coverage (vitest v8, 80% thresholds) ───────────────────────────
+  frontend-tests:
+    name: frontend tests + coverage
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: vitest --coverage (thresholds enforced in vite.config.ts)
+        working-directory: apps/web
+        run: pnpm test
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: apps/web/coverage/coverage-summary.json
+          if-no-files-found: warn
+
+  # ── 0.5.5 — build (API Docker image + web Vite bundle) → artifacts ──────────────────────────
+  build:
+    name: build (api image + web bundle)
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+
+      # API image — the seeded multi-stage uv Dockerfile. Saved as a tar artifact the E2E job
+      # loads, so E2E runs the exact image we shipped (not a rebuild).
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          tags: lengua-api:ci
+          load: true
+          cache-from: type=gha,scope=lengua-api
+          cache-to: type=gha,scope=lengua-api,mode=max
+      - name: Export API image artifact
+        run: docker save lengua-api:ci -o lengua-api-image.tar
+      - name: Upload API image
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-image
+          path: lengua-api-image.tar
+          retention-days: 1
+
+      # Web bundle — the production Vite build. Uploaded so the E2E job serves the exact bundle.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: Build web bundle
+        working-directory: apps/web
+        run: pnpm build
+      - name: Upload web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-bundle
+          path: apps/web/dist
+          retention-days: 1
+
+  # ── 0.5.6 — E2E (ephemeral stack, FakeLLM, zero real LLM calls) ─────────────────────────────
+  e2e:
+    name: e2e (ephemeral stack, FakeLLM)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      # Disposable Postgres + Auth seeded with the E2E fixtures.
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: 2.98.1
+      - name: Start Supabase (disposable Postgres + Auth)
+        run: supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: Capture Supabase connection env
+        id: sb
+        run: |
+          supabase status -o env > supabase.env
+          # Surface the values our seed + container need.
+          {
+            echo "DB_URL=$(grep '^DB_URL=' supabase.env | cut -d= -f2- | tr -d '\"')"
+            echo "API_URL=$(grep '^API_URL=' supabase.env | cut -d= -f2- | tr -d '\"')"
+            echo "SERVICE_ROLE_KEY=$(grep '^SERVICE_ROLE_KEY=' supabase.env | cut -d= -f2- | tr -d '\"')"
+          } >> "$GITHUB_OUTPUT"
+
+      # Seed the deterministic demo account + due cards into the disposable DB (Auth Admin API +
+      # SQL). Reuses scripts/seed_e2e.py verbatim.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: api deps (for seed)
+        working-directory: apps/api
+        run: uv sync --frozen
+      - name: Seed E2E demo account
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ steps.sb.outputs.DB_URL }}
+          SUPABASE_URL: ${{ steps.sb.outputs.API_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ steps.sb.outputs.SERVICE_ROLE_KEY }}
+        run: uv run python scripts/seed_e2e.py
+
+      # Run the API image we built in `build` — with LLM_PROVIDER=fake and NO Groq/Gemini keys,
+      # so the FakeLLM seam is exercised and a real LLM call is impossible. host networking lets
+      # the container reach the Supabase Postgres on 127.0.0.1:54322.
+      - name: Download API image
+        uses: actions/download-artifact@v4
+        with:
+          name: api-image
+      - name: Load API image
+        run: docker load -i lengua-api-image.tar
+      - name: Run API container (LLM_PROVIDER=fake, no LLM keys)
+        env:
+          DB_URL: ${{ steps.sb.outputs.DB_URL }}
+          API_URL: ${{ steps.sb.outputs.API_URL }}
+          SERVICE_ROLE_KEY: ${{ steps.sb.outputs.SERVICE_ROLE_KEY }}
+        run: |
+          docker run -d --name lengua-api --network host \
+            -e LLM_PROVIDER=fake \
+            -e PORT=8000 \
+            -e DATABASE_URL="$DB_URL" \
+            -e SUPABASE_URL="$API_URL" \
+            -e SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            lengua-api:ci
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then echo "API up"; exit 0; fi
+            sleep 2
+          done
+          echo "API did not become healthy"; docker logs lengua-api; exit 1
+
+      # Prove the LLM seam: 0 calls → exercise it over HTTP → >0 calls. The container has no LLM
+      # keys and FakeLLM does no I/O, so every "call" is the deterministic fake (zero real
+      # Groq/Gemini network requests).
+      - name: Assert LLM seam exercised with zero real LLM calls
+        run: |
+          set -euo pipefail
+          before=$(curl -fsS http://127.0.0.1:8000/__test__/llm-calls | python3 -c 'import sys,json;print(json.load(sys.stdin)["calls"])')
+          echo "calls before generate: $before"
+          test "$before" = "0"
+          curl -fsS -X POST http://127.0.0.1:8000/__test__/generate \
+            -H 'content-type: application/json' \
+            -d '{"words":["casa","perro"],"language":"Spanish","level_band":"A2"}' > gen.json
+          python3 -c 'import json;cards=json.load(open("gen.json"));assert [c["used_words"][0] for c in cards]==["casa","perro"],cards;print("generate OK:",len(cards),"cards")'
+          after=$(curl -fsS http://127.0.0.1:8000/__test__/llm-calls | python3 -c 'import sys,json;print(json.load(sys.stdin)["calls"])')
+          echo "calls after generate: $after"
+          test "$after" -gt "$before"
+
+      # Serve the built web bundle and run the Playwright home-page smoke headless against the
+      # ephemeral stack. Playwright is told the server is already up (we preview the artifact),
+      # and retries-once on flake (playwright.config.ts: retries=1 under CI).
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: Download web bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: web-bundle
+          path: apps/web/dist
+      - name: Restore Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-e2e
+          restore-keys: playwright-${{ runner.os }}-
+      - name: Install Playwright browser
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+      # Serve the pre-built bundle and run the Playwright home-page smoke headless against the
+      # ephemeral stack — both in ONE step so the preview server lives for the whole test (a
+      # backgrounded server started in an earlier step would be reaped at that step's end). The
+      # preview binds to 127.0.0.1 explicitly (default `localhost` can resolve to IPv6 ::1 on the
+      # runner, which curl/Playwright on IPv4 can't reach). Playwright sees PLAYWRIGHT_TEST_BASE_URL
+      # and skips its own webServer (so it uses our prebuilt artifact, no rebuild) and retries-once
+      # on flake (playwright.config.ts: retries=1 under CI).
+      - name: Serve web bundle + Playwright smoke (headless, retry-once)
+        working-directory: apps/web
+        env:
+          CI: 'true'
+          PLAYWRIGHT_TEST_BASE_URL: http://127.0.0.1:4173
+        run: |
+          set -euo pipefail
+          pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort > ../../preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null 2>&1; then echo "web up"; break; fi
+            if [ "$i" = "30" ]; then echo "web preview did not start"; cat ../../preview.log; exit 1; fi
+            sleep 1
+          done
+          pnpm exec playwright test
+
+      - name: API logs (on failure)
+        if: failure()
+        run: docker logs lengua-api || true
+      - name: Stop API + Supabase
+        if: always()
+        run: |
+          docker rm -f lengua-api || true
+          supabase stop --no-backup || true
+      - name: Upload Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
+
+  # ── 0.5.7 — security (pip-audit + pnpm audit + gitleaks) ────────────────────────────────────
+  security:
+    name: security (audit + secrets)
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans full history on push; PRs scan the range
+
+      # Dependency vulnerability audit — backend (pip-audit over the uv-exported requirements).
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: pip-audit (api)
+        working-directory: apps/api
+        run: |
+          uv export --frozen --no-dev --no-emit-project -o requirements.txt
+          uvx pip-audit -r requirements.txt --strict
+
+      # Dependency vulnerability audit — frontend (pnpm audit, fail on high+).
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: pnpm audit (web)
+        working-directory: apps/web
+        run: pnpm audit --audit-level high --prod
+
+      # Secret scanning — gitleaks exits non-zero (fails the job) on any detected secret. On a
+      # pull_request it scans the PR's commit range; on push to main, the new commits. No
+      # GITLEAKS_LICENSE is needed (lior-kotlar is a personal account, not an org).
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+          GITLEAKS_ENABLE_SUMMARY: 'true'
+
+  # ── 0.5.8 — advisory a11y + perf budgets (axe + Lighthouse CI) — NON-BLOCKING ────────────────
+  a11y-perf:
+    name: a11y + perf (advisory)
+    runs-on: ubuntu-latest
+    needs: build
+    # Advisory while we establish budgets — never blocks merge.
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+      - name: Download web bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: web-bundle
+          path: apps/web/dist
+      - name: Lighthouse CI (perf budgets, advisory)
+        working-directory: apps/web
+        run: |
+          npx --yes @lhci/cli@0.14.x autorun \
+            --collect.staticDistDir=./dist \
+            --collect.numberOfRuns=1 \
+            --upload.target=temporary-public-storage || echo "Lighthouse advisory — not blocking"
+      - name: axe accessibility (advisory)
+        working-directory: apps/web
+        run: |
+          nohup pnpm exec vite preview --port 4173 --strictPort > ../../preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          npx --yes @axe-core/cli@4 http://127.0.0.1:4173 --exit || echo "axe advisory — not blocking"
+
+  # ── 0.5.9 — coverage-delta PR comment (backend + frontend) — advisory ───────────────────────
+  coverage-comment:
+    name: coverage delta (PR comment)
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: cov/backend
+        continue-on-error: true
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: cov/frontend
+        continue-on-error: true
+      - name: Compute + post coverage comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Backend: parse line-rate + branch-rate off the Cobertura coverage.xml.
+            function backendPct() {
+              try {
+                const xml = fs.readFileSync('cov/backend/coverage.xml', 'utf8');
+                const line = xml.match(/line-rate="([0-9.]+)"/);
+                const branch = xml.match(/branch-rate="([0-9.]+)"/);
+                return {
+                  line: line ? +(parseFloat(line[1]) * 100).toFixed(2) : null,
+                  branch: branch ? +(parseFloat(branch[1]) * 100).toFixed(2) : null,
+                };
+              } catch { return { line: null, branch: null }; }
+            }
+
+            // Frontend: read vitest's json-summary totals.
+            function frontendPct() {
+              try {
+                const j = JSON.parse(fs.readFileSync('cov/frontend/coverage-summary.json', 'utf8'));
+                return { line: j.total.lines.pct, branch: j.total.branches.pct };
+              } catch { return { line: null, branch: null }; }
+            }
+
+            const be = backendPct();
+            const fe = frontendPct();
+            const fmt = (v) => (v === null ? 'n/a' : `${v}%`);
+            const body = [
+              '## Coverage',
+              '',
+              '| Suite | Lines | Branches | Gate |',
+              '| --- | --- | --- | --- |',
+              `| Backend (pytest) | ${fmt(be.line)} | ${fmt(be.branch)} | ≥80% |`,
+              `| Frontend (vitest) | ${fmt(fe.line)} | ${fmt(fe.branch)} | ≥80% |`,
+              '',
+              '<sub>Both suites must independently hold ≥80% line + branch coverage to merge ' +
+                '(enforced in the backend-tests / frontend-tests jobs).</sub>',
+              '<!-- lengua-coverage-comment -->',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const marker = '<!-- lengua-coverage-comment -->';
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

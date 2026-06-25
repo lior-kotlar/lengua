@@ -80,30 +80,30 @@ _Context: build the fixtures/factories, the deterministic LLM fake (provider-agn
 
 _Context: encode the blocking pipeline from ../09-testing-quality.md as GitHub Actions and prove it passes on a trivial PR. E2E runs on an ephemeral stack with the LLM stubbed (FakeLLM), so it never burns Groq/Gemini quota._
 
-- [ ] **0.5.1** Add a CI workflow job: setup + dependency/Playwright-browser caching for both uv and pnpm.
-      verify: a PR run shows cache hits on the second run and the setup job goes green.
-- [ ] **0.5.2** Add lint + format + typecheck jobs (ruff/eslint/prettier, mypy/tsc) as required checks.
-      verify: a PR that introduces a lint error fails the job; the clean scaffold PR passes it.
+- [x] **0.5.1** Add a CI workflow job: setup + dependency/Playwright-browser caching for both uv and pnpm.
+      verify: a PR run shows cache hits on the second run and the setup job goes green. ✓ run 28171555344 (setup green; second-run cache hits: `Cache hit for: setup-uv-…`, `node-cache-…-pnpm-…`, `playwright-Linux-1.61.1`).
+- [x] **0.5.2** Add lint + format + typecheck jobs (ruff/eslint/prettier, mypy/tsc) as required checks.
+      verify: a PR that introduces a lint error fails the job; the clean scaffold PR passes it. ✓ clean head green (run 28172615641); planted ruff F401 → `lint + format + types` failed (run 28171942002).
       depends: 0.2.3, 0.3.3
-- [ ] **0.5.3** Add backend tests+coverage job (`pytest --cov --cov-branch --cov-fail-under=80`) running against the test Postgres.
-      verify: a PR dropping coverage below 80% fails the job; the scaffold PR passes.
+- [x] **0.5.3** Add backend tests+coverage job (`pytest --cov --cov-branch --cov-fail-under=80`) running against the test Postgres.
+      verify: a PR dropping coverage below 80% fails the job; the scaffold PR passes. ✓ clean head green incl. integration tests vs Supabase-CLI Postgres (run 28172615641); coverage dropped to 78.42% → `backend tests + coverage` failed (run 28172347219).
       depends: 0.2.4, 0.4.3
-- [ ] **0.5.4** Add frontend tests+coverage job (vitest v8, 80% thresholds).
-      verify: a PR dropping frontend coverage below 80% fails the job; the scaffold PR passes.
+- [x] **0.5.4** Add frontend tests+coverage job (vitest v8, 80% thresholds).
+      verify: a PR dropping frontend coverage below 80% fails the job; the scaffold PR passes. ✓ clean head green (run 28172615641); coverage dropped to 56.09% → `frontend tests + coverage` failed (run 28172347219).
       depends: 0.3.4
-- [ ] **0.5.5** Add a build job (API Docker image + web Vite bundle).
-      verify: the job builds the API image and the web bundle as artifacts; a broken build fails the job.
+- [x] **0.5.5** Add a build job (API Docker image + web Vite bundle).
+      verify: the job builds the API image and the web bundle as artifacts; a broken build fails the job. ✓ clean head green — `api-image` + `web-bundle` artifacts uploaded (run 28172615641); a bad Dockerfile COPY → `build (api image + web bundle)` failed (run 28172347219).
       depends: 0.2.2, 0.3.1
-- [ ] **0.5.6** Add the E2E job: build the ephemeral stack (web bundle + API container + disposable Postgres seeded with fixtures), run Playwright headless with `LLM_PROVIDER` pointed at FakeLLM, retry-once on flake.
-      verify: the E2E job runs the home-page smoke green against the ephemeral stack with no outbound LLM calls (assert zero Groq/Gemini network requests).
+- [x] **0.5.6** Add the E2E job: build the ephemeral stack (web bundle + API container + disposable Postgres seeded with fixtures), run Playwright headless with `LLM_PROVIDER` pointed at FakeLLM, retry-once on flake.
+      verify: the E2E job runs the home-page smoke green against the ephemeral stack with no outbound LLM calls (assert zero Groq/Gemini network requests). ✓ run 28172615641 (clean head): seed + API container (`LLM_PROVIDER=fake`, no LLM keys) + disposable Supabase Postgres; `/__test__/llm-calls` `0 → 1` on `/__test__/generate` (deterministic FakeLLM, zero real LLM calls) and Playwright `1 passed`.
       depends: 0.4.2, 0.4.4, 0.5.5
-- [ ] **0.5.7** Add the security job: pip-audit, pnpm audit, and gitleaks (fail on new criticals/secrets).
-      verify: the job runs all three on the scaffold and goes green; a planted dummy secret makes gitleaks fail the job.
-- [ ] **0.5.8** Add advisory a11y + perf budgets (axe + Lighthouse CI) on the web build, non-blocking to start.
-      verify: the job posts axe/Lighthouse results on the PR and does not block merge while advisory.
+- [x] **0.5.7** Add the security job: pip-audit, pnpm audit, and gitleaks (fail on new criticals/secrets).
+      verify: the job runs all three on the scaffold and goes green; a planted dummy secret makes gitleaks fail the job. ✓ pip-audit + pnpm audit + gitleaks green on the clean scaffold (run 28171555344); a planted non-allowlisted secret → gitleaks `leaks found: 2` → `security (audit + secrets)` failed (run 28172118253). (A doc-example AWS key is allowlisted by gitleaks' default config; a real-shaped key trips it.)
+- [x] **0.5.8** Add advisory a11y + perf budgets (axe + Lighthouse CI) on the web build, non-blocking to start.
+      verify: the job posts axe/Lighthouse results on the PR and does not block merge while advisory. ✓ `a11y + perf (advisory)` runs axe + Lighthouse CI on the web bundle with `continue-on-error: true` (not a required check), so it never blocks merge (run 28172615641).
       depends: 0.3.1
-- [ ] **0.5.9** Add a coverage-delta PR comment for backend + frontend.
-      verify: opening a PR posts a comment showing backend and frontend coverage deltas.
+- [x] **0.5.9** Add a coverage-delta PR comment for backend + frontend.
+      verify: opening a PR posts a comment showing backend and frontend coverage deltas. ✓ `coverage delta (PR comment)` posted a backend + frontend coverage table on PR #12 (backend 100%/100%, frontend 100%/100%; run 28171555344).
       depends: 0.5.3, 0.5.4
 - [ ] **0.5.10** Open a trivial PR and confirm the full required gate is green end to end.
       verify: a no-op PR shows all required checks (lint, types, backend cov, frontend cov, build, E2E, security) passing and is mergeable.
@@ -115,8 +115,8 @@ _Context: enforce trunk-based flow on `main` and encode the Definition of Done. 
 
 - [x] **0.6.1** Add `.github/pull_request_template.md` encoding the Definition of Done checklist from ../09-testing-quality.md (coverage ≥80%, README/OpenAPI updates, observability, security, migration+RLS, cost guard).
       verify: opening a new PR pre-populates the body with the DoD checklist.
-- [ ] **0.6.2** Document the required-status-checks list and branch-protection policy in the repo (e.g. `infra/branch-protection.md`) so the config is committed, not tribal.
-      verify: the doc lists every required check name exactly as it appears in CI and matches the gate in ../09-testing-quality.md.
+- [x] **0.6.2** Document the required-status-checks list and branch-protection policy in the repo (e.g. `infra/branch-protection.md`) so the config is committed, not tribal.
+      verify: the doc lists every required check name exactly as it appears in CI and matches the gate in ../09-testing-quality.md. ✓ `infra/branch-protection.md` lists the six required check names verbatim from `.github/workflows/ci.yml` (`lint + format + types`, `backend tests + coverage`, `frontend tests + coverage`, `build (api image + web bundle)`, `e2e (ephemeral stack, FakeLLM)`, `security (audit + secrets)`) + the policy (require PR + 1 approval, required checks, strict/up-to-date, dismiss stale) matching ../09-testing-quality.md.
       depends: 0.5.10
 - [ ] **0.6.3** **OWNER (Kotlar) · DEFERRED → [../owner-deferred-tasks.md](../owner-deferred-tasks.md) (non-blocking):** Enable branch protection on `main` — require PR + 1 approval, required status checks, up-to-date branch, dismiss stale approvals. **Do this at the end (before launch)** — turning it on now would break the autonomous self-merge flow. Does not block any implementation.
       verify: `gh api repos/lior-kotlar/lengua/branches/main/protection` returns without 404 and shows `required_pull_request_reviews.required_approving_review_count = 1`; a direct push to `main` is rejected.
