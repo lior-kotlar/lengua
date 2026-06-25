@@ -113,7 +113,7 @@ _Context: encode the blocking pipeline from ../09-testing-quality.md as GitHub A
 
 _Context: enforce trunk-based flow on `main` and encode the Definition of Done. Several items here are OWNER (Kotlar) actions tracked in ../owner-setup-checklist.html._
 
-- [ ] **0.6.1** Add `.github/pull_request_template.md` encoding the Definition of Done checklist from ../09-testing-quality.md (coverage ≥80%, README/OpenAPI updates, observability, security, migration+RLS, cost guard).
+- [x] **0.6.1** Add `.github/pull_request_template.md` encoding the Definition of Done checklist from ../09-testing-quality.md (coverage ≥80%, README/OpenAPI updates, observability, security, migration+RLS, cost guard).
       verify: opening a new PR pre-populates the body with the DoD checklist.
 - [ ] **0.6.2** Document the required-status-checks list and branch-protection policy in the repo (e.g. `infra/branch-protection.md`) so the config is committed, not tribal.
       verify: the doc lists every required check name exactly as it appears in CI and matches the gate in ../09-testing-quality.md.
@@ -148,7 +148,7 @@ _Context: every free-tier account already exists and is verified (2026-06-25): G
       verify: Ben runs `vercel project ls` and `lengua` appears.
 - [ ] **0.7.10** **OWNER (Kotlar):** Invite Ben (`benartzi4@gmail.com`) to Grafana Cloud + Sentry, and Ben accepts. (Outstanding per ../owner-setup-checklist.html Task 6.)
       verify: Ben can open the Grafana stack and both Sentry projects (lengua-api, lengua-web).
-- [ ] **0.7.11** Note: paid store accounts (Apple Developer $99/yr, Google Play $25 one-time) are DEFERRED to Phase 7 and intentionally NOT part of Phase 0.
+- [x] **0.7.11** Note: paid store accounts (Apple Developer $99/yr, Google Play $25 one-time) are DEFERRED to Phase 7 and intentionally NOT part of Phase 0.
       verify: this deferral is recorded here and in ../08-open-questions-and-costs.md; no Phase 0 task requires a paid account.
 
 ## 0.8 — Docs placeholders  ·  S

@@ -66,6 +66,12 @@ The plan assumes these defaults so it's actionable; flag any you want to change.
 These are real costs but are **not required** to ship the web app. Defer until Phase 7 when
 you're ready to build and submit the iOS/Android apps.
 
+> **Deferral (Phase 0 scope note):** The two **paid store accounts** below — Apple Developer
+> Program ($99/yr) and Google Play Console ($25 one-time) — are **explicitly deferred to
+> Phase 7** and are **NOT part of Phase 0**. No Phase 0 task requires a paid account; every
+> Phase 0 account is free-tier (see the Phase 0 checklist below). This mirrors the note in
+> [tasks/phase-0-foundations.md](tasks/phase-0-foundations.md) task **0.7.11**.
+
 | Item | Cost | Notes |
 | --- | --- | --- |
 | **Apple Developer Program** | **$99 / year** | Required before any App Store submission. Enrollment verification can take days — start a few weeks before you plan to submit. |
