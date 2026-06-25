@@ -74,6 +74,22 @@ generated TS types are stale versus `openapi.json` (a `git diff` check). `packag
 exports the generated `paths` / `components` / `operations` types plus a typed `openapi-fetch`
 client via `createApiClient(...)`.
 
+### Observability (traces + structured logs)
+
+The API is instrumented from Phase 1 (dashboards/alerts land in Phase 5). `app/observability.py`
+(wired from `create_app()`) sets up **OpenTelemetry** tracing with auto-instrumentation for
+FastAPI, SQLAlchemy, and httpx, and emits **one structured JSON access-log line per request** to
+stdout (`method`, `path`, `status`, `latency_ms`, plus the active `trace_id` so logs correlate
+with traces). Traces are exported via OTLP **only** when `OTEL_EXPORTER_OTLP_ENDPOINT` is set —
+locally and in CI it is unset, so tracing is a no-op with zero network egress. Configure a backend
+purely through the standard env vars (no code change):
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway.example/otlp   # enables OTLP export
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64>          # auth for the gateway
+OTEL_SERVICE_NAME=lengua-api                                     # service.name (default lengua-api)
+```
+
 ### One-command verify (local quality gate)
 
 Run the whole monorepo's lint + type-check + tests (+ web build) in one command — it fans out

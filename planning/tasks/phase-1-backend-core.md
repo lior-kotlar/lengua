@@ -223,9 +223,23 @@ _Context: the FastAPI OpenAPI schema is the contract for the typed TS client; ke
 
 _Context: instrumentation STARTS here per the roadmap (dashboards/alerts land in Phase 5). Wire the hooks now: auto-instrument FastAPI/SQLAlchemy/httpx and structured JSON logs._
 
-- [ ] **1.7.1** Add OpenTelemetry SDK wiring in `app/main.py` with auto-instrumentation for FastAPI, SQLAlchemy, and httpx; OTLP endpoint/headers read from env (no-op exporter when unset so local/CI don't fail).
+> **Implemented (group 1.7):** observability is wired in `app/observability.py`, called from
+> `app/main.py:create_app()`. `configure_observability(app)` installs a process-wide OpenTelemetry
+> `TracerProvider` (`service.name` from `OTEL_SERVICE_NAME`, default `lengua-api`) and auto-instruments
+> **FastAPI** (per-app), **SQLAlchemy** (engine-agnostic, so it covers the lazily-built async engine),
+> and **httpx**. The OTLP span exporter is attached **only** when `OTEL_EXPORTER_OTLP_ENDPOINT` (or the
+> `…_TRACES_…` variant) is set — otherwise the provider has no exporting processor, so local/CI stay a
+> true no-op with zero network egress (the exporter reads endpoint/headers/protocol from the standard
+> `OTEL_EXPORTER_OTLP_*` env, so Phase 5 only needs config). A `RequestLoggingMiddleware` emits exactly
+> one structured JSON access-log line per request (`method` / `path` / `status` / `latency_ms`) via a
+> `JsonLogFormatter`, stamped with the active `trace_id` (it runs inside the FastAPI server span, since
+> the OTel ASGI middleware is always outermost) so logs correlate with traces. The OTel deps are
+> **prod** deps (not dev), so the shipped Docker image is instrumented too; mypy `--strict` keeps
+> `app/observability.py` in-gate via a targeted `opentelemetry.*` `ignore_missing_imports` override.
+
+- [x] **1.7.1** Add OpenTelemetry SDK wiring in `app/main.py` with auto-instrumentation for FastAPI, SQLAlchemy, and httpx; OTLP endpoint/headers read from env (no-op exporter when unset so local/CI don't fail).
       verify: `pytest apps/api/tests/obs/test_otel_wiring.py` asserts spans are emitted to an in-memory span exporter for one `/health` request (an HTTP server span exists).
-- [ ] **1.7.2** Add a structured JSON logging skeleton (one log line per request with method, path, status, latency) and a `trace_id` field placeholder for correlation.
+- [x] **1.7.2** Add a structured JSON logging skeleton (one log line per request with method, path, status, latency) and a `trace_id` field placeholder for correlation.
       verify: `pytest apps/api/tests/obs/test_logging.py` captures a request log line, parses it as JSON, and asserts `method`, `status`, `latency_ms`, and a `trace_id` key are present.
 
 ---
@@ -234,10 +248,10 @@ _Context: instrumentation STARTS here per the roadmap (dashboards/alerts land in
 
 Phase 1 is DONE only when all of these hold:
 
-- [ ] The full Generate→Save→Review→Discover loop works over HTTP for the seeded dev user — verify: `pytest apps/api/tests/api/test_full_loop.py` is green against a throwaway Postgres.
-- [ ] The schema is Alembic-managed and reversible — verify: on a clean DB, `alembic upgrade head` → `alembic downgrade base` → `alembic upgrade head` all succeed and every table from 1.4.2/1.4.3 exists.
-- [ ] `lengua_core` is pure (no FastAPI, no SQL) and SQL lives only in `repositories/` — verify: `grep -rE "fastapi|sqlalchemy|asyncpg" apps/api/lengua_core/` and `grep -rE "\.execute\(|select\(" apps/api/services/` both return nothing.
-- [ ] The LLM seam works as a config flip — verify: `pytest apps/api/tests/llm/test_provider_switch.py` proves `LLM_PROVIDER=groq` and `LLM_PROVIDER=gemini` each load the right impl with no code change, default `groq`.
-- [ ] The OpenAPI schema generates the TS client cleanly — verify: `python apps/api/scripts/dump_openapi.py` + `pnpm --filter api-types generate` produce no diff and the package builds.
-- [ ] Observability hooks are live — verify: `pytest apps/api/tests/obs/test_otel_wiring.py` and `test_logging.py` pass (spans emitted, JSON logs with `trace_id`).
-- [ ] every task above merged via a green PR with the quality gate held (≥80% coverage, E2E).
+- [x] The full Generate→Save→Review→Discover loop works over HTTP for the seeded dev user — verify: `pytest apps/api/tests/api/test_full_loop.py` is green against a throwaway Postgres.
+- [x] The schema is Alembic-managed and reversible — verify: on a clean DB, `alembic upgrade head` → `alembic downgrade base` → `alembic upgrade head` all succeed and every table from 1.4.2/1.4.3 exists.
+- [x] `lengua_core` is pure (no FastAPI, no SQL) and SQL lives only in `repositories/` — verify: `grep -rE "fastapi|sqlalchemy|asyncpg" apps/api/lengua_core/` and `grep -rE "\.execute\(|select\(" apps/api/services/` both return nothing.
+- [x] The LLM seam works as a config flip — verify: `pytest apps/api/tests/llm/test_provider_switch.py` proves `LLM_PROVIDER=groq` and `LLM_PROVIDER=gemini` each load the right impl with no code change, default `groq`.
+- [x] The OpenAPI schema generates the TS client cleanly — verify: `python apps/api/scripts/dump_openapi.py` + `pnpm --filter api-types generate` produce no diff and the package builds.
+- [x] Observability hooks are live — verify: `pytest apps/api/tests/obs/test_otel_wiring.py` and `test_logging.py` pass (spans emitted, JSON logs with `trace_id`).
+- [x] every task above merged via a green PR with the quality gate held (≥80% coverage, E2E).

@@ -24,6 +24,15 @@ dependencies = [
     # Alembic owns the schema (Phase 1.4): migrations/ targets app.db.Base.metadata. Lives
     # outside the ruff/mypy/coverage gate (migrations/ is excluded below + not in mypy files).
     "alembic>=1.14",
+    # Observability (Phase 1.7): OpenTelemetry SDK + auto-instrumentation for FastAPI,
+    # SQLAlchemy, and httpx, wired in app/main.py (app/observability.py). The OTLP exporter is
+    # only attached when OTEL_EXPORTER_OTLP_ENDPOINT is set, so local/CI runs stay no-op (no
+    # network). These are PROD deps (not dev) so the shipped Docker image is instrumented too.
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp>=1.30",
+    "opentelemetry-instrumentation-fastapi>=0.51b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.51b0",
+    "opentelemetry-instrumentation-httpx>=0.51b0",
 ]
 
 [dependency-groups]
@@ -94,6 +103,14 @@ follow_imports = "skip"
 [[tool.mypy.overrides]]
 module = ["fsrs", "fsrs.*"]
 ignore_missing_imports = true
+
+# OpenTelemetry (Phase 1.7): the SDK is typed but several instrumentation packages ship no stubs.
+# Targeted ignore_missing_imports + follow_imports=skip for the otel namespace only (NOT a blanket
+# strict-off) so app/observability.py + the obs tests stay in the mypy --strict gate.
+[[tool.mypy.overrides]]
+module = ["opentelemetry.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 # ── Pytest + coverage ─────────────────────────────────────────────────────────
 # Coverage is scoped to the FastAPI shell (`app`), the provider-agnostic LLM seam
