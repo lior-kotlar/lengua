@@ -4,8 +4,8 @@ import json
 import streamlit as st
 from fsrs import Rating
 
-from lengua import flashcards, gemini, proficiency, scheduler
-from lengua.ui import render_sidebar
+from lengua_core import flashcards, gemini, proficiency, scheduler
+from lengua_core.ui import render_sidebar
 
 # Style the per-word buttons so they read as inline sentence text, with a
 # hover lift + highlight. Scoped to the keyed container Streamlit emits as

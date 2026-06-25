@@ -16,7 +16,7 @@ _Context: lift the repo into the `apps/ packages/ infra/` shape from ../01-archi
 
 - [x] **0.1.1** Create the top-level monorepo skeleton (`apps/api/`, `apps/web/`, `packages/`, `infra/`, `docs/`) with `.gitkeep`/README stubs; add a root `README.md` section describing the layout.
       verify: `test -d apps/api && test -d apps/web && test -d packages && test -d infra && test -d docs` exits 0; root README lists all four dirs.
-- [ ] **0.1.2** Move the existing `lengua/*` package under `apps/api/lengua_core/` and `pages/`, `app.py` to a clearly-marked legacy location, fixing imports so the Streamlit app still launches.
+- [x] **0.1.2** Move the existing `lengua/*` package under `apps/api/lengua_core/` and `pages/`, `app.py` to a clearly-marked legacy location, fixing imports so the Streamlit app still launches.
       verify: `streamlit run app.py` (or the relocated entrypoint) starts without ImportError and serves the home page locally.
       depends: 0.1.1
 - [x] **0.1.3** Add a root `.gitignore`, `.editorconfig`, and a root `README.md` "Repo layout & how to run each app" section covering api, web, legacy Streamlit.

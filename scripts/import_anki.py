@@ -25,10 +25,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+# The domain package moved under apps/api/ in task 0.1.2 and was renamed
+# lengua -> lengua_core. Make it importable when this script runs from repo root.
+sys.path.insert(0, str(ROOT / "apps" / "api"))
 
-from lengua.db import connect, init_db
-from lengua.languages import add_language
+from lengua_core.db import connect, init_db
+from lengua_core.languages import add_language
 
 # ── paths ────────────────────────────────────────────────────────────────────
 PRIVATE_DB = Path(r"C:\Users\liork\AppData\Local\Temp\anki_import\private_collection.anki2")

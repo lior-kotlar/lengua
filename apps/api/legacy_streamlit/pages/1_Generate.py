@@ -3,9 +3,9 @@ import re
 
 import streamlit as st
 
-from lengua import flashcards, proficiency
-from lengua.gemini import generate_cards
-from lengua.ui import render_sidebar
+from lengua_core import flashcards, proficiency
+from lengua_core.gemini import generate_cards
+from lengua_core.ui import render_sidebar
 
 st.set_page_config(page_title="Generate · Lengua", page_icon="✍️", layout="centered")
 
@@ -58,7 +58,7 @@ if cards and st.session_state.get("generated_lang_id") == active["id"]:
                 st.caption("Uses: " + ", ".join(c["used_words"]))
 
     if st.button("💾 Save all as flashcards"):
-        from lengua.models import GeneratedCard
+        from lengua_core.models import GeneratedCard
 
         n = flashcards.save_cards(
             active["id"], [GeneratedCard(**c) for c in cards], gen_level=gen_score
