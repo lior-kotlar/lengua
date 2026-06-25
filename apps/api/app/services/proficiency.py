@@ -36,7 +36,12 @@ class ProficiencyService:
         self._languages = LanguagesRepository(session)
 
     async def get(self, user_id: uuid.UUID, language_id: int) -> ProficiencyView:
-        """Return the learner's current level for a language (0.0 / A1 if none recorded)."""
+        """Return the learner's level for one of their languages (0.0 / A1 if none recorded).
+
+        Raises :class:`NotFoundError` if the language is not the user's, so a read never reports a
+        level for a resource the caller does not own.
+        """
+        await self._require_language(user_id, language_id)
         score = await self._proficiency.get_score(user_id, language_id)
         return self._view(score)
 

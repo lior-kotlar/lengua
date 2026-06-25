@@ -31,12 +31,12 @@ supabase/     Supabase CLI config, initial migration, seed
 | Web | `apps/web/` | `cd apps/web && pnpm install && pnpm dev` (placeholder home); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
-### API endpoints (Phase 1 — core loop)
+### API endpoints (Phase 1 — full loop)
 
-Beyond `GET /health`, the FastAPI service exposes the core Generate→Save→Review loop. Until
-Phase 2 adds Supabase-JWT auth, every request is scoped to a single seeded **dev user**
-(`current_user`); point `DATABASE_URL` at a Postgres (e.g. the local Supabase CLI stack) and seed
-it with `uv run python scripts/seed_dev_user.py`.
+Beyond `GET /health`, the FastAPI service serves the whole Generate→Save→Review→Discover loop
+over HTTP. Until Phase 2 adds Supabase-JWT auth, every request is scoped to a single seeded
+**dev user** (`current_user`); point `DATABASE_URL` at a Postgres (e.g. the local Supabase CLI
+stack) and seed it with `uv run python scripts/seed_dev_user.py`.
 
 | Method + path | Purpose |
 | --- | --- |
@@ -45,9 +45,13 @@ it with `uv run python scripts/seed_dev_user.py`.
 | `POST /cards/save` | Persist generated previews into the deck (`saved=true`). |
 | `GET /review/due?language_id=` | Today's due batch, split into `new` vs. `due`. |
 | `POST /review/{card_id}/grade` | `{rating: 1..4}` (Again/Hard/Good/Easy) → FSRS reschedule + proficiency nudge. |
+| `POST /discover` | `{language_id, count?, topic?}` → preview new words at the learner's level (excludes known vocab). |
+| `POST /discover/accept` | `{language_id, words}` → generate + save cards for the accepted words. |
+| `POST /explain` | `{word, sentence, translation, language_id}` → tap-a-word explanation, cached in `cards.word_explanations`. |
+| `GET/PUT /proficiency/{language_id}` | Read the CEFR level (score/band/progress); `PUT` overrides it by `score` or `band`. |
+| `GET/PUT /settings` | Read/upsert per-user preferences (daily limits, discover count) as a `{key: value}` map. |
 
-The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E). More
-routers (discover, explain, proficiency, settings) land in later Phase 1 tasks.
+The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E).
 
 ### One-command verify (local quality gate)
 
