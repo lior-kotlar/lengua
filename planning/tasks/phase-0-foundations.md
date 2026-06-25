@@ -66,13 +66,13 @@ _Context: stand up the React + TS + Vite web shell with pnpm, eslint, prettier, 
 
 _Context: build the fixtures/factories, the deterministic LLM fake (provider-agnostic — stands in for Groq or Gemini), and a throwaway test Postgres so every later phase's tests are cheap and never burn real quota._
 
-- [ ] **0.4.1** Add backend fixtures/factories for users, languages, cards, reviews (factory-boy or simple builders) in `apps/api/tests`.
+- [x] **0.4.1** Add backend fixtures/factories for users, languages, cards, reviews (factory-boy or simple builders) in `apps/api/tests`.
       verify: `uv run pytest tests/test_factories.py` builds each entity and asserts required fields are populated.
-- [ ] **0.4.2** Implement the deterministic LLM fake (`FakeLLM`) behind the provider interface returning canned `GeneratedCard`/`WordNote`; shared by unit/integration/E2E.
+- [x] **0.4.2** Implement the deterministic LLM fake (`FakeLLM`) behind the provider interface returning canned `GeneratedCard`/`WordNote`; shared by unit/integration/E2E.
       verify: `uv run pytest tests/test_fake_llm.py` asserts identical structured output across repeated calls (no nondeterminism, no network).
-- [ ] **0.4.3** Wire a throwaway test Postgres (Supabase CLI stack or testcontainers) into the pytest session with a fixture that gives a clean DB per test module.
+- [x] **0.4.3** Wire a throwaway test Postgres (Supabase CLI stack or testcontainers) into the pytest session with a fixture that gives a clean DB per test module.
       verify: `supabase start` (or testcontainers spin-up) runs in CI and `uv run pytest tests/test_db_fixture.py` connects, creates a temp table, and tears down.
-- [ ] **0.4.4** Add an E2E seed script + a reviewer/demo account fixture the Playwright stack consumes (reused later for store review).
+- [x] **0.4.4** Add an E2E seed script + a reviewer/demo account fixture the Playwright stack consumes (reused later for store review).
       verify: running the seed against a fresh test DB produces the demo account and a non-empty card set, asserted by a seed-verification test.
       depends: 0.4.1, 0.4.3
 
