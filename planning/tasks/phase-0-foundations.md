@@ -118,10 +118,10 @@ _Context: enforce trunk-based flow on `main` and encode the Definition of Done. 
 - [ ] **0.6.2** Document the required-status-checks list and branch-protection policy in the repo (e.g. `infra/branch-protection.md`) so the config is committed, not tribal.
       verify: the doc lists every required check name exactly as it appears in CI and matches the gate in ../09-testing-quality.md.
       depends: 0.5.10
-- [ ] **0.6.3** **OWNER (Kotlar):** Enable branch protection on `main` — require PR + 1 approval, required status checks, up-to-date branch, dismiss stale approvals. (Outstanding per ../owner-setup-checklist.html Task 1.)
+- [ ] **0.6.3** **OWNER (Kotlar) · DEFERRED → [../owner-deferred-tasks.md](../owner-deferred-tasks.md) (non-blocking):** Enable branch protection on `main` — require PR + 1 approval, required status checks, up-to-date branch, dismiss stale approvals. **Do this at the end (before launch)** — turning it on now would break the autonomous self-merge flow. Does not block any implementation.
       verify: `gh api repos/lior-kotlar/lengua/branches/main/protection` returns without 404 and shows `required_pull_request_reviews.required_approving_review_count = 1`; a direct push to `main` is rejected.
       depends: 0.5.10
-- [ ] **0.6.4** **OWNER (Kotlar):** Enable Dependabot vulnerability alerts + automated security fixes. (Outstanding per ../owner-setup-checklist.html Task 2.)
+- [ ] **0.6.4** **OWNER (Kotlar) · DEFERRED → [../owner-deferred-tasks.md](../owner-deferred-tasks.md) (non-blocking):** Enable Dependabot vulnerability alerts + automated security fixes. **Do this at the end (before launch).** Does not block any implementation.
       verify: `gh api repos/lior-kotlar/lengua/vulnerability-alerts -i` returns HTTP 204 (not 404).
 
 ## 0.7 — Accounts & CI secrets  ·  S
@@ -144,10 +144,10 @@ _Context: every free-tier account already exists and is verified (2026-06-25): G
       verify: `gh secret list -R lior-kotlar/lengua` shows both `GCP_REGION` and `SENTRY_ORG`.
 - [ ] **0.7.8** **OWNER (Kotlar):** Confirm Resend custom SMTP is enabled and delivering in BOTH Supabase projects (staging auto-confirm is OFF, so sign-up emails must work). (Outstanding per ../owner-setup-checklist.html Task 5.)
       verify: a recovery/invite email sent from each project (staging + prod) actually arrives in an inbox.
-- [ ] **0.7.9** **OWNER (Kotlar):** Invite Ben (`benartzi4@gmail.com`) to Vercel (create a Team if it's a personal account, move the `lengua` project in, invite as Member+). (Outstanding per ../owner-setup-checklist.html Task 4.)
-      verify: Ben runs `vercel project ls` and `lengua` appears.
-- [ ] **0.7.10** **OWNER (Kotlar):** Invite Ben (`benartzi4@gmail.com`) to Grafana Cloud + Sentry, and Ben accepts. (Outstanding per ../owner-setup-checklist.html Task 6.)
-      verify: Ben can open the Grafana stack and both Sentry projects (lengua-api, lengua-web).
+- [x] **0.7.9** ~~**OWNER (Kotlar):** Invite Ben to Vercel.~~ **RESOLVED 2026-06-25** — on the **free** Vercel tier a project has a single manager seat; Ben (`benartzi4@gmail.com`) is the account holder/manager for `lengua`. Not blocking; proceeding as-is.
+      verify: Ben runs `vercel project ls` and `lengua` appears. (Satisfied via the single-manager free-tier account; see ../owner-deferred-tasks.md.)
+- [x] **0.7.10** **DONE 2026-06-25** — Ben (`benartzi4@gmail.com`) joined Grafana Cloud + Sentry (both projects: lengua-api, lengua-web).
+      verify: Ben can open the Grafana stack and both Sentry projects (lengua-api, lengua-web). ✓
 - [x] **0.7.11** Note: paid store accounts (Apple Developer $99/yr, Google Play $25 one-time) are DEFERRED to Phase 7 and intentionally NOT part of Phase 0.
       verify: this deferral is recorded here and in ../08-open-questions-and-costs.md; no Phase 0 task requires a paid account.
 
