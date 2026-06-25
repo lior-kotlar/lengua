@@ -247,3 +247,6 @@ playwright/.cache/
 # src/lib (shadcn utils etc.) — keep that source tracked.
 !apps/web/src/lib/
 !apps/web/src/lib/**
+
+# Local scratch / draft prompts (keep out of git)
+/next-propt.txt
