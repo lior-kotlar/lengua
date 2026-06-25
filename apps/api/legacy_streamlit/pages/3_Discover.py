@@ -1,10 +1,10 @@
 """Discover page: auto-select new vocabulary and generate sentences without manual input."""
 import streamlit as st
 
-from lengua import flashcards, proficiency, settings as app_settings
-from lengua.gemini import generate_cards, suggest_new_words
-from lengua.models import GeneratedCard
-from lengua.ui import render_sidebar
+from lengua_core import flashcards, proficiency, settings as app_settings
+from lengua_core.gemini import generate_cards, suggest_new_words
+from lengua_core.models import GeneratedCard
+from lengua_core.ui import render_sidebar
 
 st.set_page_config(page_title="Discover · Lengua", page_icon="🔍", layout="centered")
 

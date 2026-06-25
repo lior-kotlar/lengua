@@ -29,7 +29,7 @@ supabase/     Supabase CLI config, initial migration, seed
 | --- | --- | --- | --- |
 | API | `apps/api/` | `cd apps/api && uv run uvicorn app.main:app` | scaffold in 0.2.x |
 | Web | `apps/web/` | `cd apps/web && pnpm dev` | scaffold in 0.3.x |
-| Legacy Streamlit | repo root today → `apps/api/legacy_streamlit/` after task 0.1.2 | `python -m streamlit run app.py` | runnable now |
+| Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
 The sections below document the **legacy Streamlit app**, which stays runnable throughout the
 migration.
@@ -77,8 +77,8 @@ on the Generate and Review pages.
   when starting a language you already partly know); it keeps adapting from there.
 
 The nudge sizes and weighting are tunable constants in
-[`lengua/config.py`](lengua/config.py) (`LEVEL_DELTAS`, `PROD_POS_WEIGHT`,
-`PROD_NEG_WEIGHT`, `LEVEL_WINDOW`).
+[`apps/api/lengua_core/config.py`](apps/api/lengua_core/config.py) (`LEVEL_DELTAS`,
+`PROD_POS_WEIGHT`, `PROD_NEG_WEIGHT`, `LEVEL_WINDOW`).
 
 ## Setup
 
@@ -88,7 +88,8 @@ The Gemini API key is read from a `.env` file in the project root:
 GEMINI_API_KEY=your_key_here
 ```
 
-Install dependencies (a virtualenv is recommended):
+Install dependencies (a virtualenv is recommended). `requirements.txt` stays at the
+repo root for the legacy app:
 
 ```
 pip install -r requirements.txt
@@ -96,49 +97,60 @@ pip install -r requirements.txt
 
 ## Run
 
+The legacy Streamlit app now lives under `apps/api/legacy_streamlit/`. Run it from
+`apps/api/` so the `lengua_core` package is importable:
+
 ```
-python -m streamlit run app.py
+cd apps/api
+streamlit run legacy_streamlit/app.py
 ```
 
-This opens the app in your browser. Data is stored locally in `data/lengua.db`
-(created automatically, git-ignored).
+This opens the app in your browser. Data is stored locally in `apps/api/data/lengua.db`
+(created automatically relative to the working directory, git-ignored).
 
 ## Customizing the sentence rules
 
 The rules that govern *how* sentences are written live in
-[`lengua/prompts.py`](lengua/prompts.py) as an editable `RULES` list. To add or change a
-rule, edit one entry — the prompt text is reassembled automatically. The output shape
-(sentence / translation / used_words) is enforced by the schema in
-[`lengua/gemini.py`](lengua/gemini.py), so the rules only affect writing style, not format.
+[`apps/api/lengua_core/prompts.py`](apps/api/lengua_core/prompts.py) as an editable `RULES`
+list. To add or change a rule, edit one entry — the prompt text is reassembled
+automatically. The output shape (sentence / translation / used_words) is enforced by the
+schema in [`apps/api/lengua_core/gemini.py`](apps/api/lengua_core/gemini.py), so the rules
+only affect writing style, not format.
 
 ## Project layout
 
+The legacy Streamlit app and its domain package now live under `apps/api/`:
+
 ```
-app.py               Streamlit entry point / home page
-pages/
-  1_Generate.py      words in -> sentences out
-  2_Review.py        daily flashcard review (FSRS)
-  3_Discover.py      auto-pick new vocab at your level -> sentences out
-lengua/
-  config.py          loads .env, model name, paths, daily limits, level tuning
-  db.py              SQLite connection + schema (+ idempotent migrations)
-  models.py          GeneratedCard (sentence / translation / used_words / word_notes)
-  prompts.py         the editable rules + output-format + level prompt
-  gemini.py          Gemini wrapper: words -> structured cards; tap-a-word explanations
-  languages.py       learned languages + active-language setting
-  flashcards.py      persist generated cards (recognition + production) into the deck
-  scheduler.py       FSRS: new-card state, due batch, grading
-  proficiency.py     per-language CEFR level: scoring, review-driven updates, override
-  ui.py              shared sidebar (language selector + level)
+apps/api/
+  legacy_streamlit/
+    app.py             Streamlit entry point / home page
+    pages/
+      1_Generate.py    words in -> sentences out
+      2_Review.py      daily flashcard review (FSRS)
+      3_Discover.py    auto-pick new vocab at your level -> sentences out
+      4_Settings.py    app-wide settings
+  lengua_core/
+    config.py          loads .env, model name, paths, daily limits, level tuning
+    db.py              SQLite connection + schema (+ idempotent migrations)
+    models.py          GeneratedCard (sentence / translation / used_words / word_notes)
+    prompts.py         the editable rules + output-format + level prompt
+    gemini.py          Gemini wrapper: words -> structured cards; tap-a-word explanations
+    languages.py       learned languages + active-language setting
+    flashcards.py      persist generated cards (recognition + production) into the deck
+    scheduler.py       FSRS: new-card state, due batch, grading
+    proficiency.py     per-language CEFR level: scoring, review-driven updates, override
+    ui.py              shared sidebar (language selector + level)
 ```
 
 ## Configuration knobs
 
-Optional environment variables (see [`lengua/config.py`](lengua/config.py)):
+Optional environment variables (see
+[`apps/api/lengua_core/config.py`](apps/api/lengua_core/config.py)):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model used for generation |
-| `LENGUA_DB_PATH` | `data/lengua.db` | SQLite database location |
+| `LENGUA_DB_PATH` | `data/lengua.db` | SQLite database location (relative to CWD) |
 | `LENGUA_DAILY_NEW_LIMIT` | `10` | Max brand-new cards per day |
 | `LENGUA_DAILY_TOTAL_LIMIT` | `50` | Max cards in a daily review batch |
