@@ -1,0 +1,78 @@
+[project]
+name = "lengua-api"
+version = "0.1.0"
+description = "Lengua API — FastAPI backend service"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[tool.uv]
+package = false
+
+# ── Ruff (lint + format), scoped to app/ + tests/ only ────────────────────────
+[tool.ruff]
+# Pre-existing packages (lengua_core, legacy_streamlit) are out of scope for this
+# gate — only the FastAPI shell is linted/formatted/type-checked here.
+extend-exclude = ["lengua_core", "legacy_streamlit", "data"]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+
+# ── Mypy (strict-ish), scoped to app/ + tests/ only ───────────────────────────
+[tool.mypy]
+python_version = "3.12"
+files = ["app", "tests"]
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+# lengua_core / legacy_streamlit are pre-existing and untyped — not part of this gate.
+exclude = '(^|/)(lengua_core|legacy_streamlit|data)/'
+
+[[tool.mypy.overrides]]
+module = ["lengua_core.*", "legacy_streamlit.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+# ── Pytest + coverage ─────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+    "app/settings.py",  # settings boilerplate — values come from env, not logic
+    "tests/*",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@(abc\\.)?abstractmethod",
+    "def __repr__",
+]
