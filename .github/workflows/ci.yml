@@ -392,22 +392,29 @@ jobs:
       - name: Install Playwright browser
         working-directory: apps/web
         run: pnpm exec playwright install --with-deps chromium
-      - name: Serve web bundle
-        working-directory: apps/web
-        run: |
-          nohup pnpm exec vite preview --port 4173 --strictPort > ../../preview.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:4173 >/dev/null; then echo "web up"; exit 0; fi
-            sleep 1
-          done
-          echo "web preview did not start"; cat ../../preview.log; exit 1
-      - name: Playwright home-page smoke (headless, retry-once)
+      # Serve the pre-built bundle and run the Playwright home-page smoke headless against the
+      # ephemeral stack — both in ONE step so the preview server lives for the whole test (a
+      # backgrounded server started in an earlier step would be reaped at that step's end). The
+      # preview binds to 127.0.0.1 explicitly (default `localhost` can resolve to IPv6 ::1 on the
+      # runner, which curl/Playwright on IPv4 can't reach). Playwright sees PLAYWRIGHT_TEST_BASE_URL
+      # and skips its own webServer (so it uses our prebuilt artifact, no rebuild) and retries-once
+      # on flake (playwright.config.ts: retries=1 under CI).
+      - name: Serve web bundle + Playwright smoke (headless, retry-once)
         working-directory: apps/web
         env:
           CI: 'true'
-          # Tell Playwright the server is already running so it reuses it instead of rebuilding.
           PLAYWRIGHT_TEST_BASE_URL: http://127.0.0.1:4173
-        run: pnpm exec playwright test
+        run: |
+          set -euo pipefail
+          pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort > ../../preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null 2>&1; then echo "web up"; break; fi
+            if [ "$i" = "30" ]; then echo "web preview did not start"; cat ../../preview.log; exit 1; fi
+            sleep 1
+          done
+          pnpm exec playwright test
 
       - name: API logs (on failure)
         if: failure()
