@@ -3,8 +3,9 @@
 This directory is the **planning workspace** for turning Lengua from a local single-user
 Streamlit app into a real, deployed, multi-user product on **web + iOS + Android**.
 
-> Status: **planning only — no implementation yet.** These are living documents; update them
-> as decisions firm up.
+> Status: **planning — implementation not started.** These are living documents; update them
+> as decisions firm up. The work is now broken into granular, verifiable, PR-sized tasks in
+> [tasks/](tasks/) — start at [tasks/task-tracker.md](tasks/task-tracker.md).
 
 ## Decisions locked in
 
@@ -56,7 +57,8 @@ accounts checklist.
 | --- | --- |
 | [00-overview.md](00-overview.md) | Vision, current state, target state, principles, success criteria |
 | [01-architecture.md](01-architecture.md) | Target architecture, data flows, multi-tenant data model, repo layout |
-| [02-roadmap.md](02-roadmap.md) | **The phased task plan (Phases 0–9) with checklists** |
+| [02-roadmap.md](02-roadmap.md) | **Phase index (Phases 0–9)** — one-line goals + links into the task files |
+| [tasks/](tasks/) | **The granular, PR-sized task breakdown** — one file per phase, each task with a `verify:` line + a phase exit gate. Master rollup: [tasks/task-tracker.md](tasks/task-tracker.md) (counts, dependency graph, critical path, milestones) |
 | [03-backend.md](03-backend.md) | FastAPI design, Postgres schema, pluggable LLM provider (Groq/Gemini) + quota subsystem |
 | [04-frontend-mobile.md](04-frontend-mobile.md) | React app + Capacitor packaging, RTL, offline, store assets |
 | [05-infra-deploy.md](05-infra-deploy.md) | Hosting, 3 environments, CI/CD, secrets, free-tier limits |
@@ -65,4 +67,6 @@ accounts checklist.
 | [08-open-questions-and-costs.md](08-open-questions-and-costs.md) | Remaining decisions, costs, accounts, and the "what else" backlog |
 | [09-testing-quality.md](09-testing-quality.md) | **Test strategy + the per-PR quality gate (100% pass, 80% coverage, E2E)** |
 
-Start with **00** for context, then **02** for the actual work breakdown.
+Start with **00** for context and **02** for the phase index, then open
+**[tasks/task-tracker.md](tasks/task-tracker.md)** and the per-phase files in **[tasks/](tasks/)**
+for the actual, checkbox-level work.
