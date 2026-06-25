@@ -52,8 +52,12 @@ def test_get_provider_fails_fast_on_unknown_provider() -> None:
         get_provider("not-a-provider")
 
 
-def test_get_provider_real_providers_not_wired_until_phase_1_2() -> None:
-    # Documents the current seam state; replaced by real impls (with key fail-fast) in 1.2.
+def test_get_provider_real_providers_fail_fast_without_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The real impls landed in task 1.2 and fail fast when their API key is unset.
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     for name in ("groq", "gemini"):
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(RuntimeError):
             get_provider(name)

@@ -32,9 +32,14 @@ def test_get_provider_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(get_provider(), FakeLLM)
 
 
-def test_get_provider_real_providers_not_implemented() -> None:
+def test_get_provider_real_providers_require_their_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The real providers are wired (task 1.2) and now fail fast on a missing key.
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     for name in ("groq", "gemini"):
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(RuntimeError):
             get_provider(name)
 
 

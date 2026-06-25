@@ -1,10 +1,18 @@
 """Selecting the active LLM provider from configuration.
 
 :func:`get_provider` maps the ``LLM_PROVIDER`` env var to a concrete
-:class:`~lengua_core.llm.base.LLMProvider`. Only ``fake`` is wired in Phase 0 (it needs no API
-key and does no I/O); the real ``groq`` / ``gemini`` providers are recognised but raise until
-they are implemented in Phase 1, so a typo in the env var fails loudly instead of silently
-falling back.
+:class:`~lengua_core.llm.base.LLMProvider`:
+
+- ``groq`` (default) -> :class:`~lengua_core.llm.groq.GroqProvider` (OpenAI-compatible
+  JSON mode); requires ``GROQ_API_KEY``.
+- ``gemini`` -> :class:`~lengua_core.llm.gemini.GeminiProvider` (native schema output,
+  reserved for prod); requires ``GEMINI_API_KEY``.
+- ``fake`` -> the deterministic :class:`~lengua_core.llm.fake.FakeLLM` (no key, no I/O).
+
+The selected provider's key is checked **once, eagerly** (each provider's ``from_env``
+fails fast with a clear error), so a misconfigured deployment dies at startup rather
+than on the first LLM call. The vendor SDKs are imported lazily — only the chosen
+provider's SDK is loaded, and the ``fake`` path pulls in neither.
 """
 
 from __future__ import annotations
@@ -14,27 +22,25 @@ import os
 from .base import LLMProvider
 from .fake import FakeLLM
 
-# Providers planned for Phase 1. Listed here so an unset/typo'd value gives a precise error
-# (``not yet implemented`` vs ``unknown``) without importing any vendor SDK.
-_PLANNED_REAL = frozenset({"groq", "gemini"})
-
 
 def get_provider(name: str | None = None) -> LLMProvider:
     """Return the active :class:`LLMProvider`.
 
-    ``name`` defaults to the ``LLM_PROVIDER`` env var (falling back to ``groq``, matching the
-    app settings default). ``fake`` returns the deterministic :class:`FakeLLM`. The real
-    providers are not built yet and raise :class:`NotImplementedError`; any other value raises
-    :class:`ValueError`.
+    ``name`` defaults to the ``LLM_PROVIDER`` env var (falling back to ``groq``, the
+    app-settings default). An unknown value raises :class:`ValueError`; a real provider
+    selected without its API key raises :class:`RuntimeError` (fail-fast at startup).
     """
     resolved = (name or os.getenv("LLM_PROVIDER", "groq")).strip().lower()
     if resolved == "fake":
         return FakeLLM()
-    if resolved in _PLANNED_REAL:
-        raise NotImplementedError(
-            f"LLM provider {resolved!r} is not implemented yet (Phase 1). "
-            "Set LLM_PROVIDER=fake for tests."
-        )
+    if resolved == "groq":
+        from .groq import GroqProvider
+
+        return GroqProvider.from_env()
+    if resolved == "gemini":
+        from .gemini import GeminiProvider
+
+        return GeminiProvider.from_env()
     raise ValueError(
         f"Unknown LLM provider {resolved!r}. Expected one of: fake, groq, gemini."
     )
