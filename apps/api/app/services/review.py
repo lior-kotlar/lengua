@@ -45,6 +45,14 @@ class GradeResult:
     score_changed: bool
 
 
+@dataclass(frozen=True)
+class DueBatch:
+    """A due batch split into never-reviewed (``new``) vs. previously-seen (``due``) cards."""
+
+    new: list[Card]
+    due: list[Card]
+
+
 class ReviewService:
     """Select the due batch and grade cards for a user."""
 
@@ -54,6 +62,34 @@ class ReviewService:
         self._reviews = ReviewsRepository(session)
         self._proficiency = ProficiencyRepository(session)
 
+    async def due_split(
+        self,
+        user_id: uuid.UUID,
+        language_id: int,
+        *,
+        new_limit: int = config.DAILY_NEW_LIMIT,
+        total_limit: int = config.DAILY_TOTAL_LIMIT,
+    ) -> DueBatch:
+        """Return the user's due batch split into never-reviewed (``new``) vs. ``due`` cards.
+
+        New cards (no FSRS ``last_review``) are limited separately by ``new_limit`` so a big import
+        doesn't bury reviews; the merged batch is capped at ``total_limit``. Each group keeps the
+        scheduler's oldest-due-first order.
+        """
+        candidates = await self._cards.due_candidates(user_id, language_id)
+        by_id: dict[int, Card] = {card.id: card for card in candidates}
+        views = [self._scheduler_view(card) for card in candidates]
+        batch = scheduler.select_due_batch(views, new_limit=new_limit, total_limit=total_limit)
+        new_cards: list[Card] = []
+        due_cards: list[Card] = []
+        for item in batch:
+            card = by_id[item["id"]]
+            if scheduler.is_new_card(item):
+                new_cards.append(card)
+            else:
+                due_cards.append(card)
+        return DueBatch(new=new_cards, due=due_cards)
+
     async def due_batch(
         self,
         user_id: uuid.UUID,
@@ -62,12 +98,11 @@ class ReviewService:
         new_limit: int = config.DAILY_NEW_LIMIT,
         total_limit: int = config.DAILY_TOTAL_LIMIT,
     ) -> list[Card]:
-        """Return the cards due now for the user, oldest-due first, capped by the given limits."""
-        candidates = await self._cards.due_candidates(user_id, language_id)
-        by_id: dict[int, Card] = {card.id: card for card in candidates}
-        views = [self._scheduler_view(card) for card in candidates]
-        batch = scheduler.select_due_batch(views, new_limit=new_limit, total_limit=total_limit)
-        return [by_id[item["id"]] for item in batch]
+        """Return the cards due now for the user as one flat list (reviewed first, then new)."""
+        batch = await self.due_split(
+            user_id, language_id, new_limit=new_limit, total_limit=total_limit
+        )
+        return batch.due + batch.new
 
     async def grade(self, user_id: uuid.UUID, card_id: int, rating: int) -> GradeResult:
         """Apply an FSRS ``rating`` (1..4) to a card: reschedule, log the review, nudge the level.

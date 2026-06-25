@@ -31,6 +31,24 @@ supabase/     Supabase CLI config, initial migration, seed
 | Web | `apps/web/` | `cd apps/web && pnpm install && pnpm dev` (placeholder home); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
+### API endpoints (Phase 1 — core loop)
+
+Beyond `GET /health`, the FastAPI service exposes the core Generate→Save→Review loop. Until
+Phase 2 adds Supabase-JWT auth, every request is scoped to a single seeded **dev user**
+(`current_user`); point `DATABASE_URL` at a Postgres (e.g. the local Supabase CLI stack) and seed
+it with `uv run python scripts/seed_dev_user.py`.
+
+| Method + path | Purpose |
+| --- | --- |
+| `GET/POST/DELETE /languages`, `PATCH /languages/{id}` | List/add/remove a language; `PATCH` toggles `vowelized`. |
+| `POST /generate` | `{language_id, words}` → recognition+production card previews (unsaved). |
+| `POST /cards/save` | Persist generated previews into the deck (`saved=true`). |
+| `GET /review/due?language_id=` | Today's due batch, split into `new` vs. `due`. |
+| `POST /review/{card_id}/grade` | `{rating: 1..4}` (Again/Hard/Good/Easy) → FSRS reschedule + proficiency nudge. |
+
+The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E). More
+routers (discover, explain, proficiency, settings) land in later Phase 1 tasks.
+
 ### One-command verify (local quality gate)
 
 Run the whole monorepo's lint + type-check + tests (+ web build) in one command — it fans out

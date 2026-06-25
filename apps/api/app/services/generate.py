@@ -38,7 +38,9 @@ from lengua_core.llm.base import LLMProvider
 class GenerateService:
     """Generate example-sentence card pairs and save them to a user's deck."""
 
-    def __init__(self, session: AsyncSession, provider: LLMProvider) -> None:
+    def __init__(self, session: AsyncSession, provider: LLMProvider | None = None) -> None:
+        # ``provider`` is optional so a save-only caller (the cards router) need not construct a
+        # real provider; :meth:`generate` requires one and fails fast if it was omitted.
         self._session = session
         self._provider = provider
         self._languages = LanguagesRepository(session)
@@ -54,6 +56,10 @@ class GenerateService:
         the learner's current continuous score (``gen_level``) so later reviews only move the
         level for current-level material.
         """
+        provider = self._provider
+        if provider is None:
+            raise RuntimeError("GenerateService.generate requires an LLM provider.")
+
         language = await self._languages.get(user_id, language_id)
         if language is None:
             raise NotFoundError(f"Language {language_id} not found.")
@@ -62,7 +68,7 @@ class GenerateService:
         band: str = proficiency.band_for_score(score)
         cleaned = [w.strip() for w in words if w.strip()]
 
-        generated = self._provider.generate_cards(
+        generated = provider.generate_cards(
             cleaned, language.name, vowelized=language.vowelized, level_band=band
         )
         built: list[BuiltCard] = []

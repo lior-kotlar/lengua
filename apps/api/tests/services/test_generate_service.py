@@ -77,6 +77,16 @@ async def test_generate_unknown_language_raises(
         await service.save(user_id, 10**9, [])
 
 
+async def test_generate_without_provider_raises(
+    db_session: AsyncSession, demo_account: SeedResult
+) -> None:
+    # The cards router constructs the service provider-less for save-only; generate must fail fast.
+    user_id = uuid.UUID(demo_account.user_id)
+    service = GenerateService(db_session)
+    with pytest.raises(RuntimeError):
+        await service.generate(user_id, 1, ["x"])
+
+
 async def test_generate_and_save_empty(db_session: AsyncSession, demo_account: SeedResult) -> None:
     user_id = uuid.UUID(demo_account.user_id)
     language = await LanguagesRepository(db_session).create(user_id, "Empty Lang", code="xx")
