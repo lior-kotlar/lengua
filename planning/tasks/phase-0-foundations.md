@@ -21,7 +21,7 @@ _Context: lift the repo into the `apps/ packages/ infra/` shape from ../01-archi
       depends: 0.1.1
 - [x] **0.1.3** Add a root `.gitignore`, `.editorconfig`, and a root `README.md` "Repo layout & how to run each app" section covering api, web, legacy Streamlit.
       verify: `git status` shows no stray build/venv/node_modules artifacts after a clean build; README renders the layout tree.
-- [ ] **0.1.4** Add a root `Makefile` (or `justfile`) with `make verify` that fans out to api + web verify targets, and document the one-command local gate in the README.
+- [x] **0.1.4** Add a root `Makefile` (or `justfile`) with `make verify` that fans out to api + web verify targets, and document the one-command local gate in the README.
       verify: `make verify` runs api and web lint/type/test targets and exits 0 on the empty scaffolds.
       depends: 0.2.4, 0.3.5
 

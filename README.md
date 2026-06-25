@@ -31,6 +31,26 @@ supabase/     Supabase CLI config, initial migration, seed
 | Web | `apps/web/` | `cd apps/web && pnpm install && pnpm dev` (placeholder home); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
+### One-command verify (local quality gate)
+
+Run the whole monorepo's lint + type-check + tests (+ web build) in one command — it fans out
+to the **api** verify (`uv run python scripts/verify.py` in `apps/api`) and the **web** verify
+(`pnpm verify` in `apps/web`) and exits non-zero if either fails:
+
+```bash
+make verify          # runs apps/api + apps/web gates; targets: verify-api, verify-web
+```
+
+No `make` (e.g. on **Windows**)? Run the identical cross-platform engine — it does the same
+fan-out and is what CI/local gates call:
+
+```bash
+python scripts/verify.py
+```
+
+`pnpm` is invoked via `corepack pnpm` when `pnpm` isn't on your `PATH` (corepack ships with
+Node and honors the `packageManager` pin in `apps/web/package.json`).
+
 The sections below document the **legacy Streamlit app**, which stays runnable throughout the
 migration.
 
