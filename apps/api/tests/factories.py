@@ -24,6 +24,7 @@ import itertools
 from datetime import UTC, datetime
 from typing import Any
 
+from app.repositories.cards import NewCard
 from lengua_core.models import GeneratedCard, WordNote
 
 # A fixed demo user id (a valid UUID). All ``user_id`` foreign keys default to this so a
@@ -117,3 +118,24 @@ def make_generated_card(**overrides: Any) -> GeneratedCard:
     }
     defaults.update(overrides)
     return GeneratedCard(**defaults)
+
+
+def make_new_card(**overrides: Any) -> NewCard:
+    """Build a :class:`~app.repositories.cards.NewCard` — the repository's write contract.
+
+    Defaults to a *saved, due-now* recognition card; override ``direction`` / ``fsrs_state`` /
+    ``due`` etc. to craft new-vs-reviewed or unsaved cards in repository tests.
+    """
+    defaults: dict[str, Any] = {
+        "front": "Hola, ¿cómo estás?",
+        "back": "Hello, how are you?",
+        "direction": "recognition",
+        "used_words": ["hola"],
+        "word_explanations": None,
+        "gen_level": 0.0,
+        "saved": True,
+        "fsrs_state": None,
+        "due": FIXED_NOW,
+    }
+    defaults.update(overrides)
+    return NewCard(**defaults)
