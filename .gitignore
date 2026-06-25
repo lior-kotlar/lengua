@@ -235,10 +235,15 @@ dist-ssr/
 # JS/TS test + coverage output
 coverage/
 
-# Playwright (web E2E)
-/test-results/
-/playwright-report/
-/playwright/.cache/
+# Playwright (web E2E) — unanchored so they also match under apps/web/
+test-results/
+playwright-report/
+playwright/.cache/
 
 # Monorepo task runner cache
 .turbo/
+
+# The Python "lib/" ignore (above) would otherwise swallow the web app's
+# src/lib (shadcn utils etc.) — keep that source tracked.
+!apps/web/src/lib/
+!apps/web/src/lib/**
