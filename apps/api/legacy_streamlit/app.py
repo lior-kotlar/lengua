@@ -1,7 +1,7 @@
 """Lengua — language learning app. Streamlit entry point / home page."""
 import streamlit as st
 
-from lengua_core.ui import render_sidebar
+from legacy_streamlit.ui import render_sidebar
 
 st.set_page_config(page_title="Lengua", page_icon="🗣️", layout="centered")
 

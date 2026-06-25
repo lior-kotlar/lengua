@@ -1,28 +1,33 @@
-"""App configuration: loads .env, exposes paths and model settings."""
+"""Pure, non-secret domain constants.
+
+This module holds only **non-secret tuning constants**: the CEFR/level-adaptation
+parameters used by :mod:`lengua_core.proficiency`, the legacy review-batch limits, and the
+legacy SQLite database path used by the Streamlit app.
+
+It intentionally contains **no secrets and no ``.env`` loading**. Provider keys/models and
+all typed application configuration live in :class:`app.settings.Settings`
+(``pydantic-settings``, read from the environment). Keeping this module free of secrets and
+side effects keeps the domain core pure and safe to import from unit tests.
+"""
+
+from __future__ import annotations
+
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-
+# ── Legacy storage (used only by the legacy Streamlit app's SQLite store) ──────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(PROJECT_ROOT / ".env")
-
-# Gemini
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-
-# Storage
 DATA_DIR = PROJECT_ROOT / "data"
-DB_PATH = Path(os.getenv("LENGUA_DB_PATH", DATA_DIR / "lengua.db"))
+DB_PATH = Path(os.getenv("LENGUA_DB_PATH", str(DATA_DIR / "lengua.db")))
 
-# Daily review batch
+# ── Daily review batch (legacy defaults; per-user settings override these) ──────────
 DAILY_NEW_LIMIT = int(os.getenv("LENGUA_DAILY_NEW_LIMIT", "10"))
 DAILY_TOTAL_LIMIT = int(os.getenv("LENGUA_DAILY_TOTAL_LIMIT", "50"))
 
-# Proficiency / level
-# The learner's level per language is a continuous score on the CEFR scale (0..6);
-# the band is CEFR_BANDS[floor(score)]. There is no user table yet, so state is keyed
-# by (DEFAULT_USER_ID, language_id) — multi-user lands later with no migration.
+# ── Proficiency / level ────────────────────────────────────────────────────────────
+# The learner's level per language is a continuous score on the CEFR scale (0..6); the
+# band is ``CEFR_BANDS[floor(score)]``. State is keyed by ``(user_id, language_id)``; the
+# legacy app uses a single default user until real multi-tenancy lands in the API.
 DEFAULT_USER_ID = 1
 CEFR_BANDS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 LEVEL_MIN = 0.0

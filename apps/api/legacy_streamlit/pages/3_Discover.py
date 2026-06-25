@@ -1,10 +1,13 @@
 """Discover page: auto-select new vocabulary and generate sentences without manual input."""
 import streamlit as st
 
-from lengua_core import flashcards, proficiency, settings as app_settings
+from lengua_core import proficiency
 from lengua_core.gemini import generate_cards, suggest_new_words
 from lengua_core.models import GeneratedCard
-from lengua_core.ui import render_sidebar
+
+from legacy_streamlit import settings as app_settings
+from legacy_streamlit import store
+from legacy_streamlit.ui import render_sidebar
 
 st.set_page_config(page_title="Discover · Lengua", page_icon="🔍", layout="centered")
 
@@ -15,7 +18,7 @@ if active is None:
     st.warning("Add and select a language in the sidebar first.")
     st.stop()
 
-gen_score = proficiency.get_score(active["id"])
+gen_score = store.get_score(active["id"])
 gen_band = proficiency.band_for_score(gen_score)
 st.caption(
     f"Active language: **{active['name']}** · level **{gen_band}**. "
@@ -29,7 +32,7 @@ topic = topic.strip() or None
 # ── Phase 1: word suggestion ──────────────────────────────────────────────────
 
 if st.button("Discover", type="primary"):
-    known = flashcards.get_known_words(active["id"])
+    known = store.get_known_words(active["id"])
     with st.spinner("Choosing new vocabulary…"):
         try:
             words = suggest_new_words(
@@ -74,7 +77,7 @@ if suggested and st.session_state.get("discover_lang_id") == active["id"]:
 
         with col_retry:
             if st.button("Try different words", use_container_width=True):
-                known = flashcards.get_known_words(active["id"])
+                known = store.get_known_words(active["id"])
                 with st.spinner("Choosing different words…"):
                     try:
                         words = suggest_new_words(
@@ -103,7 +106,7 @@ if cards and st.session_state.get("discover_lang_id") == active["id"]:
     col_save, col_back = st.columns([1, 1], gap="small")
     with col_save:
         if st.button("💾 Save all as flashcards", type="primary", use_container_width=True):
-            n = flashcards.save_cards(
+            n = store.save_cards(
                 active["id"],
                 [GeneratedCard(**c) for c in cards],
                 gen_level=gen_score,

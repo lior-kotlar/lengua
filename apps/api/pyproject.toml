@@ -9,6 +9,9 @@ dependencies = [
     "uvicorn[standard]>=0.34",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
+    # FSRS spaced-repetition algorithm — used by the pure lengua_core.scheduler the API's
+    # review service builds on (and by the legacy Streamlit store).
+    "fsrs>=5.0",
 ]
 
 [dependency-groups]
@@ -59,20 +62,34 @@ module = ["lengua_core.*", "legacy_streamlit.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
+# FSRS ships no type stubs; the pure-core tests import fsrs.Rating directly.
+[[tool.mypy.overrides]]
+module = ["fsrs", "fsrs.*"]
+ignore_missing_imports = true
+
 # ── Pytest + coverage ─────────────────────────────────────────────────────────
-# Coverage is scoped to the FastAPI shell (`app`) plus the new provider-agnostic LLM
-# seam (`lengua_core.llm`) added in 0.4.2. The rest of `lengua_core` and all of
-# `legacy_streamlit` are pre-existing and untested — intentionally OUT of this gate
-# (see the ruff/mypy scoping note above), so they are not measured here.
+# Coverage is scoped to the FastAPI shell (`app`), the provider-agnostic LLM seam
+# (`lengua_core.llm`, added in 0.4.2), and the pure domain modules ported in Phase 1.1
+# (`scheduler`, `proficiency`, `cards`, `config`). The legacy SQLite modules
+# (`lengua_core` gemini + everything under `legacy_streamlit`) are pre-existing/legacy and
+# intentionally OUT of this gate (see the ruff/mypy scoping note above), so they are not
+# measured here.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=app --cov=lengua_core/llm --cov-branch --cov-fail-under=80 --cov-report=term-missing"
+addopts = "--cov=app --cov=lengua_core/llm --cov=lengua_core.scheduler --cov=lengua_core.proficiency --cov=lengua_core.cards --cov=lengua_core.config --cov-branch --cov-fail-under=80 --cov-report=term-missing"
 markers = [
     "integration: tests that require a live Postgres (Supabase CLI). Auto-skipped when DATABASE_URL is unreachable.",
 ]
 
 [tool.coverage.run]
-source = ["app", "lengua_core/llm"]
+source = [
+    "app",
+    "lengua_core/llm",
+    "lengua_core.scheduler",
+    "lengua_core.proficiency",
+    "lengua_core.cards",
+    "lengua_core.config",
+]
 branch = true
 omit = [
     "app/settings.py",  # settings boilerplate — values come from env, not logic

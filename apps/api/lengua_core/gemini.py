@@ -3,14 +3,19 @@
 The fixed rules prompt + generation instruction + target language are attached
 automatically here, so callers only supply the words.
 """
+import os
 import time
 
+from dotenv import load_dotenv
 from google import genai
 from google.genai import errors, types
 
-from . import config, settings
 from .models import GeneratedCard
 from .prompts import suggestion_instruction, system_instruction
+
+# Load the legacy ``.env`` (repo root) so GEMINI_API_KEY / GEMINI_MODEL are available. The
+# provider key + model are operator config read from the environment — never DB-stored secrets.
+load_dotenv()
 
 # Backoff between retries when the model is transiently overloaded (503/429).
 _RETRY_DELAYS = (1, 2, 4)
@@ -18,12 +23,18 @@ _RETRY_DELAYS = (1, 2, 4)
 _client: genai.Client | None = None
 
 
+def _model() -> str:
+    """The Gemini model id from the environment (default ``gemini-2.5-flash``)."""
+    return os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+
 def _get_client() -> genai.Client:
     global _client
     if _client is None:
-        if not config.GEMINI_API_KEY:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
             raise RuntimeError("GEMINI_API_KEY is not set (check your .env file).")
-        _client = genai.Client(api_key=config.GEMINI_API_KEY)
+        _client = genai.Client(api_key=api_key)
     return _client
 
 
@@ -44,7 +55,7 @@ def generate_cards(
         return []
 
     resp = _get_client().models.generate_content(
-        model=settings.gemini_model(),
+        model=_model(),
         contents="Vocabulary words:\n" + "\n".join(f"- {w}" for w in words),
         config=types.GenerateContentConfig(
             system_instruction=system_instruction(
@@ -70,7 +81,7 @@ def suggest_new_words(
     optional topic, and the full list of known words to avoid.
     """
     resp = _get_client().models.generate_content(
-        model=settings.gemini_model(),
+        model=_model(),
         contents=f"Suggest {count} new {language} vocabulary words.",
         config=types.GenerateContentConfig(
             system_instruction=suggestion_instruction(
@@ -109,7 +120,7 @@ def explain_word(word: str, sentence: str, translation: str, language: str) -> s
             time.sleep(delay)  # the model was busy; wait, then retry
         try:
             resp = _get_client().models.generate_content(
-                model=settings.gemini_model(), contents=prompt, config=cfg
+                model=_model(), contents=prompt, config=cfg
             )
             text = (resp.text or "").strip()
             if text:

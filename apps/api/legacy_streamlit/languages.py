@@ -1,4 +1,4 @@
-"""CRUD for learned languages and the persistent 'active language' setting."""
+"""CRUD for learned languages and the persistent 'active language' setting (legacy app)."""
 import sqlite3
 
 from .db import connect

@@ -1,8 +1,13 @@
-"""SQLite connection helper and schema initialization."""
+"""SQLite connection helper and schema initialization (legacy Streamlit app).
+
+This is the legacy single-user SQLite layer. It lives under ``legacy_streamlit/`` (not the pure
+``lengua_core``) so the domain core stays database-agnostic; the FastAPI service uses Postgres
+via SQLAlchemy repositories instead.
+"""
 import sqlite3
 from contextlib import contextmanager
 
-from . import config
+from lengua_core import config
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS languages (

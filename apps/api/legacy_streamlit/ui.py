@@ -1,7 +1,9 @@
 """Shared Streamlit UI pieces — notably the always-present language sidebar."""
 import streamlit as st
 
-from . import config, languages, proficiency
+from lengua_core import config, proficiency
+
+from . import languages, store
 from .db import init_db
 
 
@@ -14,7 +16,7 @@ def ensure_ready() -> None:
 
 def _render_level(language_id: int) -> None:
     """Show the learner's CEFR level for a language, with progress and a manual override."""
-    score = proficiency.get_score(language_id)
+    score = store.get_score(language_id)
     band = proficiency.band_for_score(score)
 
     st.markdown(f"**Level: {band}**")
@@ -31,7 +33,7 @@ def _render_level(language_id: int) -> None:
             key=f"level_select_{language_id}",
         )
         if choice != band:
-            proficiency.set_band(language_id, choice)
+            store.set_band(language_id, choice)
             st.rerun()
 
 

@@ -14,15 +14,25 @@
 
 _Context: lift the existing domain logic into `apps/api/lengua_core/` with no FastAPI and no SQL, so it stays unit-testable and portable per the porting map in 03-backend.md._
 
-- [ ] **1.1.1** Create `apps/api/lengua_core/` package and move `models.py` + `prompts.py` in unchanged; re-export `GeneratedCard` / `WordNote` from the package root.
+> **Implemented (PR #1.1):** `lengua_core` is now pure — `scheduler`/`proficiency`/`cards`/`config`
+> carry no DB. All SQLite the legacy app needs (the connection, schema, languages/settings CRUD,
+> and the FSRS/proficiency/card persistence that used to live in these modules) moved to
+> `apps/api/legacy_streamlit/` (notably the new `legacy_streamlit/store.py`), keeping the legacy
+> Streamlit app runnable. For 1.1.5 the typed `pydantic-settings` already live in
+> `app/settings.py` (Phase 0); `lengua_core/config.py` keeps only the non-secret CEFR/level
+> tuning constants + the legacy DB path (secrets removed). The per-provider key fail-fast is
+> deferred to task 1.2.1 (the real providers); 1.1.5's test asserts the `groq` default and
+> fail-fast on an unknown provider.
+
+- [x] **1.1.1** Create `apps/api/lengua_core/` package and move `models.py` + `prompts.py` in unchanged; re-export `GeneratedCard` / `WordNote` from the package root.
       verify: `python -c "from lengua_core import GeneratedCard, WordNote"` exits 0 and `pytest apps/api/tests/test_imports.py` passes.
-- [ ] **1.1.2** Move `scheduler.py` (FSRS) into `lengua_core/scheduler.py` as pure functions that take per-user limits as arguments (no DB, no globals).
+- [x] **1.1.2** Move `scheduler.py` (FSRS) into `lengua_core/scheduler.py` as pure functions that take per-user limits as arguments (no DB, no globals).
       verify: `pytest apps/api/tests/lengua_core/test_scheduler.py` passes and `grep -rE "import (sqlalchemy|fastapi)|lengua\.db" apps/api/lengua_core/scheduler.py` returns nothing.
-- [ ] **1.1.3** Move `proficiency.py` into `lengua_core/proficiency.py`; keep `register_review` a pure function returning a new score (no persistence side effects).
+- [x] **1.1.3** Move `proficiency.py` into `lengua_core/proficiency.py`; keep `register_review` a pure function returning a new score (no persistence side effects).
       verify: `pytest apps/api/tests/lengua_core/test_proficiency.py` passes and the function has no DB import (`grep -E "sqlalchemy|sqlite|lengua\.db" apps/api/lengua_core/proficiency.py` is empty).
-- [ ] **1.1.4** Split `flashcards.py`: pure card-building (sentence → recognition + production card pair, tagged `gen_level`) stays in `lengua_core/cards.py`; drop all SQLite persistence calls from it.
+- [x] **1.1.4** Split `flashcards.py`: pure card-building (sentence → recognition + production card pair, tagged `gen_level`) stays in `lengua_core/cards.py`; drop all SQLite persistence calls from it.
       verify: `pytest apps/api/tests/lengua_core/test_cards.py` asserts one `GeneratedCard` yields two cards with directions `recognition` and `production`; `grep -E "sqlite|lengua\.db" apps/api/lengua_core/cards.py` is empty.
-- [ ] **1.1.5** Convert `config.py` to typed `pydantic-settings` (`lengua_core/config.py` or `app/config.py`) reading env per environment (`ENV`, `LLM_PROVIDER`, provider keys/models, `DATABASE_URL`); remove module-level secret constants.
+- [x] **1.1.5** Convert `config.py` to typed `pydantic-settings` (`lengua_core/config.py` or `app/config.py`) reading env per environment (`ENV`, `LLM_PROVIDER`, provider keys/models, `DATABASE_URL`); remove module-level secret constants.
       verify: `pytest apps/api/tests/test_config.py` loads settings from a patched env and asserts defaults (`LLM_PROVIDER == "groq"`); app refuses to import settings when a required var for the selected provider is missing.
 
 ## 1.2 — LLM provider seam (Groq default, Gemini reserved)  ·  M
