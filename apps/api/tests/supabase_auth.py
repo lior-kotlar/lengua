@@ -103,3 +103,25 @@ def login(client: httpx.Client, email: str, password: str) -> str:
     )
     resp.raise_for_status()
     return str(resp.json()["access_token"])
+
+
+def signup(
+    client: httpx.Client,
+    email: str,
+    password: str,
+    *,
+    redirect_to: str | None = None,
+) -> httpx.Response:
+    """Public email/password signup (anon key) → the raw :class:`httpx.Response`.
+
+    Mirrors what the web client does (``POST /auth/v1/signup`` with the anon key and an optional
+    ``redirect_to`` query param, which GoTrue validates against the config allow-list). The raw
+    response is returned so callers can assert on the status (a weak password → 4xx) and the body
+    (the unconfirmed user). Unlike :func:`create_confirmed_user` this is the *public* path, so it is
+    subject to the password policy and the email-confirmation requirement (tasks 2.1.1/2.1.4)."""
+    return client.post(
+        f"{_supabase_url()}/auth/v1/signup",
+        params={"redirect_to": redirect_to} if redirect_to else None,
+        headers={"apikey": anon_key(), "Content-Type": "application/json"},
+        json={"email": email, "password": password},
+    )
