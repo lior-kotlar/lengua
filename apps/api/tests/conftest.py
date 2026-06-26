@@ -229,7 +229,8 @@ async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClien
     """
     from httpx import ASGITransport, AsyncClient
 
-    from app.deps import get_db, get_llm_provider
+    from app.db.session import UsageSession
+    from app.deps import get_db, get_llm_provider, get_usage_db
     from app.main import create_app
     from lengua_core.llm.base import LLMProvider
     from lengua_core.llm.fake import FakeLLM
@@ -244,10 +245,17 @@ async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClien
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         yield db_session  # do not close — the test still queries this session afterwards
 
+    async def _override_get_usage_db() -> AsyncIterator[UsageSession]:
+        # Share the test's rolled-back ``db_session`` for the cost-guard usage session (Phase 3.2)
+        # so on-success increments stay in the test transaction and can see uncommitted rows such as
+        # a token-only user's profile (see ``tests/api/conftest.py`` for the full rationale).
+        yield UsageSession(db_session)
+
     def _override_provider() -> LLMProvider:
         return FakeLLM()
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_usage_db] = _override_get_usage_db
     app.dependency_overrides[get_llm_provider] = _override_provider
     install_test_auth(app)  # verify real bearer tokens against the test secret
     FakeLLM.reset_call_count()

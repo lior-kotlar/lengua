@@ -104,6 +104,16 @@ flows above keep working.)
 
 The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E).
 
+**Usage & cost limits.** Each LLM endpoint enforces a per-user **daily cap** per kind
+(`generate` / `discover` / `explain`; `/discover/accept` counts as `generate`). A user's own cap
+(set in their settings as `daily_cap_generate` / `daily_cap_discover` / `daily_cap_explain`) is
+clamped by a hard server maximum, and a generous default applies when unset — all configurable via
+env (`MAX_*_PER_DAY` / `DEFAULT_*_PER_DAY`; see [`.env.example`](.env.example)). Once a user is at
+their cap for the day, that endpoint returns **HTTP 429** with body
+`{"code": "daily_cap_reached", "kind": "<kind>"}`. Caps count only **successful** provider calls;
+`/explain` is cached, so a cache hit costs nothing (no cap, no count) — only a cache miss is
+counted.
+
 ### API contract & typed client (`packages/api-types`)
 
 The FastAPI OpenAPI schema is the contract the web app's typed client is generated from. It is
