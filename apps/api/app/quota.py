@@ -57,22 +57,46 @@ so the kill-switch's global tally starts accumulating now even though its *gate*
 from __future__ import annotations
 
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
+from opentelemetry.trace import Span
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import CurrentUser
 from app.db.session import UsageSession
 from app.deps import get_current_user, get_db, get_usage_db
+from app.llm_observability import (
+    ATTR_BUDGET_REMAINING,
+    ATTR_LLM_TOKENS_IN,
+    ATTR_LLM_TOKENS_OUT,
+    ATTR_QUOTA_CAP_HIT,
+    CAP_HIT_NONE,
+    RESULT_BLOCKED,
+    RESULT_ERROR,
+    RESULT_SUCCESS,
+    peek_budget_remaining,
+    record_call,
+    record_cap_hit,
+    set_budget_remaining,
+    start_llm_span,
+)
 from app.ratelimit import RateLimiter, get_rate_limiter
 from app.repositories.profiles import ProfilesRepository
 from app.repositories.settings import SettingsRepository
 from app.repositories.usage import UsageRepository
 from app.settings import Settings, get_settings
+
+# ``quota.cap_hit`` values / ``llm_cap_hits_total{gate}`` labels — one per gate, matching the
+# documented chain order. The span/metric blocked-reason strings live as constants so the gate logic
+# and the observability tests reference the same vocabulary.
+GATE_EMAIL = "email"
+GATE_RATE = "rate"
+GATE_DAILY_CAP = "daily_cap"
+GATE_GLOBAL_BUDGET = "global_budget"
 
 #: The three LLM ``kind``s that consume the operator key and are metered by the cost guard.
 Kind = str  # one of: "generate" | "discover" | "explain"
@@ -259,6 +283,20 @@ class QuotaGuard:
         # reads day N then increments day N+1). ``None`` until ``check`` runs; ``record_success``
         # falls back to "now" only if it was somehow called without ``check`` (never on real paths).
         self._day: date | None = None
+        # The per-call ``llm.call`` observability span (task 3.8.1), started by :meth:`check` and
+        # ended exactly once by :meth:`record_success` / :meth:`_block` / :meth:`finalize`. ``None``
+        # until ``check`` runs (so a free cache hit, which never calls ``check``, emits no span).
+        self._span: Span | None = None
+        self._finalized = False
+
+    @property
+    def span(self) -> Span | None:
+        """The per-call ``llm.call`` span (or ``None`` before :meth:`check`), for the call boundary.
+
+        :func:`app.llm_runner.run_provider` reads this to stamp the ``llm.*`` attributes
+        (provider/model/latency/tokens) on the same span the gate carries ``quota.*`` on.
+        """
+        return self._span
 
     async def check(self) -> None:
         """Run the gate chain in documented order; raise on the first (highest-priority) failure.
@@ -266,23 +304,36 @@ class QuotaGuard:
         Order (``planning/03-backend.md``): **email-verified → rate-limit → daily-cap →
         global-budget**. The rate-limit token is consumed once the request passes the email gate,
         even if the daily-cap gate then blocks (rate limiting is about frequency, not success).
+
+        Starts the per-call ``llm.call`` span (task 3.8.1) and stamps ``quota.kind``. On a block it
+        sets ``quota.cap_hit`` to the blocking gate, records the blocked metrics, ends the span,
+        and raises; on admission it sets ``quota.cap_hit=none`` and leaves the span open for the
+        provider call + :meth:`record_success` to finish.
         """
         # Pin the request's UTC day ONCE here, then thread the same value through the daily-cap
         # read, the budget read, and the increment so they never disagree across a midnight flip.
         day = _utc_today()
         self._day = day
+        span = start_llm_span(self._kind)
+        self._span = span
 
         # 1) email-verified (3.7.1): the very first gate — no LLM spend for an unverified account.
         if not self._email_verified:
+            self._block(GATE_EMAIL)
             raise EmailUnverified
 
         # 2) rate-limit (3.3.2): per-user sliding window across all gated kinds; consumes a token.
         decision = self._rate_limiter.hit(self._user_id)
         if not decision.allowed:
+            self._block(GATE_RATE)
             raise RateLimited(decision.retry_after)
 
         # 3) daily-cap (3.2) + the generate-only day-0 signup-abuse clamp (3.7.2).
-        await enforce_daily_cap(self._db, self._settings, self._user_id, self._kind, day)
+        try:
+            await enforce_daily_cap(self._db, self._settings, self._user_id, self._kind, day)
+        except DailyCapReached:
+            self._block(GATE_DAILY_CAP)
+            raise
 
         # 4) global-budget kill-switch (3.4): the LAST gate — the project-wide "I will never get a
         # bill" backstop. Read the GLOBAL counter on the PRIVILEGED usage session (the
@@ -295,9 +346,37 @@ class QuotaGuard:
         # ``LLM_MAX_CONCURRENCY`` (3.5) and is acceptable because the budget sits far below the
         # provider's free RPD — we do NOT reserve before spending, because a failed/blocked provider
         # call must never burn budget (3.4.3), and there is no refund/decrement path.
-        budget = await UsageRepository(self._usage_db).get_budget_count(day)
-        if budget >= self._settings.global_daily_budget:
+        budget_count = await UsageRepository(self._usage_db).get_budget_count(day)
+        remaining = self._settings.global_daily_budget - budget_count
+        set_budget_remaining(remaining)  # refresh the observable gauge from the just-read count
+        span.set_attribute(ATTR_BUDGET_REMAINING, remaining)
+        if budget_count >= self._settings.global_daily_budget:
+            self._block(GATE_GLOBAL_BUDGET, budget_remaining=remaining)
             raise GlobalBudgetReached
+
+        # Admitted: record the cap-hit attribute now; ``llm.*`` + the final budget land later.
+        span.set_attribute(ATTR_QUOTA_CAP_HIT, CAP_HIT_NONE)
+
+    def _block(self, gate: str, *, budget_remaining: int | None = None) -> None:
+        """Finalize the span for a call refused by ``gate``: cap-hit + tokens 0 + blocked metrics.
+
+        A blocked call never reaches the provider, so it records ``llm.tokens_in/out = 0`` and still
+        emits a complete span. ``budget_remaining`` is the freshly-read value for a global-budget
+        block; for an earlier gate (email / rate / daily-cap, which never read the budget) it falls
+        back to the last-known remaining so the span still carries ``budget.remaining`` without an
+        extra privileged DB read on the fast-fail path.
+        """
+        assert self._span is not None  # _block only runs from check(), which started the span
+        if budget_remaining is None:
+            budget_remaining = peek_budget_remaining(self._settings.global_daily_budget)
+        self._span.set_attribute(ATTR_QUOTA_CAP_HIT, gate)
+        self._span.set_attribute(ATTR_LLM_TOKENS_IN, 0)
+        self._span.set_attribute(ATTR_LLM_TOKENS_OUT, 0)
+        self._span.set_attribute(ATTR_BUDGET_REMAINING, budget_remaining)
+        record_cap_hit(gate)
+        record_call(self._kind, RESULT_BLOCKED)
+        self._span.end()
+        self._finalized = True
 
     async def record_success(self) -> None:
         """Count one successful provider call: atomically bump ``llm_usage`` + ``llm_budget``.
@@ -308,20 +387,51 @@ class QuotaGuard:
         session and commits that session's own transaction (independent of the request's app-data
         transaction). The id is always the JWT-derived ``user_id`` — never a client-supplied value —
         because the ``SECURITY DEFINER`` increment function trusts it.
+
+        Also finishes the per-call span (task 3.8.1): refreshes ``budget.remaining`` from the new
+        count, records the ``success`` metric + the budget gauge, and ends the span.
         """
         day = self._day if self._day is not None else _utc_today()
-        await UsageRepository(self._usage_db).increment_usage(self._user_id, self._kind, day)
+        new_count = await UsageRepository(self._usage_db).increment_usage(
+            self._user_id, self._kind, day
+        )
         await self._usage_db.commit()
+        remaining = self._settings.global_daily_budget - new_count
+        set_budget_remaining(remaining)
+        record_call(self._kind, RESULT_SUCCESS)
+        assert self._span is not None  # record_success always follows check()
+        self._span.set_attribute(ATTR_BUDGET_REMAINING, remaining)
+        self._span.end()
+        self._finalized = True
+
+    def finalize(self) -> None:
+        """End the span as an ``error`` if it was admitted but neither recorded nor blocked.
+
+        Called from the :func:`quota_guard` dependency's teardown (always, on every path). It is a
+        no-op when there is no span (a free cache hit never called :meth:`check`) or the span was
+        already ended (:meth:`record_success` on success, :meth:`_block` on a gate block). The only
+        remaining case — ``check`` passed but the provider call (or a later step) raised before
+        ``record_success`` — is recorded as a failed ``error`` call so a provider error still emits
+        a complete span + metric.
+        """
+        if self._span is not None and not self._finalized:
+            record_call(self._kind, RESULT_ERROR)
+            self._span.end()
+            self._finalized = True
 
 
-def quota_guard(kind: Kind, *, enforce: bool = True) -> Callable[..., Awaitable[QuotaGuard]]:
+def quota_guard(kind: Kind, *, enforce: bool = True) -> Callable[..., AsyncIterator[QuotaGuard]]:
     """Build the FastAPI dependency that yields a :class:`QuotaGuard` for ``kind``.
 
     With ``enforce=True`` (the default, used by ``/generate``, ``/discover``,
     ``/discover/accept``) the dependency also runs :meth:`QuotaGuard.check` before the route body,
     so the cap is enforced up front and the route only needs to call ``record_success`` on success.
-    With ``enforce=False`` it yields an unchecked guard for the cache-aware ``/explain`` path, where
-    ``ExplainService`` decides when to gate.
+    With ``enforce=False`` it yields an unchecked guard for the cache-aware ``/explain`` /
+    ``/discover`` paths, where the service decides when to gate.
+
+    It is a **generator** dependency so the per-call observability span (task 3.8.1) is always
+    finalized via :meth:`QuotaGuard.finalize` in teardown — even when the route body raises (a
+    provider error) after the gate admitted the call.
     """
 
     async def _dependency(
@@ -330,7 +440,7 @@ def quota_guard(kind: Kind, *, enforce: bool = True) -> Callable[..., Awaitable[
         usage_db: Annotated[UsageSession, Depends(get_usage_db)],
         settings: Annotated[Settings, Depends(get_settings)],
         rate_limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
-    ) -> QuotaGuard:
+    ) -> AsyncIterator[QuotaGuard]:
         guard = QuotaGuard(
             kind=kind,
             user_id=user.id,
@@ -341,8 +451,13 @@ def quota_guard(kind: Kind, *, enforce: bool = True) -> Callable[..., Awaitable[
             rate_limiter=rate_limiter,
         )
         if enforce:
+            # A block here ends the span itself (``_block``) and raises before the yield, so the
+            # ``finally`` is never reached for a blocked enforced call.
             await guard.check()
-        return guard
+        try:
+            yield guard
+        finally:
+            guard.finalize()
 
     return _dependency
 

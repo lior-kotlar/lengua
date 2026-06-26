@@ -30,6 +30,7 @@ from .retry import (
     call_with_retry,
     cap_words,
 )
+from .usage import report_groq_usage
 
 DEFAULT_GROQ_MODEL = "llama-3.1-8b-instant"
 
@@ -96,6 +97,10 @@ def parse_suggested_words(content: str) -> list[str]:
 class GroqProvider:
     """An :class:`~lengua_core.llm.base.LLMProvider` backed by Groq's API."""
 
+    #: Provider identity surfaced on the per-call observability span (``llm.provider``); the model
+    #: id is exposed via the :attr:`model` property below.
+    name = "groq"
+
     def __init__(self, *, api_key: str, model: str, client: Any | None = None) -> None:
         self._api_key = api_key
         self._model = model
@@ -141,6 +146,7 @@ class GroqProvider:
 
         def _call() -> str:
             resp = self._get_client().chat.completions.create(**kwargs)
+            report_groq_usage(resp)  # thread the vendor token usage out for the per-call span
             return (resp.choices[0].message.content or "").strip()
 
         return call_with_retry(_call, is_transient=_is_transient)

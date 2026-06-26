@@ -149,7 +149,9 @@ returned.
 
 Caps count only **successful** provider calls; cached responses cost nothing (no gate, no count) —
 both `/explain` (its persisted `word_explanations`) and a repeated `/discover` (the short reuse
-window) serve from cache, so only a cache miss is gated and counted. All limits are in
+window) serve from cache, so only a cache miss is gated and counted. Every gated call emits an
+OpenTelemetry span + metrics carrying the cap-hit gate and remaining budget (see
+[Observability](#observability-traces--structured-logs)). All limits are in
 [`.env.example`](.env.example).
 
 ### API contract & typed client (`packages/api-types`)
@@ -179,10 +181,21 @@ locally and in CI it is unset, so tracing is a no-op with zero network egress. C
 purely through the standard env vars (no code change):
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway.example/otlp   # enables OTLP export
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway.example/otlp   # enables OTLP traces + metrics export
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64>          # auth for the gateway
 OTEL_SERVICE_NAME=lengua-api                                     # service.name (default lengua-api)
 ```
+
+**Cost-guard spans + metrics (Phase 3.8).** Every gated LLM operation also emits one
+OpenTelemetry **span** `llm.call` carrying `llm.provider` / `llm.model` / `llm.latency_ms` /
+`llm.tokens_in` / `llm.tokens_out` (from the vendor's token usage) plus the cost-guard context
+`quota.kind`, `quota.cap_hit` (which gate blocked — `email` / `rate` / `daily_cap` /
+`global_budget`, or `none`), and `budget.remaining` (`GLOBAL_DAILY_BUDGET − today's count`). A
+blocked call records tokens `0` and still emits a complete span. Three **metrics** track budget
+burn: `llm_calls_total{kind, result}` (`result` ∈ `success` / `blocked` / `error`),
+`llm_cap_hits_total{gate}`, and the `llm_budget_remaining` gauge. Metrics export via OTLP **only**
+when an endpoint is set (the generic `OTEL_EXPORTER_OTLP_ENDPOINT` or the metrics-specific
+`OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`), so they too are no-op with zero egress by default.
 
 ### One-command verify (local quality gate)
 

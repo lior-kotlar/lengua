@@ -14,7 +14,12 @@ changes the returned values.
 
 from __future__ import annotations
 
+import threading
+from collections.abc import Iterable
+
 from lengua_core.models import GeneratedCard, WordNote
+
+from .usage import report_usage
 
 # Trivial function words get a short gloss rather than a full sentence, matching the real
 # provider's behaviour (see ``gemini.explain_word``).
@@ -40,17 +45,44 @@ _SUGGESTION_POOL = (
 )
 
 
+def _stub_tokens(texts: Iterable[str]) -> int:
+    """A deterministic, positive-ish token-count stub: the whitespace-word count across ``texts``.
+
+    A pure function of the text (no clock/RNG), so a repeated identical call reports identical
+    counts — matching ``FakeLLM``'s "same input → same output" contract. Used only to populate the
+    observability span's ``llm.tokens_in/out`` for the fake provider.
+    """
+    return sum(len(text.split()) for text in texts)
+
+
 class FakeLLM:
     """Deterministic, network-free implementation of :class:`LLMProvider`."""
+
+    #: Identity surfaced on the per-call observability span (``llm.provider`` / ``llm.model``), so a
+    #: fake call still carries a provider + model attribute (task 3.8.1).
+    name = "fake"
+    model = "fake"
 
     #: Process-wide count of provider calls across all instances. Tests may reset it via
     #: :meth:`reset_call_count` and read it to assert the seam was (or was not) exercised.
     call_count: int = 0
 
+    #: Guards :attr:`call_count` so increments stay atomic when calls run concurrently in worker
+    #: threads (``asyncio.to_thread`` under the concurrency cap) — without it the read-modify-write
+    #: ``+= 1`` can lose updates, making the "operator key invoked ≤ budget" load-test count flaky.
+    _count_lock = threading.Lock()
+
     @classmethod
     def reset_call_count(cls) -> None:
         """Zero the shared call counter (call from a test fixture before asserting)."""
-        cls.call_count = 0
+        with cls._count_lock:
+            cls.call_count = 0
+
+    @classmethod
+    def _bump_call_count(cls) -> None:
+        """Atomically increment the shared :attr:`call_count` (thread-safe under the concurrency cap)."""
+        with cls._count_lock:
+            cls.call_count += 1
 
     def generate_cards(
         self,
@@ -59,9 +91,10 @@ class FakeLLM:
         vowelized: bool = False,
         level_band: str | None = None,
     ) -> list[GeneratedCard]:
-        type(self).call_count += 1
+        type(self)._bump_call_count()
         cleaned = [w.strip() for w in words if w.strip()]
         if not cleaned:
+            report_usage(0, 0)
             return []
 
         cards: list[GeneratedCard] = []
@@ -83,6 +116,9 @@ class FakeLLM:
                     ],
                 )
             )
+        # Deterministic stub token counts (a pure function of input/output text) so the per-call
+        # observability span always carries ``llm.tokens_in/out`` even for the fake provider.
+        report_usage(_stub_tokens(cleaned), _stub_tokens(c.sentence for c in cards))
         return cards
 
     def suggest_new_words(
@@ -93,17 +129,20 @@ class FakeLLM:
         count: int = 5,
         topic: str | None = None,
     ) -> list[str]:
-        type(self).call_count += 1
+        type(self)._bump_call_count()
         known = {w.strip().lower() for w in known_words}
         # Deterministic selection: walk the fixed pool in order, skipping known words.
-        suggestions = [w for w in _SUGGESTION_POOL if w.lower() not in known]
-        return suggestions[: max(count, 0)]
+        suggestions = [w for w in _SUGGESTION_POOL if w.lower() not in known][: max(count, 0)]
+        report_usage(_stub_tokens(known_words), _stub_tokens(suggestions))
+        return suggestions
 
     def explain_word(
         self, word: str, sentence: str, translation: str, language: str
     ) -> str:
-        type(self).call_count += 1
-        return self._note_for(word)
+        type(self)._bump_call_count()
+        note = self._note_for(word)
+        report_usage(_stub_tokens([word, sentence, translation]), _stub_tokens([note]))
+        return note
 
     @staticmethod
     def _note_for(word: str) -> str:

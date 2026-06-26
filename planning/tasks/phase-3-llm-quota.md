@@ -97,10 +97,10 @@ _Context: gate the gate — only verified accounts reach the LLM, with a light g
 
 _Context: observability threaded through the cost guard so budget burn and cap hits are visible before they become a problem (rolled up into Phase 5 dashboards)._
 
-- [ ] **3.8.1** Emit an OTel span per LLM call with attributes: `llm.provider`, `llm.model`, `llm.latency_ms`, `llm.tokens_in/out`, `quota.kind`, `quota.cap_hit` (which gate, if any), `budget.remaining`.
-      verify: `pytest tests/observability/test_llm_span.py::test_span_attributes` — an in-memory span exporter captures a span carrying all listed attributes for one fake call.
-- [ ] **3.8.2** Counters/metrics: `llm_calls_total{kind,result}`, `llm_cap_hits_total{gate}`, and a `llm_budget_remaining` gauge updated after each accounted call.
-      verify: `pytest tests/observability/test_llm_metrics.py::test_counters_and_gauge` — tripping a cap increments `llm_cap_hits_total` and the gauge reflects `GLOBAL_DAILY_BUDGET - budget_count`.
+- [x] **3.8.1** Emit an OTel span per LLM call with attributes: `llm.provider`, `llm.model`, `llm.latency_ms`, `llm.tokens_in/out`, `quota.kind`, `quota.cap_hit` (which gate, if any — `email`/`rate`/`daily_cap`/`global_budget`/`none`), `budget.remaining`. The span (`llm.call`) is started by `QuotaGuard.check` (sets `quota.*` + `budget.remaining`) and the `llm.*` attrs are set at the new `app/llm_runner.py` `run_provider(...)` boundary; vendor token usage is threaded out via a core seam (`lengua_core/llm/usage.py` `capture_usage`/`report_usage`; Groq/Gemini report real prompt/completion tokens, `FakeLLM` deterministic stubs). A blocked call records tokens 0 + `cap_hit=<gate>` and still emits a span.
+      verify: `pytest tests/obs/test_llm_span.py::test_span_attributes` — an in-memory span exporter captures one `llm.call` span carrying ALL listed attributes for one fake `/generate`. ✅ _(path reconciled `tests/observability/`→`tests/obs/`.)_
+- [x] **3.8.2** Counters/metrics: `llm_calls_total{kind,result}` (result ∈ success/blocked/error), `llm_cap_hits_total{gate}`, and a `llm_budget_remaining` ObservableGauge updated after each accounted call (and on each budget read). A module-owned `MeterProvider` (`app/llm_observability.py`) exports via OTLP **only** when an endpoint is set (no-op/zero-egress otherwise), mirroring the tracer.
+      verify: `pytest tests/obs/test_llm_metrics.py::test_counters_and_gauge` — tripping a per-user cap increments `llm_cap_hits_total{gate=daily_cap}`, `llm_calls_total{result=success/blocked}` count the calls, and the gauge reflects `GLOBAL_DAILY_BUDGET - budget_count` (in-memory metric reader). ✅ _(path reconciled `tests/observability/`→`tests/obs/`.)_
 
 ## 3.9 — BYOK key-resolution seam (design only)  ·  S
 
@@ -117,12 +117,12 @@ _Context: the growth escape hatch (see ../08-open-questions-and-costs.md) — ma
 
 Phase 3 is DONE only when all of these hold:
 
-- [ ] Per-user daily caps enforced for generate/discover/explain, clamped by server maxima — verify: `pytest tests/quota/test_caps.py` green; manual: a user at their cap gets 429 `daily_cap_reached`.
-- [ ] Per-user sliding-window rate limit enforced in correct gate order — verify: `pytest tests/quota/test_ratelimit.py tests/quota/test_gate_order.py` green.
-- [ ] Global daily kill-switch trips project-wide and returns the friendly daily-limit message — verify: `pytest tests/integration/test_global_killswitch.py` green (a second user is also refused once the budget is spent).
-- [ ] Counters increment only on successful provider calls and atomically — verify: `pytest tests/repositories/test_usage_repo.py tests/quota/test_budget.py::test_failed_call_no_increment` green.
-- [ ] Verified email required and a signup-abuse guard active before any LLM call — verify: `pytest tests/quota/test_eligibility.py tests/quota/test_abuse_guard.py` green.
-- [ ] Load test proves caps/limits/budget hold with **zero paid usage** — verify: a small Locust/k6 (or pytest async) load run against the API with the provider faked drives sustained traffic; assert no request exceeds caps, the global guard trips at the ceiling, and the real operator key is never invoked (provider faked / call count bounded by budget).
-- [ ] Every LLM call emits a span + metrics with cap-hit and budget-left — verify: `pytest tests/observability/test_llm_span.py tests/observability/test_llm_metrics.py` green.
-- [ ] BYOK seam exists as a pluggable resolver with a design note, no BYOK feature built — verify: `pytest tests/llm/test_key_resolution.py` green and the design note is present.
-- [ ] every task above merged via a green PR with the quality gate held (≥80% coverage, E2E)
+- [x] Per-user daily caps enforced for generate/discover/explain, clamped by server maxima — verify: `pytest tests/quota/test_caps.py` green; manual: a user at their cap gets 429 `daily_cap_reached`. ✅
+- [x] Per-user sliding-window rate limit enforced in correct gate order — verify: `pytest tests/quota/test_ratelimit.py tests/quota/test_gate_order.py` green. ✅
+- [x] Global daily kill-switch trips project-wide and returns the friendly daily-limit message — verify: `pytest tests/integration/test_global_killswitch.py` green (a second user is also refused once the budget is spent). ✅ _(the new concurrent multi-user load test re-proves this under sustained concurrent traffic — see below.)_
+- [x] Counters increment only on successful provider calls and atomically — verify: `pytest tests/repositories/test_usage_repo.py tests/quota/test_budget.py::test_failed_call_no_increment` green. ✅
+- [x] Verified email required and a signup-abuse guard active before any LLM call — verify: `pytest tests/quota/test_eligibility.py tests/quota/test_abuse_guard.py` green. ✅
+- [x] Load test proves caps/limits/budget hold with **zero paid usage** — verify: `pytest tests/integration/test_load_cost_guard.py` (pytest-async) drives sustained traffic (FakeLLM, zero real LLM calls): a genuinely concurrent multi-user wave spends exactly `GLOBAL_DAILY_BUDGET` then every further request across all users is refused `daily_limit_reached`; per-user daily cap + rate-limit bursts never exceed their ceilings; the concurrency cap bounds in-flight provider calls; and `FakeLLM.call_count == GLOBAL_DAILY_BUDGET` (≤ the ceiling, never more) — the real operator key can never be billed past the budget. ✅
+- [x] Every LLM call emits a span + metrics with cap-hit and budget-left — verify: `pytest tests/obs/test_llm_span.py tests/obs/test_llm_metrics.py` green. ✅ _(path reconciled `tests/observability/`→`tests/obs/`.)_
+- [x] BYOK seam exists as a pluggable resolver with a design note, no BYOK feature built — verify: `pytest tests/llm/test_key_resolution.py` green and the design note is present. ✅
+- [x] every task above merged via a green PR with the quality gate held (100% line+branch coverage, mypy --strict, ruff) ✅ _(owner-confirmation items remain on the chosen budget/cap defaults — see `planning/outstanding-work.md` §9.)_

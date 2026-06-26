@@ -20,12 +20,12 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
-from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter, run_provider
 from app.repositories.cards import CardsRepository, NewCard
 from app.repositories.languages import LanguagesRepository
 from app.repositories.proficiency import ProficiencyRepository
@@ -34,6 +34,13 @@ from lengua_core import cards as core_cards
 from lengua_core import proficiency, scheduler
 from lengua_core.cards import BuiltCard
 from lengua_core.llm.base import LLMProvider
+
+if TYPE_CHECKING:
+    # Only for the type annotation: a runtime import of ``app.quota`` would form a cycle
+    # (``app.quota`` → ``app.deps`` → ``app.services`` → this module). ``from __future__ import
+    # annotations`` keeps the ``QuotaGuard`` annotation a string, so the guard is passed in (for its
+    # observability span) without importing the class at runtime.
+    from app.quota import QuotaGuard
 
 
 class GenerateService:
@@ -57,13 +64,18 @@ class GenerateService:
         self._proficiency = ProficiencyRepository(session)
 
     async def generate(
-        self, user_id: uuid.UUID, language_id: int, words: list[str]
+        self,
+        user_id: uuid.UUID,
+        language_id: int,
+        words: list[str],
+        guard: QuotaGuard | None = None,
     ) -> list[BuiltCard]:
         """Generate the recognition + production card pairs for ``words`` (unsaved).
 
         Raises :class:`NotFoundError` if the language is not the user's. The cards are tagged with
         the learner's current continuous score (``gen_level``) so later reviews only move the
-        level for current-level material.
+        level for current-level material. When a ``guard`` is supplied (the request path passes one)
+        its per-call observability span carries the ``llm.*`` attributes from the provider call.
         """
         provider = self._provider
         if provider is None:
@@ -80,7 +92,12 @@ class GenerateService:
         # Run the blocking provider call under the global concurrency cap (task 3.5.1): offloaded to
         # a thread so the event loop stays responsive, and bounded so we never overwhelm the free
         # tier. A persistent provider 429/5xx surfaces here as ``LLMTransientError`` → friendly 503.
-        generated = await self._limiter.run(
+        # ``run_provider`` also stamps the ``llm.*`` attributes (provider/model/latency/tokens) on
+        # the guard's span (task 3.8.1).
+        generated = await run_provider(
+            self._limiter,
+            provider,
+            guard.span if guard is not None else None,
             provider.generate_cards,
             cleaned,
             language.name,

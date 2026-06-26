@@ -22,7 +22,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter, run_provider
 from app.quota import QuotaGuard
 from app.repositories.cards import CardsRepository
 from app.repositories.languages import LanguagesRepository
@@ -88,9 +88,17 @@ class ExplainService:
         # pure-core import boundary) to ``str``.
         if guard is not None:
             await guard.check()
-        # Blocking provider call under the global concurrency cap (task 3.5.1).
-        note: str = await self._limiter.run(
-            self._provider.explain_word, word, sentence, translation, language.name
+        # Blocking provider call under the global concurrency cap (3.5.1); ``run_provider`` stamps
+        # the ``llm.*`` attributes on the guard's per-call span (3.8.1).
+        note: str = await run_provider(
+            self._limiter,
+            self._provider,
+            guard.span if guard is not None else None,
+            self._provider.explain_word,
+            word,
+            sentence,
+            translation,
+            language.name,
         )
         if guard is not None:
             await guard.record_success()
