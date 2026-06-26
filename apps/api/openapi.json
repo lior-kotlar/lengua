@@ -465,6 +465,37 @@
         "title": "LanguageUpdate",
         "type": "object"
       },
+      "MeOut": {
+        "description": "The authenticated user's identity, derived solely from the verified access token.",
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "email_verified": {
+            "title": "Email Verified",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email_verified"
+        ],
+        "title": "MeOut",
+        "type": "object"
+      },
       "ProficiencyOut": {
         "description": "A learner's level for one language: continuous score, CEFR band, intra-band progress.",
         "properties": {
@@ -623,6 +654,13 @@
         "title": "ValidationError",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "description": "Supabase access token (JWT)",
+        "scheme": "bearer",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -671,6 +709,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Save Cards",
         "tags": [
           "cards"
@@ -713,6 +756,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Discover",
         "tags": [
           "discover"
@@ -759,6 +807,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Accept",
         "tags": [
           "discover"
@@ -801,6 +854,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Explain",
         "tags": [
           "explain"
@@ -847,6 +905,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Generate",
         "tags": [
           "generate"
@@ -896,6 +959,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "List Languages",
         "tags": [
           "languages"
@@ -936,6 +1004,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Add Language",
         "tags": [
           "languages"
@@ -972,6 +1045,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Remove Language",
         "tags": [
           "languages"
@@ -1023,9 +1101,41 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Set Vowelized",
         "tags": [
           "languages"
+        ]
+      }
+    },
+    "/me": {
+      "get": {
+        "description": "Return the authenticated user's identity (requires a valid Supabase JWT).",
+        "operationId": "read_me_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Me",
+        "tags": [
+          "account"
         ]
       }
     },
@@ -1066,6 +1176,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Get Proficiency",
         "tags": [
           "proficiency"
@@ -1117,6 +1232,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Set Proficiency",
         "tags": [
           "proficiency"
@@ -1160,6 +1280,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Review Due",
         "tags": [
           "review"
@@ -1213,6 +1338,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Grade Card",
         "tags": [
           "review"
@@ -1235,6 +1365,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Get Settings",
         "tags": [
           "settings"
@@ -1275,6 +1410,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Put Settings",
         "tags": [
           "settings"

@@ -1,8 +1,8 @@
-"""Unit tests for the request dependencies (task 1.5.1) — no DB required.
+"""Unit tests for the request dependencies — no DB required.
 
-Guards the invariant that the placeholder ``current_user`` matches the seeded dev user and the
-factory default, so FK-bound inserts in the API tests resolve, and that ``get_llm_provider``
-honors ``LLM_PROVIDER``.
+Guards that :func:`app.deps.current_user` projects the verified identity down to its UUID, that the
+seeded ``DEV_USER_ID`` still matches the seed + factory default (so FK-bound inserts in the API
+tests resolve), and that ``get_llm_provider`` honors ``LLM_PROVIDER``.
 """
 
 from __future__ import annotations
@@ -10,18 +10,20 @@ from __future__ import annotations
 import pytest
 
 from app import deps
+from app.auth import CurrentUser
 from lengua_core.llm.fake import FakeLLM
 from scripts import seed_dev_user
 from tests import factories
 
 
 @pytest.mark.asyncio
-async def test_current_user_returns_dev_uuid() -> None:
-    assert await deps.current_user() == deps.DEV_USER_ID
+async def test_current_user_projects_identity_to_uuid() -> None:
+    user = CurrentUser(id=deps.DEV_USER_ID, email_verified=True)
+    assert await deps.current_user(user) == deps.DEV_USER_ID
 
 
 def test_dev_user_id_matches_seed_and_factory() -> None:
-    # current_user must equal the seeded profile + factory default so FK inserts line up.
+    # The seeded dev id must equal the seeded profile + factory default so FK inserts line up.
     assert str(deps.DEV_USER_ID) == seed_dev_user.DEV_USER_ID
     assert str(deps.DEV_USER_ID) == factories.DEMO_USER_ID
 

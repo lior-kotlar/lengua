@@ -172,6 +172,26 @@ export interface paths {
         patch: operations["set_vowelized_languages__language_id__patch"];
         trace?: never;
     };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Me
+         * @description Return the authenticated user's identity (requires a valid Supabase JWT).
+         */
+        get: operations["read_me_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/proficiency/{language_id}": {
         parameters: {
             query?: never;
@@ -458,6 +478,21 @@ export interface components {
         LanguageUpdate: {
             /** Vowelized */
             vowelized: boolean;
+        };
+        /**
+         * MeOut
+         * @description The authenticated user's identity, derived solely from the verified access token.
+         */
+        MeOut: {
+            /** Email */
+            email?: string | null;
+            /** Email Verified */
+            email_verified: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
         };
         /**
          * ProficiencyOut
@@ -838,6 +873,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_me_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
                 };
             };
         };
