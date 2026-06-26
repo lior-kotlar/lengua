@@ -415,6 +415,51 @@
         "title": "LanguageCreate",
         "type": "object"
       },
+      "LanguageLevel": {
+        "description": "One of the user's languages with its current proficiency level.",
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "progress": {
+            "title": "Progress",
+            "type": "number"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "language_id",
+          "name",
+          "score",
+          "band",
+          "progress"
+        ],
+        "title": "LanguageLevel",
+        "type": "object"
+      },
       "LanguageOut": {
         "description": "A language as returned by the API.",
         "properties": {
@@ -466,7 +511,7 @@
         "type": "object"
       },
       "MeOut": {
-        "description": "The authenticated user's identity, derived solely from the verified access token.",
+        "description": "The authenticated user's account overview (identity + plan + per-language levels).",
         "properties": {
           "email": {
             "anyOf": [
@@ -487,11 +532,24 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/LanguageLevel"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "plan": {
+            "title": "Plan",
+            "type": "string"
           }
         },
         "required": [
           "id",
-          "email_verified"
+          "email_verified",
+          "plan",
+          "languages"
         ],
         "title": "MeOut",
         "type": "object"
@@ -1114,7 +1172,7 @@
     },
     "/me": {
       "get": {
-        "description": "Return the authenticated user's identity (requires a valid Supabase JWT).",
+        "description": "Return the authenticated user's identity, plan, and per-language proficiency levels.",
         "operationId": "read_me_me_get",
         "responses": {
           "200": {
