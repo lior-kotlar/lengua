@@ -18,6 +18,7 @@
     "verify": "eslint . && prettier --check . && tsc --noEmit && vitest run --coverage && vite build"
   },
   "dependencies": {
+    "api-types": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.17",
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-toast": "^1.2.17",

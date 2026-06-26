@@ -25,6 +25,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.101.1
         version: 5.101.1(react@18.3.1)
+      api-types:
+        specifier: workspace:*
+        version: link:../../packages/api-types
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
