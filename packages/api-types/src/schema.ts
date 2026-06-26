@@ -77,8 +77,10 @@ export interface paths {
          * Discover
          * @description Preview new words at the learner's level, excluding vocabulary they already know.
          *
-         *     Gated by the per-user daily ``discover`` cap (``quota_guard``) before the provider call, which
-         *     runs under the global concurrency cap (``limiter``).
+         *     Cache-aware (task 3.6.3): a repeat for the same ``(language, topic, count)`` within the reuse
+         *     window is served from ``cache`` — no provider call, no gate, no count. The ``guard`` is handed
+         *     to the service so the per-user daily ``discover`` cap is enforced (and counted) only on a cache
+         *     miss, where the provider call runs under the global concurrency cap (``limiter``).
          */
         post: operations["discover_discover_post"];
         delete?: never;

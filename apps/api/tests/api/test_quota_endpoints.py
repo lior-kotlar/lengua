@@ -82,10 +82,15 @@ async def test_each_kind_capped(api_client: AsyncClient, db_session: AsyncSessio
     assert blocked.json() == _cap_body("generate")
 
     # ── discover unaffected by generate's exhaustion (independent counter) ────
-    disc_body = {"language_id": language_id, "count": 3}
-    assert (await api_client.post("/discover", json=disc_body)).status_code == 200  # discover #1
-    assert (await api_client.post("/discover", json=disc_body)).status_code == 200  # discover #2
-    disc_blocked = await api_client.post("/discover", json=disc_body)
+    # Each discover uses a DISTINCT topic so it is a reuse-cache MISS and therefore a real,
+    # gated+counted provider call (an identical repeat would be served free from the 3.6.3 cache and
+    # not advance the counter — proven separately in tests/api/test_discover_reuse.py).
+    def disc_body(topic: str) -> dict[str, object]:
+        return {"language_id": language_id, "count": 3, "topic": topic}
+
+    assert (await api_client.post("/discover", json=disc_body("t1"))).status_code == 200  # #1
+    assert (await api_client.post("/discover", json=disc_body("t2"))).status_code == 200  # #2
+    disc_blocked = await api_client.post("/discover", json=disc_body("t3"))
     assert disc_blocked.status_code == 429
     assert disc_blocked.json() == _cap_body("discover")
 

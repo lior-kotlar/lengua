@@ -11,6 +11,7 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.discover_cache import InProcessDiscoverCache
 from app.repositories.languages import LanguagesRepository
 from app.services.discover import DiscoverService
 from app.services.errors import NotFoundError
@@ -19,6 +20,11 @@ from lengua_core.llm.fake import FakeLLM
 from scripts.seed_e2e import SeedResult
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+
+
+def _fresh_cache() -> InProcessDiscoverCache:
+    """A fresh, isolated reuse cache so a service test never touches the process-wide singleton."""
+    return InProcessDiscoverCache(ttl_seconds=300.0, clock=lambda: 0.0)
 
 
 async def test_suggest_excludes_known_then_accept_creates_cards(
@@ -32,7 +38,7 @@ async def test_suggest_excludes_known_then_accept_creates_cards(
         user_id, language.id, await generate.generate(user_id, language.id, ["house"])
     )
 
-    discover = DiscoverService(db_session, FakeLLM())
+    discover = DiscoverService(db_session, FakeLLM(), cache=_fresh_cache())
     suggestions = await discover.suggest(user_id, language.id, count=5)
     assert len(suggestions) == 5
     assert "house" not in suggestions  # already known -> excluded
@@ -47,6 +53,6 @@ async def test_suggest_unknown_language_raises(
     db_session: AsyncSession, demo_account: SeedResult
 ) -> None:
     user_id = uuid.UUID(demo_account.user_id)
-    discover = DiscoverService(db_session, FakeLLM())
+    discover = DiscoverService(db_session, FakeLLM(), cache=_fresh_cache())
     with pytest.raises(NotFoundError):
         await discover.suggest(user_id, 10**9)

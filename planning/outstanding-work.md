@@ -298,6 +298,51 @@ app-level handler, no schema response delta). README "Usage & cost limits" exten
 transient backoff). 3.6 + 3.8 remain (cost minimization: word/token caps + explain/discover caching;
 observability spans/metrics).
 
+🛠 **3.6 landed (cost minimization — request/token caps + discover reuse) — MERGE MODE (low-risk
+caches/validation).** (3.6.1) `/generate` request size is now capped by **Pydantic validation**:
+`GenerateRequest.words` carries `max_length` = the new env-overridable `Settings.max_words_per_request`
+(default reuses `lengua_core.llm.retry.MAX_WORDS_PER_REQUEST=30`), so an over-limit list is **rejected
+422 at the API boundary** — a HARD reject, NOT silent truncation (`cap_words` stays a defensive
+provider-side floor for any non-API caller). The constraint surfaces as `words.maxItems` in
+`openapi.json`/`packages/api-types` (regenerated). The existing `GENERATE_MAX_TOKENS` output cap is
+asserted to reach the vendor (Groq `max_tokens=` / Gemini `max_output_tokens=`) — made observable by
+driving the real `GroqProvider` with a recording fake vendor client. (3.6.2) confirmed end-to-end that
+an `/explain` cache hit is FREE — zero provider calls AND no `llm_usage` increment on a repeat — the
+authoritative `test_explain_cache.py::test_cache_hit_skips_llm` (reconciled with the 1.5b persistence
+test + the 3.2 cap test; adds the `llm_usage`-unchanged dimension neither asserted). (3.6.3, NEW) a
+repeated `/discover` for the same `(user, language, topic, count)` within `DISCOVER_REUSE_WINDOW_SECONDS`
+(new env setting, default **300**) reuses the prior preview from a new in-process TTL cache
+(`app/discover_cache.py`: a `DiscoverCache` Protocol + `InProcessDiscoverCache` with an **injectable
+clock** + bounded eviction (TTL + `MAX_ENTRIES=1024`, oldest-first), exposed via the process-wide
+singleton `get_discover_cache()` / `reset_discover_cache()` — mirrors the rate-limiter seam). `/discover`
+is now cache-aware exactly like `/explain`: the route hands in an UNCHECKED guard
+(`quota_guard("discover", enforce=False)`) and `DiscoverService.suggest` runs `check`/`record_success`
+**only on a cache miss**, so a reuse HIT makes no provider call and burns no gate/increment (the
+language-ownership 404 check still runs first). New env vars documented in `.env.example` + README
+"Usage & cost limits". Test-infra: the api/quota/multiuser fixtures override `get_discover_cache` with a
+fresh frozen-clock cache (so the process-global cache never bleeds across tests/event loops, mirroring
+`get_rate_limiter`/`get_llm_limiter`); `test_discover_service.py` passes a fresh cache; `test_quota_endpoints.py`'s
+discover calls were varied by `topic` (an identical repeat is now FREE, so they'd otherwise stop counting).
+Tests: `tests/api/{test_generate_limits,test_explain_cache,test_discover_reuse}.py`, `tests/quota/test_discover_cache.py`
+(TTL expiry, copy-on-get/put, key scoping, bounded eviction + recency-refresh, singleton),
+`test_config.py::test_cost_minimization_caps_load`. Backend gate green (429 tests, **100.00%** line+branch;
+`app/discover_cache.py` + touched `services/discover.py`/`routers/discover.py`/`schemas/generate.py` all 100%);
+ruff+mypy --strict clean; `openapi.json`+`packages/api-types` regenerated (`words.maxItems` + route-desc deltas).
+**Phase-6 distributed-cache caveat (logged below + at the `app/discover_cache.py` seam + `.env.example`):**
+the reuse cache is in-process, so a repeat landing on a *different* Cloud Run instance simply misses (makes
+a fresh, fully-gated call — never wrong, just not reused); the distributed (Redis/Upstash or TTL Postgres)
+swap is a Phase-6 task behind the same `DiscoverCache` Protocol — the same single-instance-now caveat family
+as the in-process rate limiter. **3.8 (observability spans/metrics) remains.**
+
+> **Carry-forward — discover-reuse cache is in-process (medium; Phase-6 DEPLOY CONSTRAINT).** The
+> `/discover` short-window reuse cache (`app/discover_cache.py`, group 3.6.3) lives in this process's
+> memory, so with >1 Cloud Run instance a repeated discover that lands on a different replica MISSES and
+> makes a fresh (fully gated + counted) provider call — correct, just not reused (no over-spend, no wrong
+> data). Swap `InProcessDiscoverCache` for a shared store (Redis/Upstash sliding window or a TTL Postgres
+> table) behind the same `DiscoverCache` Protocol + `get_discover_cache()` dependency when scaling out —
+> the call site (`DiscoverService.suggest`) doesn't change. Same single-instance-now seam family as the
+> in-process rate limiter (3.3.1) and the kill-switch overshoot bound (3.5).
+
 > **Lazy privileged-session acquisition — deferred (logged, not done).** The 3.2 review flagged that
 > `quota_guard` resolves the privileged `get_usage_db` session eagerly (as a FastAPI sub-dependency) even
 > on fast-fail paths (email/rate/cap-blocked, explain cache-hit) that never read the budget. Making it

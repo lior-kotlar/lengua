@@ -123,6 +123,14 @@ returned.
 - **New-account guard.** A freshly-created account gets a reduced first-day `generate` ceiling
   (`NEW_ACCOUNT_DAY0_GENERATE_CAP`, default 5) so signup-spam can't drain the shared key on day one;
   established accounts use their normal cap.
+- **Request-size cap.** A `/generate` word list over `MAX_WORDS_PER_REQUEST` (default 30) is rejected
+  with **HTTP 422** at the API boundary — a hard reject, not silent truncation — so an oversized
+  prompt never reaches the provider. Each allowed call also passes a max output-token cap to the
+  provider so an answer can't balloon in cost.
+- **Discover reuse.** A repeated `/discover` for the same language + topic (+ count) within
+  `DISCOVER_REUSE_WINDOW_SECONDS` (default 300) returns the prior preview from an in-process cache —
+  no new LLM call and no count. The cache is in-process today (single instance); a repeat landing on
+  a different instance simply misses, and the distributed swap is a Phase-6 task.
 - **Global daily kill-switch.** The backstop that guarantees the operator key can never produce a
   bill: a project-wide ceiling on **successful** LLM calls per day across *all* users
   (`GLOBAL_DAILY_BUDGET`, default 1000, set below the active provider's free requests-per-day). Once
@@ -139,8 +147,9 @@ returned.
   jitter; if it *persists*, the request surfaces the same friendly **HTTP 503** `server_busy`
   response rather than an opaque error.
 
-Caps count only **successful** provider calls; `/explain` is cached, so a cache hit costs nothing
-(no gate, no count) — only a cache miss is gated and counted. All limits are in
+Caps count only **successful** provider calls; cached responses cost nothing (no gate, no count) —
+both `/explain` (its persisted `word_explanations`) and a repeated `/discover` (the short reuse
+window) serve from cache, so only a cache miss is gated and counted. All limits are in
 [`.env.example`](.env.example).
 
 ### API contract & typed client (`packages/api-types`)

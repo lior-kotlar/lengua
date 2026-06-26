@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import UsageSession
 from app.deps import get_db, get_llm_provider, get_usage_db
+from app.discover_cache import DiscoverCache, InProcessDiscoverCache, get_discover_cache
 from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.main import create_app
 from lengua_core.llm.base import LLMProvider
@@ -72,10 +73,18 @@ async def quota_app(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
     def _override_llm_limiter() -> LLMConcurrencyLimiter:
         return test_llm_limiter
 
+    # Fresh discover reuse cache (Phase 3.6.3) with a frozen clock so the process-wide singleton
+    # never bleeds across tests/event loops (the gate tests here drive ``/generate``, not discover).
+    test_discover_cache = InProcessDiscoverCache(ttl_seconds=300.0, clock=lambda: 0.0)
+
+    def _override_discover_cache() -> DiscoverCache:
+        return test_discover_cache
+
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_usage_db] = _override_get_usage_db
     app.dependency_overrides[get_llm_provider] = _override_provider
     app.dependency_overrides[get_llm_limiter] = _override_llm_limiter
+    app.dependency_overrides[get_discover_cache] = _override_discover_cache
     FakeLLM.reset_call_count()
 
     yield app

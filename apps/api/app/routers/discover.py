@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
 from app.deps import current_user, get_db, get_llm_provider
+from app.discover_cache import DiscoverCache, get_discover_cache
 from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.quota import QuotaGuard, quota_guard
 from app.schemas.cards import CardOut
@@ -27,7 +28,12 @@ router = APIRouter(prefix="/discover", tags=["discover"])
 # Module-level dependency singletons (evaluated once at import) so the factory call isn't in an
 # argument default (ruff B008). ``/discover`` is metered as ``discover``; ``/discover/accept``
 # reuses the generate path and so is metered as ``generate``.
-_DISCOVER_QUOTA = Depends(quota_guard("discover"))
+#
+# ``/discover`` is built **unchecked** (``enforce=False``) — like ``/explain`` — because it is
+# cache-aware (task 3.6.3): the gate must run *after* the reuse-cache lookup so a cache hit makes no
+# provider call and is neither gated nor counted. ``DiscoverService.suggest`` checks/records on a
+# cache miss only. ``/discover/accept`` makes a fresh generate call, so it stays eagerly enforced.
+_DISCOVER_QUOTA = Depends(quota_guard("discover", enforce=False))
 _ACCEPT_QUOTA = Depends(quota_guard("generate"))
 
 
@@ -38,20 +44,22 @@ async def discover(
     db: AsyncSession = Depends(get_db),
     provider: LLMProvider = Depends(get_llm_provider),
     limiter: LLMConcurrencyLimiter = Depends(get_llm_limiter),
+    cache: DiscoverCache = Depends(get_discover_cache),
     guard: QuotaGuard = _DISCOVER_QUOTA,
 ) -> DiscoverResponse:
     """Preview new words at the learner's level, excluding vocabulary they already know.
 
-    Gated by the per-user daily ``discover`` cap (``quota_guard``) before the provider call, which
-    runs under the global concurrency cap (``limiter``).
+    Cache-aware (task 3.6.3): a repeat for the same ``(language, topic, count)`` within the reuse
+    window is served from ``cache`` — no provider call, no gate, no count. The ``guard`` is handed
+    to the service so the per-user daily ``discover`` cap is enforced (and counted) only on a cache
+    miss, where the provider call runs under the global concurrency cap (``limiter``).
     """
     try:
-        words = await DiscoverService(db, provider, limiter).suggest(
-            user_id, body.language_id, count=body.count, topic=body.topic
+        words = await DiscoverService(db, provider, limiter, cache).suggest(
+            user_id, body.language_id, count=body.count, topic=body.topic, guard=guard
         )
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    await guard.record_success()  # increments for the JWT user_id only (never client-supplied)
     return DiscoverResponse(words=words)
 
 
