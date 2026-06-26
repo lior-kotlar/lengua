@@ -134,6 +134,22 @@ uv run python scripts/import_sqlite.py --user-id <UUID>             # real impor
 `--sqlite-path` defaults to `data/lengua.db`; `--database-url` defaults to `$DATABASE_URL`. The
 full operator procedure is in [`docs/runbook.md`](../../docs/runbook.md) ("Historical data import").
 
+## Account lifecycle (export + delete)
+
+Two store-compliance / GDPR endpoints, both scoped strictly to the authenticated user (no user-id
+parameter — the id comes from the verified JWT):
+
+- `GET /account/export` — a downloadable JSON bundle of everything the user owns (profile,
+  languages, cards, reviews, proficiency, settings), assembled read-only via the repositories.
+- `DELETE /account` — hard-deletes the user's Supabase `auth.users` record via the **service-role
+  Auth Admin API**; the `auth.users → profiles → domain` `ON DELETE CASCADE` chain removes the
+  profile and all domain data atomically. The auth-user delete is the single irreversible step and
+  runs last, so a failure deletes nothing and returns `502` (retryable) — no partial state.
+
+The deletion path needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (a **server-only** secret,
+never shipped to the client); without them it fails closed. Both are sourced automatically from
+`supabase status` for a local stack.
+
 ## Configuration
 
 Settings are read from the environment (and an optional `.env`) via `app/settings.py`. The

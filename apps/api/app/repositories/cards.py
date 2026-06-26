@@ -79,6 +79,12 @@ class CardsRepository:
         result = await self._session.scalars(stmt)
         return result.one_or_none()
 
+    async def list_for_user(self, user_id: uuid.UUID) -> Sequence[Card]:
+        """Every card the user owns, across all languages, in stable id order (data export)."""
+        stmt = select(Card).where(Card.user_id == user_id).order_by(Card.id)
+        result = await self._session.scalars(stmt)
+        return result.all()
+
     async def list_for_language(
         self, user_id: uuid.UUID, language_id: int, *, saved: bool | None = None
     ) -> Sequence[Card]:

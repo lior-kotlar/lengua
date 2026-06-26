@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Account
+         * @description Hard-delete the authenticated user's account (auth user + cascaded domain data).
+         */
+        delete: operations["delete_account_account_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Account
+         * @description Return the authenticated user's full data bundle (scoped to ``current_user``).
+         */
+        get: operations["export_account_account_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cards/save": {
         parameters: {
             query?: never;
@@ -285,6 +325,65 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AccountExport
+         * @description The complete export bundle for one user — everything owned by ``current_user``.
+         *
+         *     ``profile`` is ``None`` only for a token-only identity whose ``profiles`` row does not exist
+         *     yet (e.g. mid-trigger); a real signed-up user always has one.
+         */
+        AccountExport: {
+            /** Cards */
+            cards: components["schemas"]["CardExport"][];
+            /** Languages */
+            languages: components["schemas"]["LanguageExport"][];
+            /** Proficiency */
+            proficiency: components["schemas"]["ProficiencyExport"][];
+            profile?: components["schemas"]["ProfileExport"] | null;
+            /** Reviews */
+            reviews: components["schemas"]["ReviewExport"][];
+            /** Settings */
+            settings: {
+                [key: string]: string | null;
+            };
+        };
+        /**
+         * CardExport
+         * @description One flashcard, with its full scheduling/generation state preserved.
+         */
+        CardExport: {
+            /** Back */
+            back: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Direction */
+            direction?: string | null;
+            /** Due */
+            due?: string | null;
+            /** Front */
+            front: string;
+            /** Fsrs State */
+            fsrs_state?: {
+                [key: string]: unknown;
+            } | null;
+            /** Gen Level */
+            gen_level?: number | null;
+            /** Id */
+            id: number;
+            /** Language Id */
+            language_id: number;
+            /** Saved */
+            saved: boolean;
+            /** Used Words */
+            used_words?: string[] | null;
+            /** Word Explanations */
+            word_explanations?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
          * CardOut
          * @description A persisted flashcard row as returned by the API.
          */
@@ -458,6 +557,25 @@ export interface components {
             vowelized: boolean;
         };
         /**
+         * LanguageExport
+         * @description One language the user studies.
+         */
+        LanguageExport: {
+            /** Code */
+            code?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Vowelized */
+            vowelized: boolean;
+        };
+        /**
          * LanguageLevel
          * @description One of the user's languages with its current proficiency level.
          */
@@ -517,6 +635,21 @@ export interface components {
             plan: string;
         };
         /**
+         * ProficiencyExport
+         * @description The user's continuous proficiency score for one language.
+         */
+        ProficiencyExport: {
+            /** Language Id */
+            language_id: number;
+            /** Score */
+            score: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * ProficiencyOut
          * @description A learner's level for one language: continuous score, CEFR band, intra-band progress.
          */
@@ -540,6 +673,41 @@ export interface components {
             band?: string | null;
             /** Score */
             score?: number | null;
+        };
+        /**
+         * ProfileExport
+         * @description The user's profile row (account ``plan`` + creation time).
+         */
+        ProfileExport: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Plan */
+            plan: string;
+        };
+        /**
+         * ReviewExport
+         * @description One grade event (FSRS rating 1..4) against a card.
+         */
+        ReviewExport: {
+            /** Card Id */
+            card_id: number;
+            /** Id */
+            id: number;
+            /** Rating */
+            rating: number;
+            /**
+             * Reviewed At
+             * Format: date-time
+             */
+            reviewed_at: string;
         };
         /**
          * SaveCardsRequest
@@ -595,6 +763,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    delete_account_account_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    export_account_account_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountExport"];
+                };
+            };
+        };
+    };
     save_cards_cards_save_post: {
         parameters: {
             query?: never;

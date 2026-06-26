@@ -8,14 +8,16 @@ row here as part of the same transaction in which it reschedules the card and nu
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Review
 
 
 class ReviewsRepository:
-    """Insert review rows, scoped by ``user_id``."""
+    """Insert review rows and read them back, scoped by ``user_id``."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -26,3 +28,9 @@ class ReviewsRepository:
         self._session.add(review)
         await self._session.flush()
         return review
+
+    async def list_for_user(self, user_id: uuid.UUID) -> Sequence[Review]:
+        """Every review the user has recorded, oldest first (data export)."""
+        stmt = select(Review).where(Review.user_id == user_id).order_by(Review.id)
+        result = await self._session.scalars(stmt)
+        return result.all()

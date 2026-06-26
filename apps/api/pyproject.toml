@@ -34,11 +34,14 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.51b0",
     "opentelemetry-instrumentation-httpx>=0.51b0",
     "pyjwt[crypto]>=2.10",
+    # HTTP client used at runtime by the account-deletion path (app/services/account.py) to call
+    # the Supabase Auth Admin API. A PROD dep (not dev-only) so the `uv sync --no-dev` Docker image
+    # can hard-delete the auth user. Also the test client (httpx.AsyncClient/ASGITransport).
+    "httpx>=0.28",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "pytest-socket>=0.7",

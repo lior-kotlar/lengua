@@ -9,6 +9,7 @@ service sets it on a manual override. The scoring math itself is pure and lives 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -22,6 +23,16 @@ class ProficiencyRepository:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def list_for_user(self, user_id: uuid.UUID) -> Sequence[Proficiency]:
+        """Every per-language proficiency row the user owns, by language id (data export)."""
+        stmt = (
+            select(Proficiency)
+            .where(Proficiency.user_id == user_id)
+            .order_by(Proficiency.language_id)
+        )
+        result = await self._session.scalars(stmt)
+        return result.all()
 
     async def get_score(self, user_id: uuid.UUID, language_id: int) -> float:
         """Return the stored score, or ``0.0`` (CEFR floor / A1) when none is recorded yet."""

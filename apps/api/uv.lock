@@ -460,6 +460,7 @@ dependencies = [
     { name = "fsrs" },
     { name = "google-genai" },
     { name = "groq" },
+    { name = "httpx" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-instrumentation-fastapi" },
     { name = "opentelemetry-instrumentation-httpx" },
@@ -474,7 +475,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "mypy" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pytest" },
@@ -492,6 +492,7 @@ requires-dist = [
     { name = "fsrs", specifier = ">=5.0" },
     { name = "google-genai", specifier = ">=2.10.0" },
     { name = "groq", specifier = ">=1.5.0" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.30" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.51b0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.51b0" },
@@ -506,7 +507,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.28" },
     { name = "mypy", specifier = ">=1.14" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pytest", specifier = ">=8.3" },

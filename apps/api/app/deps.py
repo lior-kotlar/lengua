@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import AuthError, CurrentUser, decode_supabase_jwt
 from app.db.rls import bind_request_identity
 from app.db.session import get_db as _get_session
+from app.services.account import AccountDeletionService
 from app.settings import Settings, get_settings
 from lengua_core.llm import LLMProvider, get_provider
 
@@ -37,6 +38,7 @@ __all__ = [
     "DEV_USER_ID",
     "CurrentUser",
     "current_user",
+    "get_account_deletion_service",
     "get_current_user",
     "get_db",
     "get_llm_provider",
@@ -103,3 +105,15 @@ async def get_db(
 def get_llm_provider() -> LLMProvider:
     """Return the active LLM provider; tests override this with ``FakeLLM``."""
     return get_provider()
+
+
+def get_account_deletion_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AccountDeletionService:
+    """The service that hard-deletes a user via the Supabase Auth Admin API (task 2.8.3).
+
+    Built from the server-only ``settings`` (Supabase URL + service-role key). Tests override this
+    dependency to inject a fake/offline deletion service so ``DELETE /account`` can be exercised
+    without a live Supabase Auth stack.
+    """
+    return AccountDeletionService(settings)

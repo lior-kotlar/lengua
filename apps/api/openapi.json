@@ -1,6 +1,184 @@
 {
   "components": {
     "schemas": {
+      "AccountExport": {
+        "description": "The complete export bundle for one user — everything owned by ``current_user``.\n\n``profile`` is ``None`` only for a token-only identity whose ``profiles`` row does not exist\nyet (e.g. mid-trigger); a real signed-up user always has one.",
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardExport"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/LanguageExport"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "proficiency": {
+            "items": {
+              "$ref": "#/components/schemas/ProficiencyExport"
+            },
+            "title": "Proficiency",
+            "type": "array"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileExport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewExport"
+            },
+            "title": "Reviews",
+            "type": "array"
+          },
+          "settings": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Settings",
+            "type": "object"
+          }
+        },
+        "required": [
+          "languages",
+          "cards",
+          "reviews",
+          "proficiency",
+          "settings"
+        ],
+        "title": "AccountExport",
+        "type": "object"
+      },
+      "CardExport": {
+        "description": "One flashcard, with its full scheduling/generation state preserved.",
+        "properties": {
+          "back": {
+            "title": "Back",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "due": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due"
+          },
+          "front": {
+            "title": "Front",
+            "type": "string"
+          },
+          "fsrs_state": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fsrs State"
+          },
+          "gen_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gen Level"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "saved": {
+            "title": "Saved",
+            "type": "boolean"
+          },
+          "used_words": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used Words"
+          },
+          "word_explanations": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Word Explanations"
+          }
+        },
+        "required": [
+          "id",
+          "language_id",
+          "front",
+          "back",
+          "saved",
+          "created_at"
+        ],
+        "title": "CardExport",
+        "type": "object"
+      },
       "CardOut": {
         "description": "A persisted flashcard row as returned by the API.",
         "properties": {
@@ -415,6 +593,47 @@
         "title": "LanguageCreate",
         "type": "object"
       },
+      "LanguageExport": {
+        "description": "One language the user studies.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "vowelized": {
+            "title": "Vowelized",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "vowelized",
+          "created_at"
+        ],
+        "title": "LanguageExport",
+        "type": "object"
+      },
       "LanguageLevel": {
         "description": "One of the user's languages with its current proficiency level.",
         "properties": {
@@ -554,6 +773,31 @@
         "title": "MeOut",
         "type": "object"
       },
+      "ProficiencyExport": {
+        "description": "The user's continuous proficiency score for one language.",
+        "properties": {
+          "language_id": {
+            "title": "Language Id",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language_id",
+          "score",
+          "updated_at"
+        ],
+        "title": "ProficiencyExport",
+        "type": "object"
+      },
       "ProficiencyOut": {
         "description": "A learner's level for one language: continuous score, CEFR band, intra-band progress.",
         "properties": {
@@ -606,6 +850,62 @@
           }
         },
         "title": "ProficiencyUpdate",
+        "type": "object"
+      },
+      "ProfileExport": {
+        "description": "The user's profile row (account ``plan`` + creation time).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "plan": {
+            "title": "Plan",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "plan",
+          "created_at"
+        ],
+        "title": "ProfileExport",
+        "type": "object"
+      },
+      "ReviewExport": {
+        "description": "One grade event (FSRS rating 1..4) against a card.",
+        "properties": {
+          "card_id": {
+            "title": "Card Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          },
+          "reviewed_at": {
+            "format": "date-time",
+            "title": "Reviewed At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "card_id",
+          "rating",
+          "reviewed_at"
+        ],
+        "title": "ReviewExport",
         "type": "object"
       },
       "SaveCardsRequest": {
@@ -727,6 +1027,53 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/account": {
+      "delete": {
+        "description": "Hard-delete the authenticated user's account (auth user + cascaded domain data).",
+        "operationId": "delete_account_account_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Account",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/export": {
+      "get": {
+        "description": "Return the authenticated user's full data bundle (scoped to ``current_user``).",
+        "operationId": "export_account_account_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountExport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Account",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/cards/save": {
       "post": {
         "description": "Persist generated recognition+production previews into the current user's deck (saved).",
