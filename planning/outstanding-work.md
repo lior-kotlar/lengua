@@ -239,9 +239,29 @@ cache hit never consults the budget. Tests: `tests/quota/test_budget.py`
 `tests/integration/test_global_killswitch.py` (NEW `tests/integration/` dir — drives real HTTP `/generate`
 as user A until the ceiling, then proves a DIFFERENT user B is refused too → budget is GLOBAL not
 per-user, FakeLLM only, `call_count == BUDGET` so blocked calls make zero provider calls),
-`tests/test_config.py::test_global_budget_loads`. Backend gate green (**400 tests, 100.00% line+branch**;
-`app/quota.py` 100%); ruff+mypy --strict clean; `openapi.json` unchanged (gate = app-level exception, no
-schema delta). 3.5–3.6, 3.8–3.9 not started.
+`tests/test_config.py::test_global_budget_loads`. Backend gate green (initially 400 tests, 100.00%
+line+branch; `app/quota.py` 100%); ruff+mypy --strict clean; `openapi.json` unchanged (gate = app-level
+exception, no schema delta). 3.5–3.6, 3.8–3.9 not started.
+
+**Post-review hardening (folded into the SAME PR #34 after the 3-lens review → all MERGE):** (1) closed
+the `/discover/accept` billed-but-uncounted window — `accept` = generate (billed provider call) → save
+(persist); the spend is now counted **right after the provider call and BEFORE `save`** (the `guard` is
+threaded into `DiscoverService.accept`, mirroring `ExplainService`), so a `save` failure still counts the
+billed call (safe direction; cards roll back) instead of skipping the increment. `/generate` has no such
+window (no persist); `/explain` already counted before its persist loop. Regression test
+`test_discover_accept_counts_billed_call_even_if_save_fails` monkeypatches `GenerateService.save` to raise
+after a successful provider call and asserts BOTH `llm_budget` + `llm_usage` still bumped by 1 (and the
+`discover` counter stayed 0 — accept meters as `generate`). (2) the request's UTC `day` is now computed
+**once** in `QuotaGuard.check` and threaded into the daily-cap read, the budget read, AND
+`record_success`'s increment (stored on `self._day`), so a request straddling 00:00 UTC can't read day N
+then increment day N+1; `enforce_daily_cap`/`_account_created_today` take an optional `day`. (3) doc-only:
+the `GLOBAL_DAILY_BUDGET` comments (`.env.example` + `app/settings.py`) now say "set below provider RPD **÷
+max retry attempts (3)**" — `call_with_retry` does up to `DEFAULT_MAX_ATTEMPTS=3` real HTTP requests per
+counted call, so RPD/3 bounds the worst-case fan-out (default 1000 → ≤3000 requests, still under Groq's
+free RrPD with margin). NOTE: closing (1) required a `TYPE_CHECKING`-only import of `QuotaGuard` in
+`app/services/discover.py` — a runtime import forms a cycle (`app.quota` → `app.deps` →
+`app.services.account` → `app.services.__init__` → `app.services.discover`), since `DiscoverService` (unlike
+`ExplainService`) is eagerly imported by the services package `__init__`.
 
 > **Lazy privileged-session acquisition — deferred (logged, not done).** The 3.2 review flagged that
 > `quota_guard` resolves the privileged `get_usage_db` session eagerly (as a FastAPI sub-dependency) even
@@ -254,6 +274,25 @@ schema delta). 3.5–3.6, 3.8–3.9 not started.
 > follow-up (pairs naturally with the Phase-6 connection-pool/exit-gate load-test work and the §7
 > session-type-split item). The bounded overshoot/pool pressure is acceptable because the budget sits far
 > below the provider's free RPD.
+
+> **Carry-forward — concurrency-cap sequencing (medium; Phase-6 DEPLOY CONSTRAINT).** The kill-switch is
+> read-then-increment-on-success, so when the global budget crosses the ceiling a **bounded, one-shot**
+> overshoot is possible = the number of in-flight gated requests at that instant. The hard bound on that is
+> `LLM_MAX_CONCURRENCY` (the global asyncio semaphore), which lands in **group 3.5** — NOT in this PR.
+> Therefore: **3.5 MUST be deployed before any prod scale-out beyond 1 instance, and before raising
+> `GLOBAL_DAILY_BUDGET` anywhere near the provider RPD.** Separately, the per-user rate limiter is
+> **in-process** today, so it **under-counts across instances** (each replica keeps its own window) — the
+> distributed (Postgres/Upstash) swap is a Phase-6 task (`app/ratelimit.py` seam). Until both land, run a
+> single API instance. (Recorded here as a deploy constraint for Phase 6 / group 3.5.)
+
+> **Carry-forward — exit-gate load test vs the persistent daily counter (advisory).** By design the global
+> `llm_budget[day]` row **persists for the rest of the UTC day** once tripped (the kill-switch is meant to
+> stay tripped). So whoever authors the **Phase-3 exit-gate load test** must account for accumulated state:
+> run it on an **ephemeral DB**, OR reset/delete the day's `llm_budget` row before/after, OR size
+> `GLOBAL_DAILY_BUDGET` for the already-accumulated count — otherwise a re-run starts with budget already
+> spent (or part-spent) and the assertions skew. (Also true for any local re-run of
+> `tests/integration/test_global_killswitch.py` against a non-rolled-back DB; the test itself runs on the
+> rolled-back `db_session`, so it's clean.)
 
 | | Question / decision | Default I'm using | Task |
 |---|---|---|---|

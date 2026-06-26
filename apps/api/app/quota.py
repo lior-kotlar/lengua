@@ -179,28 +179,32 @@ async def resolve_user_cap(
     return min(user_cap, server_max)
 
 
-async def _account_created_today(db: AsyncSession, user_id: uuid.UUID) -> bool:
-    """True when ``user_id``'s profile was created on the current UTC day (a day-0 account).
+async def _account_created_today(db: AsyncSession, user_id: uuid.UUID, day: date) -> bool:
+    """True when ``user_id``'s profile was created on ``day`` (UTC) — a day-0 account.
 
     Reads ``profiles.created_at`` via :class:`~app.repositories.profiles.ProfilesRepository` on the
     request (RLS-scoped) session — a user can always read their own profile. A missing profile is
     treated as *established* (return False) so the day-0 clamp never *over*-restricts on an
-    unexpected absence; the gate above it (email-verified) already guarantees a real caller.
+    unexpected absence; the gate above it (email-verified) already guarantees a real caller. ``day``
+    is the request's single UTC day (computed once in :meth:`QuotaGuard.check`) so every read and
+    the later increment agree even across a 00:00-UTC boundary.
     """
     profile = await ProfilesRepository(db).get(user_id)
     if profile is None:
         return False
-    return profile.created_at.astimezone(UTC).date() == _utc_today()
+    return profile.created_at.astimezone(UTC).date() == day
 
 
 async def enforce_daily_cap(
-    db: AsyncSession, settings: Settings, user_id: uuid.UUID, kind: Kind
+    db: AsyncSession, settings: Settings, user_id: uuid.UUID, kind: Kind, day: date | None = None
 ) -> None:
     """The daily-cap gate: raise :class:`DailyCapReached` when the user is at/over their cap.
 
-    Compares today's ``get_user_daily_count`` (RLS-scoped read on the request session) to the
+    Compares ``day``'s ``get_user_daily_count`` (RLS-scoped read on the request session) to the
     effective cap; refuses with a 429 once ``count >= cap``. Read-only — it never increments (that
-    is :meth:`QuotaGuard.record_success`, post-success).
+    is :meth:`QuotaGuard.record_success`, post-success). ``day`` defaults to the current UTC day;
+    the gate chain (:meth:`QuotaGuard.check`) passes the request's single, already-computed UTC day
+    so the cap read, the budget read, and the later increment all reference the same day.
 
     **Signup-abuse day-0 clamp (3.7.2).** For ``generate`` the effective cap is
     ``min(resolve_user_cap(...), NEW_ACCOUNT_DAY0_GENERATE_CAP)`` while the account is on its first
@@ -211,12 +215,14 @@ async def enforce_daily_cap(
     their own day-0 ceilings later. (A CAPTCHA challenge on signup / first generate would slot in
     here as an additional day-0 gate — DESIGN-ONLY; not built.)
     """
+    if day is None:
+        day = _utc_today()
     cap = await resolve_user_cap(db, settings, user_id, kind)
     if kind == "generate":
         day0_cap = settings.new_account_day0_generate_cap
-        if cap > day0_cap and await _account_created_today(db, user_id):
+        if cap > day0_cap and await _account_created_today(db, user_id, day):
             cap = day0_cap
-    count = await UsageRepository(db).get_user_daily_count(user_id, kind, _utc_today())
+    count = await UsageRepository(db).get_user_daily_count(user_id, kind, day)
     if count >= cap:
         raise DailyCapReached(kind)
 
@@ -248,6 +254,11 @@ class QuotaGuard:
         self._usage_db = usage_db
         self._settings = settings
         self._rate_limiter = rate_limiter
+        # The request's single UTC day, fixed by :meth:`check` and reused by :meth:`record_success`
+        # so a request straddling 00:00 UTC reads and increments the SAME day's counters (never
+        # reads day N then increments day N+1). ``None`` until ``check`` runs; ``record_success``
+        # falls back to "now" only if it was somehow called without ``check`` (never on real paths).
+        self._day: date | None = None
 
     async def check(self) -> None:
         """Run the gate chain in documented order; raise on the first (highest-priority) failure.
@@ -256,6 +267,11 @@ class QuotaGuard:
         global-budget**. The rate-limit token is consumed once the request passes the email gate,
         even if the daily-cap gate then blocks (rate limiting is about frequency, not success).
         """
+        # Pin the request's UTC day ONCE here, then thread the same value through the daily-cap
+        # read, the budget read, and the increment so they never disagree across a midnight flip.
+        day = _utc_today()
+        self._day = day
+
         # 1) email-verified (3.7.1): the very first gate — no LLM spend for an unverified account.
         if not self._email_verified:
             raise EmailUnverified
@@ -266,7 +282,7 @@ class QuotaGuard:
             raise RateLimited(decision.retry_after)
 
         # 3) daily-cap (3.2) + the generate-only day-0 signup-abuse clamp (3.7.2).
-        await enforce_daily_cap(self._db, self._settings, self._user_id, self._kind)
+        await enforce_daily_cap(self._db, self._settings, self._user_id, self._kind, day)
 
         # 4) global-budget kill-switch (3.4): the LAST gate — the project-wide "I will never get a
         # bill" backstop. Read the GLOBAL counter on the PRIVILEGED usage session (the
@@ -279,21 +295,22 @@ class QuotaGuard:
         # ``LLM_MAX_CONCURRENCY`` (3.5) and is acceptable because the budget sits far below the
         # provider's free RPD — we do NOT reserve before spending, because a failed/blocked provider
         # call must never burn budget (3.4.3), and there is no refund/decrement path.
-        budget = await UsageRepository(self._usage_db).get_budget_count(_utc_today())
+        budget = await UsageRepository(self._usage_db).get_budget_count(day)
         if budget >= self._settings.global_daily_budget:
             raise GlobalBudgetReached
 
     async def record_success(self) -> None:
         """Count one successful provider call: atomically bump ``llm_usage`` + ``llm_budget``.
 
-        Called only after the provider returned successfully. Runs on the privileged
-        ``get_usage_db`` session and commits that session's own transaction (independent of the
-        request's app-data transaction). The id is always the JWT-derived ``user_id`` — never a
-        client-supplied value — because the ``SECURITY DEFINER`` increment function trusts it.
+        Called only after the provider returned successfully, and always after :meth:`check` (every
+        call site runs the chain first), so it reuses the same UTC ``day`` :meth:`check` pinned —
+        read and increment never straddle a day boundary. Runs on the privileged ``get_usage_db``
+        session and commits that session's own transaction (independent of the request's app-data
+        transaction). The id is always the JWT-derived ``user_id`` — never a client-supplied value —
+        because the ``SECURITY DEFINER`` increment function trusts it.
         """
-        await UsageRepository(self._usage_db).increment_usage(
-            self._user_id, self._kind, _utc_today()
-        )
+        day = self._day if self._day is not None else _utc_today()
+        await UsageRepository(self._usage_db).increment_usage(self._user_id, self._kind, day)
         await self._usage_db.commit()
 
 

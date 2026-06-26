@@ -63,10 +63,12 @@ class Settings(BaseSettings):
     # "I will never get a bill" backstop. It is the LAST gate (after the per-user daily cap); once
     # the global ``llm_budget`` counter reaches this for the UTC day, every gated LLM call is denied
     # with the friendly ``daily_limit_reached`` message until the day rolls over. Set this BELOW the
-    # active provider's free-tier requests-per-day (RPD): Groq ``llama-3.1-8b-instant``'s free tier
-    # is a few thousand/day, so the default 1000 stays well under it. (Counters bump only on a
-    # successful call, so concurrent in-flight requests may overshoot slightly — bounded by
-    # ``LLM_MAX_CONCURRENCY``; acceptable because the budget sits far below the free RPD.)
+    # active provider's free-tier requests-per-day (RPD) ÷ the max retry attempts (``retry.py``
+    # ``DEFAULT_MAX_ATTEMPTS`` = 3): one *counted* call can fan out to up to 3 real provider calls
+    # on 429/5xx, so RPD/3 bounds the worst case. Groq ``llama-3.1-8b-instant``'s free tier is a few
+    # thousand/day, so the default 1000 (≤3000 worst-case requests) stays well under it. (Counters
+    # bump only on a successful call, so concurrent in-flight requests may overshoot slightly —
+    # bounded by ``LLM_MAX_CONCURRENCY``; acceptable as the budget sits far below the free RPD.)
     global_daily_budget: int = 1000
 
     # ── App ───────────────────────────────────────────────────────────────────

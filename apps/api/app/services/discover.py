@@ -8,11 +8,21 @@ Two steps, mirroring the UX:
   produces real, saved cards.
 
 It orchestrates the provider seam + repositories + the generate service, and emits no SQL itself.
+
+**Cost guard (Phase 3.4 — count the billed call even if persistence fails).** ``accept`` makes a
+real (billed) provider call and *then* persists. If the persist failed after the provider already
+ran, a post-persist increment would skip — a billed call that bumped neither the global
+``llm_budget`` nor the per-user ``llm_usage`` (and so dodged the cap/kill-switch). So, mirroring
+``ExplainService``, when a :class:`~app.quota.QuotaGuard` is supplied (the request path always
+passes one) ``accept`` records the spend **immediately after the successful provider call and before
+``save``**. A ``save`` failure then still counts the call (the safe direction for a "never get a
+bill" guard) and rolls the cards back; the increment commits on its own privileged usage session.
 """
 
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +34,15 @@ from app.services.errors import NotFoundError
 from app.services.generate import GenerateService
 from lengua_core import proficiency
 from lengua_core.llm.base import LLMProvider
+
+if TYPE_CHECKING:
+    # Imported only for the type annotation. A runtime import would form a cycle: this module is
+    # eagerly pulled in by ``app.services.__init__`` (which ``app.deps`` triggers), while
+    # ``app.quota`` imports ``app.deps`` — so importing it here at runtime catches it half-built.
+    # ``from __future__ import annotations`` keeps the ``QuotaGuard`` annotation a string, so the
+    # TYPE_CHECKING-only import is enough (mirrors how ``ExplainService`` only works because the
+    # explain router imports it lazily, after ``app.quota`` has finished loading).
+    from app.quota import QuotaGuard
 
 
 class DiscoverService:
@@ -60,7 +79,21 @@ class DiscoverService:
         )
         return suggestions
 
-    async def accept(self, user_id: uuid.UUID, language_id: int, words: list[str]) -> list[Card]:
-        """Generate and save cards for accepted ``words`` (delegates to the generate flow)."""
+    async def accept(
+        self,
+        user_id: uuid.UUID,
+        language_id: int,
+        words: list[str],
+        guard: QuotaGuard | None = None,
+    ) -> list[Card]:
+        """Generate and save cards for accepted ``words`` (delegates to the generate flow).
+
+        The provider runs inside :meth:`GenerateService.generate`; when a ``guard`` is supplied the
+        spend is counted **right after** that successful provider call and **before** :meth:`save`,
+        so a persistence failure still bills the (already-made) provider call rather than leaving a
+        real call uncounted — the safe direction for the global kill-switch.
+        """
         built = await self._generate.generate(user_id, language_id, words)
+        if guard is not None:
+            await guard.record_success()
         return await self._generate.save(user_id, language_id, built)

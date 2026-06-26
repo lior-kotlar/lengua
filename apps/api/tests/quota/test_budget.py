@@ -26,6 +26,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models import Card
 from app.deps import DEV_USER_ID, get_llm_provider
 from app.quota import (
     DAILY_LIMIT_MESSAGE,
@@ -36,6 +37,7 @@ from app.quota import (
 from app.ratelimit import InProcessRateLimiter, get_rate_limiter
 from app.repositories.languages import LanguagesRepository
 from app.repositories.usage import UsageRepository
+from app.services.generate import GenerateService
 from app.settings import Settings, get_settings
 from lengua_core.llm.fake import FakeLLM
 from lengua_core.models import GeneratedCard
@@ -182,3 +184,48 @@ async def test_failed_call_no_increment(quota_app: FastAPI, db_session: AsyncSes
     assert ok.status_code == 200
     assert await usage.get_budget_count(today) == 1
     assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 1
+
+
+async def test_discover_accept_counts_billed_call_even_if_save_fails(
+    quota_app: FastAPI, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `/discover/accept` whose persistence fails AFTER the provider call is still counted.
+
+    The window this closes: `accept` = generate (real, billed provider call) → save (persist). If
+    the increment ran only after `save`, a `save` failure would skip it → a billed provider call
+    that bumped NEITHER `llm_budget` NOR `llm_usage` (and dodged the per-user cap). The guard now
+    records the spend right after the provider call and before `save`, so a `save` failure still
+    counts the call — the safe direction for a "never get a bill" backstop. (`/generate` has no such
+    window because it never persists; `/explain` already counted before its persist loop.)
+    """
+    authenticate_as(quota_app, DEV_USER_ID, email_verified=True)
+    quota_app.dependency_overrides[get_settings] = lambda: _budget_settings(1000)
+    quota_app.dependency_overrides[get_rate_limiter] = lambda: InProcessRateLimiter(limit=1000)
+
+    usage = UsageRepository(db_session)
+    today = _utc_today()
+    language = await LanguagesRepository(db_session).create(DEV_USER_ID, name="Spanish", code="es")
+
+    # Persistence fails AFTER the provider call already succeeded inside ``accept``.
+    async def _boom_save(self: GenerateService, *args: object, **kwargs: object) -> list[Card]:
+        raise RuntimeError("save boom")
+
+    monkeypatch.setattr(GenerateService, "save", _boom_save)
+
+    assert await usage.get_budget_count(today) == 0
+    assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 0
+
+    FakeLLM.reset_call_count()
+    transport = ASGITransport(app=quota_app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post(
+            "/discover/accept", json={"language_id": language.id, "words": ["agua"]}
+        )
+    assert resp.status_code == 500  # the save failure surfaces; the cards roll back
+
+    # The billed provider call WAS made and counted on BOTH counters even though the save failed —
+    # `/discover/accept` is metered as `generate`, so the generate counter (not discover) moved.
+    assert FakeLLM.call_count == 1
+    assert await usage.get_budget_count(today) == 1
+    assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 1
+    assert await usage.get_user_daily_count(DEV_USER_ID, "discover", today) == 0
