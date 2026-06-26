@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.observability import configure_observability
 from app.routers import (
+    account,
     cards,
     discover,
     explain,
@@ -81,6 +82,8 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     application.include_router(explain.router)
     application.include_router(proficiency.router)
     application.include_router(settings.router)
+    # Account lifecycle (export + hard delete), scoped to current_user (task 2.8).
+    application.include_router(account.router)
 
     if include_test_routes is None:
         include_test_routes = _llm_provider() == "fake"

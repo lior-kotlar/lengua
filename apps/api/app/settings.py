@@ -11,7 +11,7 @@ module is declarative configuration, not branching logic.
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import field_validator
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -39,7 +39,10 @@ class Settings(BaseSettings):
     database_url: str = ""
     supabase_url: str = ""
     supabase_anon_key: str = ""
-    supabase_service_role_key: str = ""
+    # The RLS-bypassing "god-mode" Admin key (used only by the account-deletion path). Typed as
+    # ``SecretStr`` so it is masked in any ``repr``/log/traceback and can never be accidentally
+    # serialized; read it back with ``.get_secret_value()`` at the single call site.
+    supabase_service_role_key: SecretStr = SecretStr("")
     # Supabase JWT verification (Phase 2.3). HS256 shared secret is the default; set the JWKS URL
     # to verify asymmetric (RS256/ES256) "JWT signing keys" instead. ``aud`` is the audience the
     # backend requires (Supabase signs access tokens with ``authenticated``).
