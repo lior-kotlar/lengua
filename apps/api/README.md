@@ -20,8 +20,9 @@ The FastAPI backend service, managed with [`uv`](https://docs.astral.sh/uv/) on 
   helper (`retry.py`). Switching providers is a config flip of `LLM_PROVIDER`, never a code
   change.
 - `scripts/` — dev/ops scripts: `verify.py` (the local gate), `seed_e2e.py` (E2E demo-account
-  seeder), and `seed_dev_user.py` (the fixed dev-user profile used as the placeholder
-  `current_user` until Phase 2).
+  seeder), `seed_dev_user.py` (the fixed dev-user profile used as the placeholder
+  `current_user` until Phase 2), and `import_sqlite.py` (one-off import of the operator's legacy
+  `data/lengua.db` history into Postgres under one account — see "Importing legacy data" below).
 - `tests/` — pytest suite. Unit tests (`test_health.py`, `test_settings.py`, `test_factories.py`,
   `test_fake_llm.py`) plus DB-backed integration tests (`test_db_fixture.py`, `test_seed.py`, and
   the migration tests under `tests/db/` — `test_schema_roundtrip.py`, `test_seed_dev_user.py`).
@@ -114,6 +115,24 @@ on a bare Postgres (no `auth.users` FK, no RLS — those stay Supabase / Phase-2
 ```
 uv run python scripts/seed_dev_user.py
 ```
+
+## Importing legacy data
+
+`scripts/import_sqlite.py` is a one-off admin migration of the operator's pre-productionization
+history from the legacy single-user SQLite DB (`data/lengua.db`) into the multi-tenant Postgres
+schema, under one target account UUID. It maps the old integer/global schema to the new schema
+(remapping ids parent → child), preserving `fsrs_state` / `due` / `saved` / proficiency scores,
+and folds the legacy `settings` into `user_settings`. It uses a **privileged** (`postgres`)
+connection — RLS blocks the request-path role from writing another user's rows — and is
+idempotent (natural-key guards per table). Always dry-run first:
+
+```
+uv run python scripts/import_sqlite.py --user-id <UUID> --dry-run   # plan only, writes nothing
+uv run python scripts/import_sqlite.py --user-id <UUID>             # real import
+```
+
+`--sqlite-path` defaults to `data/lengua.db`; `--database-url` defaults to `$DATABASE_URL`. The
+full operator procedure is in [`docs/runbook.md`](../../docs/runbook.md) ("Historical data import").
 
 ## Configuration
 
