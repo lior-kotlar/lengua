@@ -22,6 +22,9 @@ from tests.conftest import _skip_if_db_unreachable, database_url
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
+# A far-future day with no budget row, so the read returns cleanly without touching real counters.
+_DAY = datetime.date(2099, 9, 9)
+
 
 async def test_get_usage_db_yields_privileged_unbound_session() -> None:
     """The returned session is the same one, has no RLS identity, and can read ``llm_budget``."""
@@ -43,6 +46,3 @@ async def test_get_usage_db_yields_privileged_unbound_session() -> None:
             assert await UsageRepository(session).get_budget_count(_DAY) == 0
     finally:
         await engine.dispose()
-
-
-_DAY = datetime.date(2099, 9, 9)
