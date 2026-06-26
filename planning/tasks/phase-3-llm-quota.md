@@ -14,14 +14,14 @@
 
 _Context: every gate reads and writes counters; this group lays the durable accounting layer the rest of the phase depends on._
 
-- [ ] **3.1.1** Confirm the `gemini_usage` (`user_id`, `day`, `kind`, `count`, PK `(user_id, day, kind)`) and `gemini_budget` (`day` PK, `count`) tables created in Phase 1 (1.4.3) match 03-backend.md, including FKs to `profiles(id) on delete cascade`; add a small follow-up Alembic migration ONLY for any missing column/FK (do not re-create the tables built in Phase 1).
-      verify: `\d gemini_usage` and `\d gemini_budget` show the columns, PKs, and the `on delete cascade` FK on a clean `alembic upgrade head` DB; `pytest tests/db/test_usage_tables.py` asserts both tables and the cascade FK exist (and any follow-up migration round-trips with `alembic downgrade -1`/`upgrade`).
+- [x] **3.1.1** Confirm the `llm_usage` (`user_id`, `day`, `kind`, `count`, PK `(user_id, day, kind)`) and `llm_budget` (`day` PK, `count`) tables created in Phase 1 (1.4.3) match 03-backend.md, including the `llm_usage.user_id → profiles(id) on delete cascade` FK (the committed schema renamed the historical `gemini_*` tables to `llm_*`). No column/FK was missing, so no table changes; Alembic `0004` only adds the new kill-switch privilege objects (see 3.1.2/3.1.3).
+      verify: `pytest tests/db/test_usage_tables.py` — on a clean `alembic upgrade head` DB both tables exist with the right columns, composite/PKs, and the `on delete cascade` FK from `llm_usage.user_id`→`profiles.id`; migration `0004` round-trips (`alembic downgrade -1`→`upgrade head`).
       depends: Phase 1 (1.4.3 usage tables)
-- [ ] **3.1.2** Enable RLS on `gemini_usage` with an owner policy (`user_id = auth.uid()`); leave `gemini_budget` server-only (no anon/auth select policy, written only by the service role).
-      verify: `pytest tests/test_rls.py::test_gemini_usage_isolation` — user A cannot select user B's `gemini_usage` rows, and an authenticated client cannot read `gemini_budget`.
-- [ ] **3.1.3** Repository helper `increment_usage(user_id, kind, day)` that upserts `gemini_usage` and bumps `gemini_budget` for the day in a single transaction (atomic `insert ... on conflict do update set count = count + 1`).
-      verify: `pytest tests/repositories/test_usage_repo.py::test_increment_is_atomic` — 50 concurrent increments via asyncio leave `count == 50` in both tables (no lost updates).
-- [ ] **3.1.4** Repository reads `get_user_daily_count(user_id, kind, day)` and `get_budget_count(day)` returning 0 when no row exists yet.
+- [x] **3.1.2** `llm_usage` already has its RLS owner policy (`user_id = auth.uid()`, Phase 2.6). `llm_budget` is the GLOBAL kill-switch and is made **server-only**: Alembic `0004` + canonical `supabase/migrations/20260626120000_llm_killswitch.sql` `REVOKE ALL ON llm_budget FROM authenticated, anon`, add `SECURITY DEFINER` `increment_llm_usage`/`get_llm_budget_count` (owned by `postgres`), and `GRANT EXECUTE` to `service_role` ONLY (not `authenticated`, so PostgREST RPC can't trip the kill-switch). The backend reaches it via the privileged `app.deps.get_usage_db` session.
+      verify: `pytest tests/test_rls.py` — user A cannot select user B's `llm_usage` rows; an `authenticated` session is denied SELECT/UPDATE on `llm_budget` and has no EXECUTE on either function, while a privileged/`service_role` path can.
+- [x] **3.1.3** Repository helper `UsageRepository.increment_usage(user_id, kind, day)` calls the `SECURITY DEFINER` `increment_llm_usage(...)`, which atomically upserts `llm_usage` and bumps `llm_budget` for the day in one statement (row-locked `insert ... on conflict do update set count = count + 1`) and returns the new budget count.
+      verify: `pytest tests/repositories/test_usage_repo.py::test_increment_is_atomic` — 50 concurrent increments via asyncio (each on its own session) leave `count == 50` in both tables (no lost updates).
+- [x] **3.1.4** Repository reads `UsageRepository.get_user_daily_count(user_id, kind, day)` and `get_budget_count(day)` returning 0 when no row exists yet.
       verify: `pytest tests/repositories/test_usage_repo.py::test_reads_default_zero` passes for a fresh user/day.
 
 ## 3.2 — Per-user daily caps  ·  M

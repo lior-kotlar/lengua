@@ -12,6 +12,8 @@ This is the database half of tenant isolation; the app-layer half is ``test_cros
 
 from __future__ import annotations
 
+import datetime
+import uuid
 from collections.abc import Iterator
 
 import psycopg
@@ -113,3 +115,94 @@ def test_isolation_is_symmetric(pair: tuple[SeededUser, SeededUser]) -> None:
         visible = {str(r[0]) for r in conn.execute("SELECT user_id FROM cards").fetchall()}
         assert visible == {str(a.id)}, f"A saw foreign card owners: {visible}"
         assert _count(conn, "SELECT count(*) FROM cards WHERE id = ANY(%s)", b.card_ids) == 0
+
+
+# ── Cost-guard kill-switch privilege model (group 3.1) ───────────────────────────────────────────
+#
+# Two things must hold for the global LLM cost guard to be safe:
+#   1. ``llm_usage`` is per-user — its RLS owner policy must hide A's counters from B (like every
+#      other user table); and
+#   2. ``llm_budget`` is the GLOBAL kill-switch — it must be *server-only*: an authenticated user
+#      may neither SELECT/UPDATE the table nor EXECUTE the SECURITY DEFINER increment/read functions
+#      (else they could trip or hide the kill-switch for everyone via PostgREST). The backend
+#      reaches it only through a privileged (postgres) session.
+#
+# These run against the live local Supabase stack (built from the canonical SQL migration), where
+# the ``authenticated``/``anon``/``service_role`` roles and the REVOKE/GRANT actually exist.
+
+# A far-future day so these rows never collide with other tests' real "today" counters.
+_KS_DAY = datetime.date(2099, 6, 1)
+_INCREMENT_SIG = "public.increment_llm_usage(uuid,text,date)"
+_READER_SIG = "public.get_llm_budget_count(date)"
+
+
+def test_b_cannot_read_a_llm_usage(pair: tuple[SeededUser, SeededUser]) -> None:
+    """``llm_usage`` honours the owner policy: B sees only its own counters, never A's."""
+    a, b = pair
+    with psycopg.connect(database_url(), autocommit=True) as conn:
+        conn.execute(
+            "INSERT INTO llm_usage (user_id, day, kind, count) VALUES (%s, %s, 'generate', 3) "
+            "ON CONFLICT (user_id, day, kind) DO UPDATE SET count = 3",
+            (a.id, _KS_DAY),
+        )
+        conn.execute(
+            "INSERT INTO llm_usage (user_id, day, kind, count) VALUES (%s, %s, 'generate', 7) "
+            "ON CONFLICT (user_id, day, kind) DO UPDATE SET count = 7",
+            (b.id, _KS_DAY),
+        )
+    try:
+        with acting_as(b.id) as conn:
+            owners = {str(r[0]) for r in conn.execute("SELECT user_id FROM llm_usage").fetchall()}
+            assert owners == {str(b.id)}, f"B saw foreign usage owners: {owners}"
+            assert _count(conn, "SELECT count(*) FROM llm_usage WHERE user_id = %s", a.id) == 0
+    finally:
+        with psycopg.connect(database_url(), autocommit=True) as conn:
+            conn.execute("DELETE FROM llm_usage WHERE day = %s", (_KS_DAY,))
+
+
+def test_authenticated_cannot_read_or_write_llm_budget() -> None:
+    """The ``authenticated`` role is *denied* SELECT/UPDATE on ``llm_budget``; postgres can read."""
+    with psycopg.connect(database_url(), autocommit=True) as conn:
+        conn.execute(
+            "INSERT INTO llm_budget (day, count) VALUES (%s, 5) "
+            "ON CONFLICT (day) DO UPDATE SET count = 5",
+            (_KS_DAY,),
+        )
+    try:
+        # A logged-in user can neither SELECT nor UPDATE the kill-switch counter.
+        with acting_as(uuid.uuid4()) as conn, pytest.raises(psycopg.errors.InsufficientPrivilege):
+            conn.execute("SELECT count FROM llm_budget WHERE day = %s", (_KS_DAY,))
+        with acting_as(uuid.uuid4()) as conn, pytest.raises(psycopg.errors.InsufficientPrivilege):
+            conn.execute("UPDATE llm_budget SET count = 0 WHERE day = %s", (_KS_DAY,))
+
+        # The privileged (postgres) session still reads it, and the tamper attempt changed nothing.
+        with psycopg.connect(database_url(), autocommit=True) as conn:
+            row = conn.execute("SELECT count FROM llm_budget WHERE day = %s", (_KS_DAY,)).fetchone()
+            assert row is not None and row[0] == 5, "authenticated must not be able to tamper"
+    finally:
+        with psycopg.connect(database_url(), autocommit=True) as conn:
+            conn.execute("DELETE FROM llm_budget WHERE day = %s", (_KS_DAY,))
+
+
+def test_authenticated_has_no_execute_on_killswitch_functions() -> None:
+    """``authenticated`` holds no EXECUTE on either kill-switch function, and a call is denied."""
+    with acting_as(uuid.uuid4()) as conn:
+        for sig in (_INCREMENT_SIG, _READER_SIG):
+            granted = conn.execute(
+                "SELECT has_function_privilege('authenticated', %s, 'EXECUTE')", (sig,)
+            ).fetchone()
+            assert granted is not None and granted[0] is False, f"authenticated can EXECUTE {sig}"
+
+    # And an actual attempt to call one as the authenticated role is refused.
+    with acting_as(uuid.uuid4()) as conn, pytest.raises(psycopg.errors.InsufficientPrivilege):
+        conn.execute("SELECT public.get_llm_budget_count(%s)", (_KS_DAY,))
+
+
+def test_service_role_can_execute_killswitch_functions() -> None:
+    """``service_role`` (the trusted server role) retains EXECUTE on both functions."""
+    with psycopg.connect(database_url()) as conn:
+        for sig in (_INCREMENT_SIG, _READER_SIG):
+            granted = conn.execute(
+                "SELECT has_function_privilege('service_role', %s, 'EXECUTE')", (sig,)
+            ).fetchone()
+            assert granted is not None and granted[0] is True, f"service_role cannot EXECUTE {sig}"

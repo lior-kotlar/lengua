@@ -13,6 +13,8 @@ from tests.factories import (
     make_card,
     make_generated_card,
     make_language,
+    make_llm_budget,
+    make_llm_usage,
     make_profile,
     make_review,
 )
@@ -60,6 +62,23 @@ def test_make_generated_card_populates_required_fields() -> None:
     assert card.word_notes[0].word
 
 
+def test_make_llm_usage_populates_required_fields() -> None:
+    usage = make_llm_usage()
+    # llm_usage PK is (user_id, day, kind); count defaults to 0.
+    assert usage["user_id"] == DEMO_USER_ID
+    assert usage["kind"] == "generate"
+    assert usage["day"] is not None
+    assert usage["count"] == 0
+
+
+def test_make_llm_budget_populates_required_fields() -> None:
+    budget = make_llm_budget()
+    # llm_budget PK is (day); count defaults to 0.
+    assert budget["day"] is not None
+    assert budget["count"] == 0
+    assert "user_id" not in budget  # global table — no per-user column
+
+
 def test_defaults_are_deterministic() -> None:
     # Same explicit name (bypassing the unique counter) → identical dicts.
     assert make_card() == make_card()
@@ -75,6 +94,9 @@ def test_overrides_apply() -> None:
     assert make_review(rating=1)["rating"] == 1
     assert make_profile(plan="pro")["plan"] == "pro"
     assert make_generated_card(sentence="x").sentence == "x"
+    assert make_llm_usage(kind="discover", count=4)["kind"] == "discover"
+    assert make_llm_usage(count=4)["count"] == 4
+    assert make_llm_budget(count=9)["count"] == 9
 
 
 def test_language_name_is_unique_per_call() -> None:
