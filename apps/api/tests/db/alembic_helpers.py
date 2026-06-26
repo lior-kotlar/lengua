@@ -70,6 +70,28 @@ def throwaway_database() -> Iterator[str]:
             conn.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
 
 
+@contextlib.contextmanager
+def throwaway_database_with_auth() -> Iterator[str]:
+    """A throwaway database pre-seeded with a minimal ``auth.users`` table.
+
+    The 2.5.1 ``handle_new_user`` trigger fires ``after insert on auth.users`` — a table that only
+    exists on a Supabase database. To exercise the *Alembic*-created trigger end-to-end on a
+    throwaway Postgres, we first stand up a minimal stand-in (``id uuid`` is all the trigger reads),
+    then the migrations run against a DB where ``to_regclass('auth.users')`` resolves, so the
+    guarded trigger is actually created. Inserting into this table then fires it.
+    """
+    with throwaway_database() as url:
+        with psycopg.connect(url, autocommit=True) as conn:
+            conn.execute("CREATE SCHEMA IF NOT EXISTS auth")
+            conn.execute(
+                "CREATE TABLE auth.users ("
+                "  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),"
+                "  email text"
+                ")"
+            )
+        yield url
+
+
 def public_tables(url: str) -> set[str]:
     """The set of table names in the ``public`` schema of ``url``."""
     with psycopg.connect(url) as conn:

@@ -48,6 +48,15 @@ scheme) fronts the API. For local work, point `DATABASE_URL` at a Postgres (e.g.
 Supabase CLI stack), seed it with `uv run python scripts/seed_dev_user.py`, and send
 `Authorization: Bearer <token>` (a JWT signed with the project's `SUPABASE_JWT_SECRET`).
 
+A `profiles` row (`plan='free'`) is created automatically for every user on first signup by the
+`handle_new_user` Postgres trigger (defined in `supabase/migrations/…` and reproduced for the
+backend's own schema by Alembic revision `0002`) — no guest/anonymous mode
+(`enable_anonymous_sign_ins = false`). A ready-to-use **demo / reviewer account** (for App Store /
+Play review or a quick manual run) is provisioned by `uv run python scripts/seed_e2e.py`: it
+admin-creates a pre-confirmed Supabase auth user (`demo@lengua.test` / `demo-password-123`) with a
+Spanish deck of due cards, so signing in with those credentials immediately exercises the full
+review loop.
+
 | Method + path | Purpose |
 | --- | --- |
 | `GET /me` | The authenticated user's account overview: identity (`id`, `email_verified`) from the verified token, profile `plan`, and per-language proficiency levels (`score`/`band`/`progress`) — scoped to that user only. |
