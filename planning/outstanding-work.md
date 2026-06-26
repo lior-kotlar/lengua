@@ -67,7 +67,7 @@ Found by the repo scan — real deliverables that are intentionally stubbed pend
 | ☐ | `docs/privacy-policy.md` is a Phase 0 stub; real GDPR policy + "to be completed" section unwritten | docs/privacy-policy.md:3,35 | Phase 8 |
 | ☐ | `docs/runbook.md` stub — **Health checks / Deploy-rollback / On-call** sections are empty TODOs | docs/runbook.md:9,14,19 | Phase 5/6/9 |
 | ☐ | `docs/README.md` and `infra/README.md` end with bare `> Placeholder.` | docs/README.md:7; infra/README.md:10 | as docs fill in |
-| ☐ | Entire `apps/web/src` is the Phase 0 scaffold — `Home.tsx` renders only "Web shell scaffold" + a sample button | apps/web/src/pages/Home.tsx:8; apps/web/README.md:6 | Phase 4 |
+| ◐ | ~~Entire `apps/web/src` is the Phase 0 scaffold — `Home.tsx` renders only "Web shell scaffold"~~ — **4.1 landed the real app shell** (theming/routing/server-state/Supabase + shadcn primitives; `Home.tsx` replaced by `AppLayout` + per-screen stubs). Screens themselves are still stubs filled by 4.2–4.11. | apps/web/src/App.tsx; apps/web/src/components/ | Phase 4 (4.2–4.11) |
 | ☐ | `app/main.py` docstring ("routers/auth/quota/OTel … later Phase 1 tasks") now partly **stale** — routers wired, quota still pending | apps/api/app/main.py:4 | tidy + Phase 3 |
 | ☐ | `llm_usage` table + `settings` limit fields exist but the **Phase 3 cost-guard/quota gate that consumes them is not built** | app/db/models.py:152; app/schemas/settings.py:4 | Phase 3 |
 | ☐ | `reviews.py` notes pending Phase 2 RLS filtering; `seed_dev_user.py` `current_user` is still the placeholder dev UUID | app/repositories/reviews.py:4; scripts/seed_dev_user.py:4 | Phase 2 (2.4/2.6) |
@@ -100,7 +100,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
 | 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
-| 4 — React web app | 51 | app shell, typed API client, auth screens, generate/review/discover/settings, RTL+diacritics, Streamlit retirement |
+| 4 — React web app | 45 | 🛠 in progress — **4.1 app shell DONE** (6 boxes); remaining: typed API client, auth screens, generate/review/discover/settings, RTL+diacritics, Streamlit retirement |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
 | 7 — Mobile (Capacitor) | 58 | paid store accts, signing, native projects/plugins, OAuth-in-webview, iOS/Android builds, OTA, device validation |
@@ -463,3 +463,19 @@ DISCOVER_REUSE_WINDOW_SECONDS=300     # short in-process /discover preview reuse
 - Counters bump **only after a successful provider call** (check-then-increment); slight bounded overshoot
   under concurrency is acceptable because the budget is set well below the free RPD and `LLM_MAX_CONCURRENCY`
   bounds in-flight calls. Cache hits (explain hit / discover reuse) make no call and no increment.
+
+---
+
+## 10. Phase 4 (React web app) — 🛠 in progress
+
+**4.1 — App shell & foundations · DONE (PR for group 4.1).** Vite/React/TS scaffold extended into the
+production shell: shadcn primitives, light/dark/system theming, react-router auth-vs-app route tree +
+shared layouts, TanStack Query, and a lazy auth-only supabase-js client + fail-fast env validator.
+Web gate green (35 vitest tests, 100% product coverage; lint/format/typecheck/build clean; env-less
+Playwright home smoke updated + passing).
+
+| | Item | Where | Status / decision | Noticed |
+|---|---|---|---|---|
+| ◐ | **Env fail-fast vs env-less CI build (decision).** 4.1.6's verify says `vite build` should "fail fast" on a missing `VITE_*` var, but Vite statically **inlines** build-time env and the CI build/E2E jobs build **without** these vars (the env-less home smoke must render). **Safe default chosen:** validate at config-load / first Supabase use via `readEnv()` (throws a clear error naming the missing var), proven by `apps/web/src/lib/env.test.ts` — NOT by failing `vite build`. Documented in `apps/web/.env.example` + the phase-4 doc. | apps/web/src/lib/env.ts; supabase.ts | decided (no owner action needed; flag if a literal build-time guard is later wanted) | 2026-06-27 |
+| ☐ | **4.1 scope deferrals (by design):** route gating / redirect-unauthenticated is NOT wired yet (auth screens + `useAuth` land in **4.3**); the typed `apiClient` + `api-types` workspace dep land in **4.2**. Authenticated screens are heading-only stubs until their groups. | apps/web/src/components/app-layout.tsx; pages/ | expected — later 4.x groups | 2026-06-27 |
+| ☐ | **CI E2E harness unchanged this group** (per 4.1 scope): the existing env-less home smoke is kept green; the ephemeral-stack auth/full-loop E2E is wired in **4.3**. | apps/web/e2e/home.spec.ts; .github/workflows/ci.yml | expected — 4.3 | 2026-06-27 |
