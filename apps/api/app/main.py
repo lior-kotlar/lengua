@@ -2,8 +2,10 @@
 
 Builds the app in :func:`create_app`: a ``GET /health`` liveness probe, OTel + structured-logging
 observability, the strict CORS allowlist, every feature router (all scoped to ``current_user``), and
-the Phase 3 LLM cost-guard exception handlers (the per-user daily-cap gate's ``DailyCapReached`` →
-429). Auth is enforced per-router via the JWT dependencies in :mod:`app.deps`.
+the Phase 3 LLM cost-guard exception handlers — the quota gates (email/rate/daily-cap/global-budget)
+plus the concurrency/backoff busy handlers (``ProviderBusy`` from the in-flight cap and a persistent
+provider 429/5xx → **503 ``server_busy``**). Auth is enforced per-router via the JWT dependencies in
+:mod:`app.deps`.
 
 When ``LLM_PROVIDER=fake`` a tiny **test-only** router (:mod:`app.testing`) is mounted so the
 E2E suite can drive the LLM seam over HTTP and assert zero real LLM calls. It is never mounted
@@ -17,6 +19,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.llm_runner import register_llm_handlers
 from app.observability import configure_observability
 from app.quota import register_quota_handlers
 from app.routers import (
@@ -93,6 +96,9 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     # daily-cap → 429 {"code":"daily_cap_reached","kind":...}, and the global-budget kill-switch
     # (3.4) → 429 {"code":"daily_limit_reached","message":...}.
     register_quota_handlers(application)
+    # Concurrency cap + backoff (Phase 3.5): the in-flight cap's ProviderBusy and a persistent
+    # provider 429/5xx (LLMTransientError) both → 503 {"code":"server_busy",...} (+ Retry-After).
+    register_llm_handlers(application)
 
     if include_test_routes is None:
         include_test_routes = _llm_provider() == "fake"

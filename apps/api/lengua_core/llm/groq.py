@@ -22,6 +22,7 @@ import groq
 from lengua_core.models import GeneratedCard
 from lengua_core.prompts import suggestion_instruction, system_instruction
 
+from .keys import resolve_llm_key
 from .retry import (
     EXPLAIN_MAX_TOKENS,
     GENERATE_MAX_TOKENS,
@@ -103,13 +104,13 @@ class GroqProvider:
 
     @classmethod
     def from_env(cls) -> GroqProvider:
-        """Build from ``GROQ_API_KEY`` / ``GROQ_MODEL``; fail fast if the key is unset."""
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "GROQ_API_KEY is not set but LLM_PROVIDER=groq. Set GROQ_API_KEY "
-                "(https://console.groq.com/keys), or use LLM_PROVIDER=fake for tests."
-            )
+        """Build the Groq provider; the API key comes only from :func:`resolve_llm_key`.
+
+        The key is obtained through the single key-resolution seam (task 3.9) — this class never
+        reads the key env var itself — which fails fast with a clear error when it is unset. The
+        model id still comes from ``GROQ_MODEL`` (a non-secret).
+        """
+        api_key = resolve_llm_key(provider="groq")
         return cls(api_key=api_key, model=os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL))
 
     @property

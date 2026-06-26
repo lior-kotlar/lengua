@@ -77,7 +77,8 @@ export interface paths {
          * Discover
          * @description Preview new words at the learner's level, excluding vocabulary they already know.
          *
-         *     Gated by the per-user daily ``discover`` cap (``quota_guard``) before the provider call.
+         *     Gated by the per-user daily ``discover`` cap (``quota_guard``) before the provider call, which
+         *     runs under the global concurrency cap (``limiter``).
          */
         post: operations["discover_discover_post"];
         delete?: never;
@@ -126,7 +127,8 @@ export interface paths {
          * @description Explain a tapped word in a sentence (served from the card's cache when available).
          *
          *     The ``guard`` is built **unchecked** and handed to ``ExplainService`` so the per-user daily
-         *     ``explain`` cap is enforced (and counted) only on a cache miss — a cache hit stays free.
+         *     ``explain`` cap is enforced (and counted) only on a cache miss — a cache hit stays free. On a
+         *     miss the provider call runs under the global concurrency cap (``limiter``).
          */
         post: operations["explain_explain_post"];
         delete?: never;
@@ -149,7 +151,8 @@ export interface paths {
          * @description Generate recognition+production card previews for ``words`` (nothing is persisted yet).
          *
          *     The ``quota_guard`` dependency enforces the per-user daily ``generate`` cap before the provider
-         *     is called; on success we count the spend (cache-miss equivalent — generate always calls).
+         *     is called; on success we count the spend (cache-miss equivalent — generate always calls). The
+         *     provider call runs under the global concurrency cap (``limiter``).
          */
         post: operations["generate_generate_post"];
         delete?: never;

@@ -263,6 +263,41 @@ free RrPD with margin). NOTE: closing (1) required a `TYPE_CHECKING`-only import
 `app.services.account` → `app.services.__init__` → `app.services.discover`), since `DiscoverService` (unlike
 `ExplainService`) is eagerly imported by the services package `__init__`.
 
+🛠 **3.5 + 3.9 landed (concurrency cap + backoff with jitter + BYOK key-resolution seam) — MERGE
+MODE (resilience/seam, low-risk).** New `app/llm_runner.py`: a process-global `asyncio.Semaphore`
+sized by `LLM_MAX_CONCURRENCY` (default 4, documented in `.env.example`) bounds in-flight provider
+calls; since the provider methods are **sync/blocking**, `LLMConcurrencyLimiter.run` offloads each to
+a worker thread (`asyncio.to_thread`) UNDER the semaphore (event loop stays responsive AND calls are
+genuinely concurrent so the cap is real), exposed via the `get_llm_limiter()` singleton dependency
+(mirrors `get_rate_limiter`; overridable in tests, `reset_llm_limiter()` rebuilds) and threaded into
+the Generate/Discover/Explain services + routers (default = singleton so the save-only `GenerateService`
+needs no limiter). Over the cap a request waits briefly (bounded by `ACQUIRE_TIMEOUT_SECONDS=5`) then
+`ProviderBusy` → **503** `{"code":"server_busy","message":"The server is busy, please try again in a
+moment."}` (+ short `Retry-After`) — never an unbounded queue, never a 500. **3.5.2:**
+`lengua_core/llm/retry.py` `call_with_retry` gains **full jitter** (injectable `rng`, delay =
+`base_delay*2**(n-1)*rng()`; a faked `rng()`→1.0 reproduces the exact un-jittered backoff so tests
+stay deterministic) and, when transient 429/5xx persist across every attempt, raises a clean typed
+`LLMTransientError` (raw vendor error as `__cause__`) instead of re-raising the vendor exception — the
+app maps it to the SAME friendly 503 `server_busy` via `register_llm_handlers` (so "LLM temporarily
+unavailable" is one contract whether the cause is local saturation or a persistent upstream 429).
+**3.9.1:** `resolve_llm_key(user)` in new `lengua_core/llm/keys.py` is now the SINGLE key chokepoint
+— today always returns the operator env key for the active provider; the `user` param is the inert
+future BYOK override. `GroqProvider.from_env`/`GeminiProvider.from_env` obtain the key ONLY through it;
+a grep test (`tests/llm/test_key_resolution.py`) proves the key env-var names appear in exactly one
+module (`keys.py`). **3.9.2 (DESIGN ONLY):** BYOK design note in `docs/byok-seam.md` + the `keys.py`
+module docstring — references `resolve_llm_key` + `profiles.plan` (how a per-user key branches in the
+resolver, and how the caps/rate-limit/global-budget gates would SKIP a BYOK user since they protect
+the *operator* key). **No BYOK built**: no key storage, no UI, no new `profiles` columns, no
+per-user branching. Tests: `tests/quota/test_concurrency.py` (cap high-water-mark ≤ 2, busy→503,
+singleton/reset, 503 rendering), `tests/llm/test_backoff.py` (retries→`LLMTransientError`→503),
+`tests/llm/test_key_resolution.py` (operator-key-only + grep), `tests/llm/test_retry.py` updated for
+jitter + the typed-error-on-exhaustion. Backend gate green (416 tests, **100.00%** line+branch;
+`app/llm_runner.py` + `lengua_core/llm/{keys,retry}.py` all 100%); ruff+mypy --strict clean;
+`openapi.json`+`packages/api-types` regenerated (route-description deltas only — the 503 is an
+app-level handler, no schema response delta). README "Usage & cost limits" extended (server-busy 503 +
+transient backoff). 3.6 + 3.8 remain (cost minimization: word/token caps + explain/discover caching;
+observability spans/metrics).
+
 > **Lazy privileged-session acquisition — deferred (logged, not done).** The 3.2 review flagged that
 > `quota_guard` resolves the privileged `get_usage_db` session eagerly (as a FastAPI sub-dependency) even
 > on fast-fail paths (email/rate/cap-blocked, explain cache-hit) that never read the budget. Making it
@@ -278,9 +313,9 @@ free RrPD with margin). NOTE: closing (1) required a `TYPE_CHECKING`-only import
 > **Carry-forward — concurrency-cap sequencing (medium; Phase-6 DEPLOY CONSTRAINT).** The kill-switch is
 > read-then-increment-on-success, so when the global budget crosses the ceiling a **bounded, one-shot**
 > overshoot is possible = the number of in-flight gated requests at that instant. The hard bound on that is
-> `LLM_MAX_CONCURRENCY` (the global asyncio semaphore), which lands in **group 3.5** — NOT in this PR.
-> Therefore: **3.5 MUST be deployed before any prod scale-out beyond 1 instance, and before raising
-> `GLOBAL_DAILY_BUDGET` anywhere near the provider RPD.** Separately, the per-user rate limiter is
+> `LLM_MAX_CONCURRENCY` (the global asyncio semaphore) — **LANDED in group 3.5** (`app/llm_runner.py`,
+> default 4). Per-process overshoot is now bounded; raising `GLOBAL_DAILY_BUDGET` near the provider RPD or
+> running >1 instance still needs the distributed rate limiter below. Separately, the per-user rate limiter is
 > **in-process** today, so it **under-counts across instances** (each replica keeps its own window) — the
 > distributed (Postgres/Upstash) swap is a Phase-6 task (`app/ratelimit.py` seam). Until both land, run a
 > single API instance. (Recorded here as a deploy constraint for Phase 6 / group 3.5.)

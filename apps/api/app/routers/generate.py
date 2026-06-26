@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import current_user, get_db, get_llm_provider
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.quota import QuotaGuard, quota_guard
 from app.schemas.generate import GeneratedCardModel, GenerateRequest
 from app.services.errors import NotFoundError
@@ -28,15 +29,19 @@ async def generate(
     user_id: uuid.UUID = Depends(current_user),
     db: AsyncSession = Depends(get_db),
     provider: LLMProvider = Depends(get_llm_provider),
+    limiter: LLMConcurrencyLimiter = Depends(get_llm_limiter),
     guard: QuotaGuard = _GENERATE_QUOTA,
 ) -> list[BuiltCard]:
     """Generate recognition+production card previews for ``words`` (nothing is persisted yet).
 
     The ``quota_guard`` dependency enforces the per-user daily ``generate`` cap before the provider
-    is called; on success we count the spend (cache-miss equivalent — generate always calls).
+    is called; on success we count the spend (cache-miss equivalent — generate always calls). The
+    provider call runs under the global concurrency cap (``limiter``).
     """
     try:
-        built = await GenerateService(db, provider).generate(user_id, body.language_id, body.words)
+        built = await GenerateService(db, provider, limiter).generate(
+            user_id, body.language_id, body.words
+        )
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     await guard.record_success()  # increments for the JWT user_id only (never client-supplied)

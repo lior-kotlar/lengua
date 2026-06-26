@@ -1,8 +1,10 @@
-"""Task 1.2.5 — the shared retry/backoff helper and the request caps.
+"""Tasks 1.2.5 / 3.5.2 — the shared retry/backoff helper, jitter, and the request caps.
 
-Simulates two transient failures (e.g. 503) then success and asserts exactly three
-attempts with exponential backoff — using a patched clock (an injected ``sleep``), so
-there are no real sleeps. Also covers non-transient short-circuiting, exhaustion, and
+Simulates transient failures then success and asserts exactly the right number of attempts with
+exponential backoff — using a patched clock (an injected ``sleep``) and a patched jitter source (an
+injected ``rng``), so there are no real sleeps and the delays are exact. A fake ``rng`` returning
+``1.0`` reproduces the un-jittered exponential ``base_delay * 2 ** (n - 1)``. Also covers
+non-transient short-circuiting, the friendly :class:`LLMTransientError` on exhaustion (3.5.2), and
 the words-per-request cap.
 """
 
@@ -12,11 +14,16 @@ import pytest
 
 from lengua_core.llm.retry import (
     MAX_WORDS_PER_REQUEST,
+    LLMTransientError,
     call_with_retry,
     cap_words,
 )
 
 pytestmark = pytest.mark.disable_socket
+
+#: A fake jitter source pinned to its maximum (``1.0``) so ``backoff * rng()`` == the full backoff,
+#: letting these tests assert exact, un-jittered delays.
+_NO_JITTER = 1.0
 
 
 class _Transient(Exception):
@@ -42,7 +49,9 @@ def test_two_failures_then_success_makes_exactly_three_attempts() -> None:
             raise _Transient(f"503 #{attempts}")
         return "ok"
 
-    result = call_with_retry(flaky, is_transient=_is_transient, sleep=sleeps.append)
+    result = call_with_retry(
+        flaky, is_transient=_is_transient, sleep=sleeps.append, rng=lambda: _NO_JITTER
+    )
 
     assert result == "ok"
     assert attempts == 3  # two failures + one success
@@ -71,7 +80,7 @@ def test_non_transient_error_propagates_immediately() -> None:
     assert sleeps == []
 
 
-def test_exhausting_attempts_reraises_last_transient() -> None:
+def test_exhausting_attempts_raises_llm_transient_error() -> None:
     attempts = 0
     sleeps: list[float] = []
 
@@ -80,10 +89,16 @@ def test_exhausting_attempts_reraises_last_transient() -> None:
         attempts += 1
         raise _Transient(f"503 #{attempts}")
 
-    with pytest.raises(_Transient, match="#3"):
-        call_with_retry(always_busy, is_transient=_is_transient, sleep=sleeps.append)
+    with pytest.raises(LLMTransientError) as exc_info:
+        call_with_retry(
+            always_busy, is_transient=_is_transient, sleep=sleeps.append, rng=lambda: _NO_JITTER
+        )
     assert attempts == 3
     assert sleeps == [1.0, 2.0]
+    # The original vendor error is preserved on the typed error and as its ``__cause__``.
+    assert isinstance(exc_info.value.original, _Transient)
+    assert "#3" in str(exc_info.value.original)
+    assert isinstance(exc_info.value.__cause__, _Transient)
 
 
 def test_custom_attempts_and_base_delay() -> None:
@@ -92,15 +107,30 @@ def test_custom_attempts_and_base_delay() -> None:
     def always_busy() -> str:
         raise _Transient("503")
 
-    with pytest.raises(_Transient):
+    with pytest.raises(LLMTransientError):
         call_with_retry(
             always_busy,
             is_transient=_is_transient,
             max_attempts=4,
             base_delay=0.5,
             sleep=sleeps.append,
+            rng=lambda: _NO_JITTER,
         )
     assert sleeps == [0.5, 1.0, 2.0]  # 0.5 * 2**(n-1)
+
+
+def test_jitter_scales_backoff_by_rng() -> None:
+    """``rng()`` in ``[0, 1)`` scales each delay (full jitter): a fixed 0.5 halves the backoff."""
+    sleeps: list[float] = []
+
+    def always_busy() -> str:
+        raise _Transient("503")
+
+    with pytest.raises(LLMTransientError):
+        call_with_retry(
+            always_busy, is_transient=_is_transient, sleep=sleeps.append, rng=lambda: 0.5
+        )
+    assert sleeps == [0.5, 1.0]  # 0.5 * [1.0, 2.0]
 
 
 def test_cap_words_strips_and_truncates() -> None:

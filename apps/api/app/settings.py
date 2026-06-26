@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     default_discover_per_day: int = 10
     default_explain_per_day: int = 50
 
+    # ── LLM cost guard — global concurrency cap (Phase 3.5) ───────────────────
+    # The maximum number of provider (LLM) calls allowed in flight across the whole process at once,
+    # enforced by a global asyncio semaphore (``app.llm_runner``). Bounds load on the provider's
+    # free tier AND caps the kill-switch's read-then-increment overshoot (the budget gate reads
+    # before the call and increments after success, so the worst-case overshoot is the number of
+    # in-flight calls — this value). Over the cap, a request waits briefly then gets a friendly 503
+    # ``server_busy`` rather than queuing unbounded. NOTE: this is per-process; safe horizontal
+    # scale-out beyond one instance additionally needs the distributed rate limiter (Phase 6).
+    llm_max_concurrency: int = 4
+
     # ── LLM cost guard — per-user rate limit (Phase 3.3) ──────────────────────
     # Per-user sliding-window request ceiling, counted across ALL gated LLM kinds (generate /
     # discover / explain). Smooths bursts against the provider's RPM ceiling — distinct from the

@@ -231,6 +231,7 @@ async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClien
 
     from app.db.session import UsageSession
     from app.deps import get_db, get_llm_provider, get_usage_db
+    from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
     from app.main import create_app
     from app.ratelimit import InProcessRateLimiter, RateLimiter, get_rate_limiter
     from lengua_core.llm.base import LLMProvider
@@ -262,10 +263,17 @@ async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClien
     def _override_rate_limiter() -> RateLimiter:
         return test_rate_limiter
 
+    # Fresh, generous concurrency limiter (3.5) so the process-wide singleton never spans loops.
+    test_llm_limiter = LLMConcurrencyLimiter(max_concurrency=4)
+
+    def _override_llm_limiter() -> LLMConcurrencyLimiter:
+        return test_llm_limiter
+
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_usage_db] = _override_get_usage_db
     app.dependency_overrides[get_llm_provider] = _override_provider
     app.dependency_overrides[get_rate_limiter] = _override_rate_limiter
+    app.dependency_overrides[get_llm_limiter] = _override_llm_limiter
     install_test_auth(app)  # verify real bearer tokens against the test secret
     FakeLLM.reset_call_count()
 

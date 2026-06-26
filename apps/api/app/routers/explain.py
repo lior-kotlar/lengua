@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import current_user, get_db, get_llm_provider
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.quota import QuotaGuard, quota_guard
 from app.schemas.explain import ExplainRequest, ExplainResponse
 from app.services.errors import NotFoundError, ValidationError
@@ -28,15 +29,17 @@ async def explain(
     user_id: uuid.UUID = Depends(current_user),
     db: AsyncSession = Depends(get_db),
     provider: LLMProvider = Depends(get_llm_provider),
+    limiter: LLMConcurrencyLimiter = Depends(get_llm_limiter),
     guard: QuotaGuard = _EXPLAIN_QUOTA,
 ) -> ExplainResponse:
     """Explain a tapped word in a sentence (served from the card's cache when available).
 
     The ``guard`` is built **unchecked** and handed to ``ExplainService`` so the per-user daily
-    ``explain`` cap is enforced (and counted) only on a cache miss — a cache hit stays free.
+    ``explain`` cap is enforced (and counted) only on a cache miss — a cache hit stays free. On a
+    miss the provider call runs under the global concurrency cap (``limiter``).
     """
     try:
-        note = await ExplainService(db, provider).explain(
+        note = await ExplainService(db, provider, limiter).explain(
             user_id, body.language_id, body.word, body.sentence, body.translation, guard=guard
         )
     except NotFoundError as exc:

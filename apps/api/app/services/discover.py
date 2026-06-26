@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.repositories.cards import CardsRepository
 from app.repositories.languages import LanguagesRepository
 from app.repositories.proficiency import ProficiencyRepository
@@ -48,12 +49,20 @@ if TYPE_CHECKING:
 class DiscoverService:
     """Suggest new words for a learner and turn accepted ones into cards."""
 
-    def __init__(self, session: AsyncSession, provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        provider: LLMProvider,
+        limiter: LLMConcurrencyLimiter | None = None,
+    ) -> None:
         self._provider = provider
+        # Bound provider calls under the global concurrency cap (task 3.5.1); default to the
+        # singleton and thread the same limiter into the generate flow ``accept`` delegates to.
+        self._limiter = limiter if limiter is not None else get_llm_limiter()
         self._languages = LanguagesRepository(session)
         self._cards = CardsRepository(session)
         self._proficiency = ProficiencyRepository(session)
-        self._generate = GenerateService(session, provider)
+        self._generate = GenerateService(session, provider, self._limiter)
 
     async def suggest(
         self,
@@ -74,8 +83,14 @@ class DiscoverService:
         score = await self._proficiency.get_score(user_id, language_id)
         band: str = proficiency.band_for_score(score)
         known = await self._cards.known_words(user_id, language_id)
-        suggestions: list[str] = self._provider.suggest_new_words(
-            language.name, band, known, count=count, topic=topic
+        # Blocking provider call under the global concurrency cap (task 3.5.1).
+        suggestions: list[str] = await self._limiter.run(
+            self._provider.suggest_new_words,
+            language.name,
+            band,
+            known,
+            count=count,
+            topic=topic,
         )
         return suggestions
 

@@ -67,10 +67,10 @@ _Context: the backstop that guarantees "I will never get a bill" — a project-w
 
 _Context: even within caps, bound in-flight provider calls and back off on provider 429/5xx so we never amplify load against the free tier._
 
-- [ ] **3.5.1** Global concurrency limiter (asyncio semaphore sized by `LLM_MAX_CONCURRENCY`) around every provider call; over the limit, requests wait briefly then return a friendly "busy, try again" rather than queuing unbounded.
-      verify: `pytest tests/quota/test_concurrency.py::test_semaphore_caps_inflight` — with concurrency=2 and a slow fake provider, at most 2 calls are in flight simultaneously.
-- [ ] **3.5.2** Exponential backoff with jitter on provider 429/5xx in the LLM client, capped retries; a persistent 429 surfaces as the friendly quota response, not a 500.
-      verify: `pytest tests/llm/test_backoff.py::test_retries_then_gives_up` — a fake provider returning 429 three times triggers backoff sleeps (faked clock) and then a clean quota error, not an unhandled exception.
+- [x] **3.5.1** Global concurrency limiter (asyncio semaphore sized by `LLM_MAX_CONCURRENCY`, default 4) around every provider call: `app/llm_runner.py` `LLMConcurrencyLimiter.run` offloads each blocking provider call to a worker thread (`asyncio.to_thread`) under a process-global semaphore (so the event loop stays responsive AND in-flight calls are bounded), exposed via the `get_llm_limiter()` singleton dependency (overridable in tests, `reset_llm_limiter()` rebuilds it) and threaded through `Generate`/`Discover`/`Explain` services. Over the limit a request waits briefly (bounded by `ACQUIRE_TIMEOUT_SECONDS`) then raises `ProviderBusy` → **503** `{"code":"server_busy","message":"The server is busy, please try again in a moment."}` (+ short `Retry-After`) rather than queuing unbounded. Documented in `.env.example` with the scale-out sequencing note (this cap bounds the kill-switch overshoot; multi-instance also needs the Phase-6 distributed rate limiter).
+      verify: `pytest tests/quota/test_concurrency.py::test_semaphore_caps_inflight` — with concurrency=2 and a slow fake provider recording a thread-safe in-flight high-water-mark, at most 2 calls are in flight simultaneously. ✅
+- [x] **3.5.2** Exponential backoff **with jitter** on provider 429/5xx in `lengua_core/llm/retry.py` `call_with_retry` (injectable `sleep` + injectable `rng` for deterministic-under-test full jitter: `base_delay*2**(n-1)*rng()`), capped at `max_attempts`. When transient errors persist across every attempt it raises a clean typed `LLMTransientError` (raw vendor error as `__cause__`) — mapped by an app-level handler to the same friendly **503** `server_busy` response, not an unhandled 500.
+      verify: `pytest tests/llm/test_backoff.py::test_retries_then_gives_up` — a fake provider returning 429 three times triggers backoff sleeps (faked clock) and then a clean `LLMTransientError`, not an unhandled exception; an HTTP test proves it renders 503 `server_busy`. ✅
 
 ## 3.6 — Cost minimization  ·  S
 
@@ -106,10 +106,10 @@ _Context: observability threaded through the cost guard so budget burn and cap h
 
 _Context: the growth escape hatch (see ../08-open-questions-and-costs.md) — make key resolution pluggable now so a user key could later override the operator key. DESIGN the seam; do NOT build BYOK._
 
-- [ ] **3.9.1** Introduce a `resolve_llm_key(user)` seam that today always returns the operator key from env, but is the single chokepoint a future BYOK path would override; the LLM client takes its key only from this resolver.
-      verify: `pytest tests/llm/test_key_resolution.py::test_operator_key_only` — the resolver returns the env operator key for any user, and grepping the client confirms no other code reads the key directly.
-- [ ] **3.9.2** Short design note in `docs/` (or the module docstring) describing how a per-user key would plug into the resolver and how caps/budget would skip a BYOK user later — no implementation.
-      verify: the note exists and references the resolver + `profiles.plan`; reviewer confirms no BYOK storage/UI code was added in this PR.
+- [x] **3.9.1** Introduced `resolve_llm_key(user)` in `lengua_core/llm/keys.py` — today always returns the operator key from env for the active provider (`GROQ_API_KEY`/`GEMINI_API_KEY` per `LLM_PROVIDER`); the `user` param is the inert future BYOK override point. Both `GroqProvider.from_env`/`GeminiProvider.from_env` now obtain the key ONLY through it (no module other than `keys.py` reads the key env vars). `get_provider()`/`from_env()` keep working.
+      verify: `pytest tests/llm/test_key_resolution.py::test_operator_key_only` — the resolver returns the env operator key for any user (and `None`); a grep over `lengua_core/llm/*.py` confirms the key env-var names appear only in `keys.py` (the resolver). ✅
+- [x] **3.9.2** Design note in `docs/byok-seam.md` (+ the `keys.py` module docstring) describing how a per-user key would plug into `resolve_llm_key` (branch on `user`/`profiles.plan`) and how the caps/budget gates would SKIP a BYOK user later — DESIGN ONLY.
+      verify: the note exists and references the resolver + `profiles.plan`; no BYOK storage/UI/columns were added (no new migrations, no settings UI, no per-user key branching beyond the inert `user` param). ✅
 
 ---
 

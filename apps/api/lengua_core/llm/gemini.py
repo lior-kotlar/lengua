@@ -23,6 +23,7 @@ from google.genai import errors, types
 from lengua_core.models import GeneratedCard
 from lengua_core.prompts import suggestion_instruction, system_instruction
 
+from .keys import resolve_llm_key
 from .retry import (
     EXPLAIN_MAX_TOKENS,
     GENERATE_MAX_TOKENS,
@@ -54,13 +55,13 @@ class GeminiProvider:
 
     @classmethod
     def from_env(cls) -> GeminiProvider:
-        """Build from ``GEMINI_API_KEY`` / ``GEMINI_MODEL``; fail fast if the key is unset."""
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY is not set but LLM_PROVIDER=gemini. Set GEMINI_API_KEY "
-                "(https://aistudio.google.com/apikey), or use LLM_PROVIDER=fake for tests."
-            )
+        """Build the Gemini provider; the API key comes only from :func:`resolve_llm_key`.
+
+        The key is obtained through the single key-resolution seam (task 3.9) — this class never
+        reads the key env var itself — which fails fast with a clear error when it is unset. The
+        model id still comes from ``GEMINI_MODEL`` (a non-secret).
+        """
+        api_key = resolve_llm_key(provider="gemini")
         return cls(api_key=api_key, model=os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL))
 
     @property

@@ -25,6 +25,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.repositories.cards import CardsRepository, NewCard
 from app.repositories.languages import LanguagesRepository
 from app.repositories.proficiency import ProficiencyRepository
@@ -38,11 +39,19 @@ from lengua_core.llm.base import LLMProvider
 class GenerateService:
     """Generate example-sentence card pairs and save them to a user's deck."""
 
-    def __init__(self, session: AsyncSession, provider: LLMProvider | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        provider: LLMProvider | None = None,
+        limiter: LLMConcurrencyLimiter | None = None,
+    ) -> None:
         # ``provider`` is optional so a save-only caller (the cards router) need not construct a
-        # real provider; :meth:`generate` requires one and fails fast if it was omitted.
+        # real provider; :meth:`generate` requires one and fails fast if it was omitted. ``limiter``
+        # bounds concurrent provider calls (3.5.1); it defaults to the process-wide singleton so
+        # save-only callers don't need to pass one, and routers inject the (overridable) dependency.
         self._session = session
         self._provider = provider
+        self._limiter = limiter if limiter is not None else get_llm_limiter()
         self._languages = LanguagesRepository(session)
         self._cards = CardsRepository(session)
         self._proficiency = ProficiencyRepository(session)
@@ -68,8 +77,15 @@ class GenerateService:
         band: str = proficiency.band_for_score(score)
         cleaned = [w.strip() for w in words if w.strip()]
 
-        generated = provider.generate_cards(
-            cleaned, language.name, vowelized=language.vowelized, level_band=band
+        # Run the blocking provider call under the global concurrency cap (task 3.5.1): offloaded to
+        # a thread so the event loop stays responsive, and bounded so we never overwhelm the free
+        # tier. A persistent provider 429/5xx surfaces here as ``LLMTransientError`` → friendly 503.
+        generated = await self._limiter.run(
+            provider.generate_cards,
+            cleaned,
+            language.name,
+            vowelized=language.vowelized,
+            level_band=band,
         )
         built: list[BuiltCard] = []
         for card in generated:

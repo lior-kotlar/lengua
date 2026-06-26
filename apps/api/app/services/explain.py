@@ -22,6 +22,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.quota import QuotaGuard
 from app.repositories.cards import CardsRepository
 from app.repositories.languages import LanguagesRepository
@@ -33,9 +34,16 @@ from lengua_core.llm.base import LLMProvider
 class ExplainService:
     """Explain a tapped word, caching the result on the card's ``word_explanations``."""
 
-    def __init__(self, session: AsyncSession, provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        provider: LLMProvider,
+        limiter: LLMConcurrencyLimiter | None = None,
+    ) -> None:
         self._session = session
         self._provider = provider
+        # Bound provider calls under the global concurrency cap (3.5.1); default to the singleton.
+        self._limiter = limiter if limiter is not None else get_llm_limiter()
         self._languages = LanguagesRepository(session)
         self._cards = CardsRepository(session)
 
@@ -80,7 +88,10 @@ class ExplainService:
         # pure-core import boundary) to ``str``.
         if guard is not None:
             await guard.check()
-        note: str = self._provider.explain_word(word, sentence, translation, language.name)
+        # Blocking provider call under the global concurrency cap (task 3.5.1).
+        note: str = await self._limiter.run(
+            self._provider.explain_word, word, sentence, translation, language.name
+        )
         if guard is not None:
             await guard.record_success()
         for card in cards:
