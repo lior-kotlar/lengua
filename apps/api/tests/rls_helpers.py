@@ -44,6 +44,11 @@ RLS_USER_TABLES: tuple[str, ...] = (
 #: The project-wide table that is intentionally global (no RLS — only the service role writes it).
 GLOBAL_TABLE = "llm_budget"
 
+#: The RLS tables whose primary key is an integer ``GENERATED ALWAYS AS IDENTITY`` column. Their
+#: backing sequence must be usable by the ``authenticated`` role or every INSERT would fail despite
+#: a table-level INSERT grant (the grant-coverage test, 2.6.4, asserts this).
+INTEGER_PK_TABLES: tuple[str, ...] = ("languages", "cards", "reviews")
+
 
 def build_claims(user_id: str | uuid.UUID) -> str:
     """The ``request.jwt.claims`` JSON that makes ``auth.uid()`` resolve to ``user_id``.
@@ -174,3 +179,39 @@ def user_id_tables(conn: psycopg.Connection) -> set[str]:
         "AND t.table_type = 'BASE TABLE'"
     ).fetchall()
     return {str(r[0]) for r in rows}
+
+
+# ── Role-grant introspection (coverage 2.6.4) ──────────────────────────────────────────────────
+#
+# RLS governs *which rows* a role may touch, but the role still needs the underlying table/sequence
+# privilege to touch any row at all. Supabase grants these to ``authenticated`` by default — an
+# implicit dependency the coverage test pins so a future table added without the default grants (or
+# a revoked grant) reds CI instead of 500ing on the first real authenticated write.
+
+
+def has_table_privilege(conn: psycopg.Connection, role: str, table: str, privilege: str) -> bool:
+    """Whether ``role`` holds ``privilege`` (SELECT/INSERT/UPDATE/DELETE/…) on ``public.table``."""
+    row = conn.execute(
+        "SELECT has_table_privilege(%s, %s, %s)", (role, f"public.{table}", privilege)
+    ).fetchone()
+    assert row is not None
+    return bool(row[0])
+
+
+def identity_sequence(conn: psycopg.Connection, table: str, column: str = "id") -> str | None:
+    """The name of the sequence backing ``public.table.column`` (identity/serial), or ``None``."""
+    row = conn.execute(
+        "SELECT pg_get_serial_sequence(%s, %s)", (f"public.{table}", column)
+    ).fetchone()
+    return None if row is None else (None if row[0] is None else str(row[0]))
+
+
+def has_sequence_privilege(
+    conn: psycopg.Connection, role: str, sequence: str, privilege: str
+) -> bool:
+    """Whether ``role`` holds ``privilege`` (USAGE/SELECT/UPDATE) on ``sequence``."""
+    row = conn.execute(
+        "SELECT has_sequence_privilege(%s, %s, %s)", (role, sequence, privilege)
+    ).fetchone()
+    assert row is not None
+    return bool(row[0])

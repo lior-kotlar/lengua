@@ -245,3 +245,136 @@ async def test_real_get_db_scopes_an_http_request_end_to_end() -> None:
         await engine.dispose()
         with psycopg.connect(database_url(), autocommit=True) as conn:
             conn.execute("DELETE FROM auth.users WHERE id = %s", (uid,))
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_real_get_db_persists_the_full_write_loop_under_rls() -> None:
+    """Every *other* write the app makes round-trips through the **un-overridden** ``get_db``.
+
+    The sibling test above only exercises ``/languages``. Every other API test overrides ``get_db``
+    with a privileged, RLS-bypassing session, so the production write path for cards/reviews/
+    proficiency/settings is never actually run under the ``authenticated`` role + ``WITH CHECK`` +
+    role grants. This drives all of them through the real scoped session:
+
+    * ``POST /cards/save`` — INSERT ``cards`` (identity PK ⇒ needs the sequence grant + WITH CHECK);
+    * ``POST /review/{id}/grade`` — UPDATE ``cards`` + INSERT ``reviews`` (identity PK) + upsert
+      ``proficiency``, committed together; and
+    * ``PUT /proficiency`` / ``PUT /settings`` — the two composite-PK ``ON CONFLICT`` upserts.
+
+    A missing INSERT/UPDATE grant, an un-granted identity sequence, or a repository that forgets to
+    stamp ``user_id`` (which the policy's ``WITH CHECK`` then rejects) would 500 *here* — instead of
+    on the first real production write while CI stays green. Each row is read back with a privileged
+    connection and asserted to be committed and stamped with the caller's id.
+    """
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.session import get_db as raw_get_db
+    from app.deps import get_llm_provider
+    from app.main import create_app
+    from lengua_core.llm.fake import FakeLLM
+    from tests.auth_helpers import authenticate_as
+
+    _skip_if_db_unreachable()
+    uid = uuid.uuid4()
+    with psycopg.connect(database_url(), autocommit=True) as conn:
+        conn.execute(
+            "INSERT INTO auth.users (id, email) VALUES (%s, %s)",
+            (uid, f"loop-{uid.hex[:8]}@lengua.test"),
+        )
+
+    engine = create_async_engine(async_dsn(database_url()))
+    sessionmaker = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+    async def _raw_session() -> AsyncIterator[AsyncSession]:
+        async with sessionmaker() as session:
+            yield session
+
+    app = create_app()
+    # Swap ONLY the raw session sub-dependency (loop-local engine); the scoped get_db that binds the
+    # RLS identity still runs for real, so every write below executes as the authenticated role.
+    app.dependency_overrides[raw_get_db] = _raw_session
+    app.dependency_overrides[get_llm_provider] = lambda: FakeLLM()
+    authenticate_as(app, uid)
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            # INSERT languages (identity PK + WITH CHECK) — the language the rest hangs off.
+            lang = await client.post("/languages", json={"name": "Loop", "code": "es"})
+            assert lang.status_code == 200, lang.text
+            language_id = int(lang.json()["id"])
+
+            # Build previews with the FakeLLM (no DB write) then INSERT cards (identity PK).
+            gen = await client.post(
+                "/generate", json={"language_id": language_id, "words": ["hola", "gato"]}
+            )
+            assert gen.status_code == 200, gen.text
+            previews = gen.json()
+            assert len(previews) > 0
+            saved = await client.post(
+                "/cards/save", json={"language_id": language_id, "cards": previews}
+            )
+            assert saved.status_code == 200, saved.text
+            assert len(saved.json()) == len(previews)
+
+            # Grade a new card: UPDATE cards + INSERT reviews + upsert proficiency, all committed in
+            # one authenticated-role transaction (and re-applied across the service's commit()).
+            due = await client.get("/review/due", params={"language_id": language_id})
+            assert due.status_code == 200, due.text
+            target = due.json()["new"][0]
+            graded = await client.post(f"/review/{target['id']}/grade", json={"rating": 4})
+            assert graded.status_code == 200, graded.text
+
+            # Composite-PK ON CONFLICT upserts (proficiency already has a row from the grade above,
+            # so this exercises the DO UPDATE branch; settings is a fresh INSERT).
+            prof = await client.put(f"/proficiency/{language_id}", json={"band": "B1"})
+            assert prof.status_code == 200, prof.text
+            prof_score = float(prof.json()["score"])
+            settings = await client.put("/settings", json={"values": {"daily_new_limit": "5"}})
+            assert settings.status_code == 200, settings.text
+
+        # Every write committed under the authenticated role, stamped with the caller's id. Read
+        # back over a privileged (RLS-bypassing) connection so we see exactly what landed.
+        with psycopg.connect(database_url(), autocommit=True) as conn:
+            cards_n = conn.execute(
+                "SELECT count(*) FROM cards WHERE user_id = %s AND language_id = %s",
+                (uid, language_id),
+            ).fetchone()
+            assert cards_n is not None and cards_n[0] == len(previews), (
+                "POST /cards/save did not persist all cards under RLS"
+            )
+
+            review = conn.execute(
+                "SELECT user_id FROM reviews WHERE card_id = %s", (target["id"],)
+            ).fetchone()
+            assert review is not None and review[0] == uid, (
+                "POST /review/grade did not log a review stamped with the caller's id"
+            )
+
+            rescheduled = conn.execute(
+                "SELECT due FROM cards WHERE id = %s AND user_id = %s", (target["id"], uid)
+            ).fetchone()
+            assert rescheduled is not None and rescheduled[0] is not None, (
+                "grade did not UPDATE the graded card's schedule under RLS"
+            )
+
+            prof_row = conn.execute(
+                "SELECT score FROM proficiency WHERE user_id = %s AND language_id = %s",
+                (uid, language_id),
+            ).fetchone()
+            assert prof_row is not None and prof_row[0] == pytest.approx(prof_score), (
+                "PUT /proficiency upsert did not persist the override under RLS"
+            )
+
+            setting = conn.execute(
+                "SELECT value FROM user_settings WHERE user_id = %s AND key = 'daily_new_limit'",
+                (uid,),
+            ).fetchone()
+            assert setting is not None and setting[0] == "5", (
+                "PUT /settings upsert did not persist under RLS"
+            )
+    finally:
+        await engine.dispose()
+        with psycopg.connect(database_url(), autocommit=True) as conn:
+            conn.execute("DELETE FROM auth.users WHERE id = %s", (uid,))
