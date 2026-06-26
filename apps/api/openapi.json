@@ -1174,7 +1174,7 @@
     },
     "/discover/accept": {
       "post": {
-        "description": "Generate and save cards for the accepted ``words`` (delegates to the generate flow).\n\nAccepting reuses the generate path, so it is gated and counted as ``generate`` (not\n``discover``).",
+        "description": "Generate and save cards for the accepted ``words`` (delegates to the generate flow).\n\nAccepting reuses the generate path, so it is gated and counted as ``generate`` (not\n``discover``). The ``guard`` is handed to the service so the spend is counted right after the\nprovider call and **before** the card persistence — a save failure then still counts the billed\ncall (closing the billed-but-uncounted window) instead of skipping the increment. The id passed\nto the increment is always the JWT-derived ``user_id`` (never client-supplied).",
         "operationId": "accept_discover_accept_post",
         "requestBody": {
           "content": {

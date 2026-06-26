@@ -63,11 +63,15 @@ async def accept(
     """Generate and save cards for the accepted ``words`` (delegates to the generate flow).
 
     Accepting reuses the generate path, so it is gated and counted as ``generate`` (not
-    ``discover``).
+    ``discover``). The ``guard`` is handed to the service so the spend is counted right after the
+    provider call and **before** the card persistence — a save failure then still counts the billed
+    call (closing the billed-but-uncounted window) instead of skipping the increment. The id passed
+    to the increment is always the JWT-derived ``user_id`` (never client-supplied).
     """
     try:
-        cards = await DiscoverService(db, provider).accept(user_id, body.language_id, body.words)
+        cards = await DiscoverService(db, provider).accept(
+            user_id, body.language_id, body.words, guard=guard
+        )
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    await guard.record_success()  # increments for the JWT user_id only (never client-supplied)
     return cards

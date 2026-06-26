@@ -53,14 +53,14 @@ _Context: caps are per-day; rate limiting smooths bursts (e.g. N requests/minute
 
 _Context: the backstop that guarantees "I will never get a bill" — a project-wide daily counter set safely below the active provider's free daily limit; once tripped, all LLM generation is refused for the rest of the day._
 
-- [ ] **3.4.1** Config `GLOBAL_DAILY_BUDGET` (project-wide call ceiling) documented as "set below the active provider's free RPD"; loaded via `pydantic-settings`.
-      verify: `pytest tests/test_config.py::test_global_budget_loads` passes; `.env.example` documents the var with a comment pointing at provider free-tier RPD.
-- [ ] **3.4.2** Global-budget gate in `quota.py`: when `get_budget_count(today) >= GLOBAL_DAILY_BUDGET`, refuse with a friendly response (`{code: "daily_limit_reached", message: "Daily limit reached, please try again tomorrow."}`, status 429 or 503 per 03 ordering).
-      verify: `pytest tests/quota/test_budget.py::test_kill_switch_trips` — with the counter at the ceiling, the gate returns the friendly daily-limit body; below it, the call is allowed.
-- [ ] **3.4.3** Increment `gemini_budget` (and `gemini_usage`) only on a successful provider call, in the same transaction (3.1.3), so blocked/failed calls don't burn budget.
-      verify: `pytest tests/quota/test_budget.py::test_failed_call_no_increment` — a provider error leaves both counters unchanged; a success bumps both by exactly 1.
-- [ ] **3.4.4** Integration test that trips the global kill-switch end-to-end: drive real HTTP `/generate` calls (provider faked) until the budget ceiling, then assert the next call across a *different* user also gets the friendly daily-limit response.
-      verify: `pytest tests/integration/test_global_killswitch.py` passes — budget is global, not per-user.
+- [x] **3.4.1** Config `GLOBAL_DAILY_BUDGET` (project-wide call ceiling, default 1000) documented as "set below the active provider's free RPD"; loaded via `pydantic-settings`.
+      verify: `pytest tests/test_config.py::test_global_budget_loads` passes; `.env.example` documents the var with a comment pointing at provider free-tier RPD. ✅
+- [x] **3.4.2** Global-budget gate in `quota.py` as the LAST gate: when `get_budget_count(today) >= GLOBAL_DAILY_BUDGET` (read on the privileged `get_usage_db`/`UsageSession`), refuse with a friendly response (`{code: "daily_limit_reached", message: "Daily limit reached, please try again tomorrow."}`, **status 429** — 03-backend.md lists "503/429" without mandating 503, so 429 to match the other quota gates).
+      verify: `pytest tests/quota/test_budget.py::test_kill_switch_trips` — with the counter at the ceiling, the gate returns the friendly daily-limit body; below it, the call is allowed. ✅
+- [x] **3.4.3** Increment `llm_budget` (and `llm_usage`) only on a successful provider call, atomically (3.1.3), so blocked/failed/cache-hit calls don't burn budget (check-then-increment-on-success; `record_success` runs only after the provider returns).
+      verify: `pytest tests/quota/test_budget.py::test_failed_call_no_increment` — a provider error leaves both counters unchanged; a success bumps both by exactly 1. ✅
+- [x] **3.4.4** Integration test that trips the global kill-switch end-to-end: drive real HTTP `/generate` calls (provider = FakeLLM, zero real LLM calls) until the budget ceiling, then assert the next call across a *different* user also gets the friendly daily-limit response.
+      verify: `pytest tests/integration/test_global_killswitch.py` passes — budget is global, not per-user. ✅
       depends: 3.4.2
 
 ## 3.5 — Concurrency cap & backoff honoring 429s  ·  S

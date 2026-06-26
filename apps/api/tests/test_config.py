@@ -115,3 +115,16 @@ def test_rate_limit_and_day0_caps_load(monkeypatch: pytest.MonkeyPatch) -> None:
     overridden = Settings(_env_file=None)  # type: ignore[call-arg]
     assert overridden.rate_limit_per_min == 25
     assert overridden.new_account_day0_generate_cap == 2
+
+
+# ── Task 3.4.1 — global daily budget kill-switch config ───────────────────────
+def test_global_budget_loads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``GLOBAL_DAILY_BUDGET`` falls back to its documented default and loads from env."""
+    monkeypatch.delenv("GLOBAL_DAILY_BUDGET", raising=False)
+    defaults = Settings(_env_file=None)  # type: ignore[call-arg]
+    # The conservative default — comfortably below the active provider's free RPD (.env.example).
+    assert defaults.global_daily_budget == 1000
+
+    monkeypatch.setenv("GLOBAL_DAILY_BUDGET", "3")
+    overridden = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert overridden.global_daily_budget == 3
