@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.observability import configure_observability
 from app.routers import (
@@ -21,10 +22,12 @@ from app.routers import (
     explain,
     generate,
     languages,
+    me,
     proficiency,
     review,
     settings,
 )
+from app.settings import get_settings
 
 
 def _llm_provider() -> str:
@@ -48,12 +51,27 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     # line per request, with a trace_id for correlation.
     configure_observability(application)
 
+    # CORS allowlist (Phase 2.3.4): only the configured browser/app origins may make cross-origin
+    # requests; an unlisted origin gets no Access-Control-Allow-Origin. Added last so it is the
+    # outermost layer (preflight OPTIONS short-circuit before auth/route handling).
+    cors_origins = get_settings().cors_allow_origins
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @application.get("/health")
     def health() -> dict[str, str]:
         """Liveness probe used by Cloud Run and CI smoke checks."""
         return {"status": "ok"}
 
-    # Full-loop routers, all scoped to current_user (the seeded dev user until Phase 2 JWT):
+    # The JWT smoke-protected identity route (everything below is scoped to current_user).
+    application.include_router(me.router)
+
+    # Full-loop routers, all scoped to current_user:
     # languages -> generate -> save -> review, plus discover/explain/proficiency/settings.
     application.include_router(languages.router)
     application.include_router(generate.router)

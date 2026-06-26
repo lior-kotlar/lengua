@@ -39,14 +39,14 @@ _Context: the built-in Supabase mailer is dev-only and rate-limited; wire a real
 
 _Context: FastAPI must verify the Supabase JWT on every request (signature + expiry + audience), extract the user UUID, and never trust a client-supplied id (see 03 `app/auth.py`, `app/deps.py`)._
 
-- [ ] **2.3.1** Implement `app/auth.py` JWT verification using the Supabase JWT secret (HS256) and/or JWKS URL (RS256) from `pydantic-settings`, validating signature, `exp`, and `aud`; expose a typed `CurrentUser` model carrying `id` (UUID from `sub`) and `email_verified`.
-      verify: `pytest tests/test_jwt.py` passes including cases that a valid Supabase-issued token yields the correct `sub`, and that signature/aud/exp are all checked (a token with a wrong audience is rejected).
-- [ ] **2.3.2** Add the FastAPI `current_user` dependency in `app/deps.py` that extracts the `Authorization: Bearer` token, runs verification, and returns `CurrentUser`; return 401 on missing/invalid token. Apply it to a smoke-protected route.
-      verify: `curl /me` with no token returns 401; with a valid token returns 200 and the token's user id; `pytest tests/test_deps.py` covers both.
-- [ ] **2.3.3** Harden rejection of malicious tokens: expired tokens, tokens with a forged/incorrect signature, and `alg: none` ("none-alg") tokens must all be rejected with 401.
-      verify: `pytest tests/test_jwt_rejection.py` asserts 401 for (a) an expired token, (b) a token re-signed with a wrong key, and (c) a hand-crafted `{"alg":"none"}` token — all three rejected.
-- [ ] **2.3.4** Wire a CORS allowlist (web origins + Capacitor app scheme) and reject unknown origins, since JWT-bearing requests now come from real browsers/apps (see 07).
-      verify: `pytest tests/test_cors.py` shows a preflight from a listed origin returns the `Access-Control-Allow-Origin` header and a request from an unlisted origin does not.
+- [x] **2.3.1** Implement `app/auth.py` JWT verification using the Supabase JWT secret (HS256) and/or JWKS URL (RS256) from `pydantic-settings`, validating signature, `exp`, and `aud`; expose a typed `CurrentUser` model carrying `id` (UUID from `sub`) and `email_verified`.
+      verify: `pytest tests/test_jwt.py` passes including cases that a valid Supabase-issued token yields the correct `sub`, and that signature/aud/exp are all checked (a token with a wrong audience is rejected). ✅ `tests/test_jwt.py` (12 cases incl. HS256 valid/wrong-aud/expired/forged-sig/blank-&-non-UUID-sub, RS256-via-JWKS, and an HS/RS algorithm-confusion guard).
+- [x] **2.3.2** Add the FastAPI `current_user` dependency in `app/deps.py` that extracts the `Authorization: Bearer` token, runs verification, and returns `CurrentUser`; return 401 on missing/invalid token. Apply it to a smoke-protected route.
+      verify: `curl /me` with no token returns 401; with a valid token returns 200 and the token's user id; `pytest tests/test_deps.py` covers both. ✅ live `curl /me` → 401 (no token) / 200 `{"id":…}` (valid token); `tests/test_deps.py` covers both + garbage/non-Bearer → 401. (`get_current_user` returns `CurrentUser`; the back-compat `current_user` projects it to the bare UUID the Phase 1 routers already depend on, so they are now JWT-protected too.)
+- [x] **2.3.3** Harden rejection of malicious tokens: expired tokens, tokens with a forged/incorrect signature, and `alg: none` ("none-alg") tokens must all be rejected with 401.
+      verify: `pytest tests/test_jwt_rejection.py` asserts 401 for (a) an expired token, (b) a token re-signed with a wrong key, and (c) a hand-crafted `{"alg":"none"}` token — all three rejected. ✅ all three rejected at both the verifier (`AuthError`) and `GET /me` (HTTP 401).
+- [x] **2.3.4** Wire a CORS allowlist (web origins + Capacitor app scheme) and reject unknown origins, since JWT-bearing requests now come from real browsers/apps (see 07).
+      verify: `pytest tests/test_cors.py` shows a preflight from a listed origin returns the `Access-Control-Allow-Origin` header and a request from an unlisted origin does not. ✅ allowlist driven by `CORS_ALLOW_ORIGINS` (documented in `.env.example`); preflight + simple-request, listed vs unlisted, both covered.
 
 ## 2.4 — Replace seeded user with current_user (per-user scoping)  ·  M
 

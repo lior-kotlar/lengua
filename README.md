@@ -39,12 +39,18 @@ root, one root `pnpm-lock.yaml`). `apps/api` is a separate uv/Python project.
 ### API endpoints (Phase 1 — full loop)
 
 Beyond `GET /health`, the FastAPI service serves the whole Generate→Save→Review→Discover loop
-over HTTP. Until Phase 2 adds Supabase-JWT auth, every request is scoped to a single seeded
-**dev user** (`current_user`); point `DATABASE_URL` at a Postgres (e.g. the local Supabase CLI
-stack) and seed it with `uv run python scripts/seed_dev_user.py`.
+over HTTP. The backend **verifies a Supabase access token (JWT) on every request** (Phase 2.3):
+the `current_user` dependency checks the token's signature, `exp` and `aud` and derives the user
+id from `sub` — HS256 against `SUPABASE_JWT_SECRET` by default, or RS256/ES256 via a configured
+`SUPABASE_JWKS_URL`. Requests with a missing/invalid token get `401`; only `GET /health` is open.
+A strict **CORS allowlist** (`CORS_ALLOW_ORIGINS`, defaulting to local web origins + the Capacitor
+scheme) fronts the API. For local work, point `DATABASE_URL` at a Postgres (e.g. the local
+Supabase CLI stack), seed it with `uv run python scripts/seed_dev_user.py`, and send
+`Authorization: Bearer <token>` (a JWT signed with the project's `SUPABASE_JWT_SECRET`).
 
 | Method + path | Purpose |
 | --- | --- |
+| `GET /me` | The authenticated user's identity (`id`, `email_verified`) from the verified token. |
 | `GET/POST/DELETE /languages`, `PATCH /languages/{id}` | List/add/remove a language; `PATCH` toggles `vowelized`. |
 | `POST /generate` | `{language_id, words}` → recognition+production card previews (unsaved). |
 | `POST /cards/save` | Persist generated previews into the deck (`saved=true`). |

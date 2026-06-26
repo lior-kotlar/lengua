@@ -29,6 +29,7 @@ from lengua_core.llm.base import LLMProvider
 from lengua_core.llm.fake import FakeLLM
 from scripts.seed_dev_user import DEV_USER_ID as _DEV_USER_ID
 from scripts.seed_dev_user import seed_dev_user
+from tests.auth_helpers import authenticate_as
 from tests.conftest import _skip_if_db_unreachable
 
 DEV_USER_UUID = uuid.UUID(_DEV_USER_ID)
@@ -50,6 +51,9 @@ async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
 
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_llm_provider] = _override_provider
+    # Authenticate every request as the seeded dev user (routes now require a verified JWT; the
+    # override stands in for one so the Phase 1 HTTP tests keep exercising the routers).
+    authenticate_as(app, DEV_USER_UUID)
     FakeLLM.reset_call_count()
 
     transport = ASGITransport(app=app)
