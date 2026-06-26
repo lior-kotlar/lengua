@@ -26,6 +26,7 @@ from app.quota import (
     enforce_daily_cap,
     resolve_user_cap,
 )
+from app.ratelimit import InProcessRateLimiter
 from app.repositories.settings import SettingsRepository
 from app.repositories.usage import UsageRepository
 from app.settings import Settings
@@ -92,14 +93,17 @@ async def test_daily_cap_blocks(db_session: AsyncSession) -> None:
         await enforce_daily_cap(db_session, settings, DEV_USER_ID, kind)
     assert exc_info.value.kind == kind
 
-    # The same check via QuotaGuard.check (the dependency path) raises identically; a different
-    # kind under the same user is unaffected (its own count is still 0 < its cap).
+    # The same check via QuotaGuard.check (the dependency path) raises identically; a different kind
+    # under the same user is unaffected (count still 0 < its cap). The guard runs the full chain, so
+    # it is built email-verified with an unlimited limiter to isolate the cap gate.
     guard = QuotaGuard(
         kind=kind,
         user_id=DEV_USER_ID,
+        email_verified=True,
         db=db_session,
         usage_db=db_session,  # type: ignore[arg-type]  # superuser session stands in for UsageSession
         settings=settings,
+        rate_limiter=InProcessRateLimiter(limit=1000),
     )
     with pytest.raises(DailyCapReached):
         await guard.check()

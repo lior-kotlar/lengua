@@ -1,18 +1,28 @@
-"""LLM cost-guard gates (Phase 3) — currently the per-user daily-cap gate (group 3.2).
+"""LLM cost-guard gates (Phase 3).
 
 Every LLM-spending request passes a *gate chain* before the provider is called. The documented
 order (``planning/03-backend.md``) is::
 
     email-verified  →  rate-limit  →  daily-cap  →  global-budget
 
-This module is the single chokepoint that chain lives in. **Group 3.2 implements only the
-daily-cap gate**; the other three slot in around it without touching the call sites:
+This module is the single chokepoint that chain lives in, and :meth:`QuotaGuard.check` evaluates the
+gates **in that order**, so the highest-priority (earliest) failure is the one that surfaces. The
+gates landed across groups:
 
-* email-verified (3.7) and rate-limit (3.3) run *before* the daily-cap check — add them at the top
-  of :meth:`QuotaGuard.check`;
-* the global-budget kill-switch (3.4) runs *after* the daily-cap check (read ``get_budget_count``
-  on the privileged usage session already wired in here) — add it at the bottom of
-  :meth:`QuotaGuard.check`.
+* **email-verified** (3.7.1) — only a verified account may spend the shared operator key; an
+  unverified caller is refused with **403** ``{"code": "email_unverified"}`` before any limiter,
+  counter, or provider is touched.
+* **rate-limit** (3.3.2) — a per-user sliding window (:mod:`app.ratelimit`) counted across *all*
+  gated kinds; over :data:`Settings.rate_limit_per_min` it refuses with **429**
+  ``{"code": "rate_limited"}`` and a ``Retry-After`` header. The token is consumed the moment the
+  request reaches this gate (i.e. after passing email), regardless of whether the daily-cap gate
+  below then blocks — rate limiting is about *frequency*.
+* **daily-cap** (3.2) — the per-user, per-kind daily ceiling; ``generate`` additionally gets the
+  signup-abuse **day-0 clamp** (3.7.2: a brand-new account's effective generate cap is reduced for
+  its first UTC day).
+* **global-budget** kill-switch (3.4) — slots in *after* the daily-cap check (read
+  ``get_budget_count`` on the privileged usage session already wired in here). **Not built yet** —
+  group 3.4 adds it at the bottom of :meth:`QuotaGuard.check`.
 
 The gate is applied two ways, both sharing this one :class:`QuotaGuard`:
 
@@ -50,6 +60,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import CurrentUser
 from app.db.session import UsageSession
 from app.deps import get_current_user, get_db, get_usage_db
+from app.ratelimit import RateLimiter, get_rate_limiter
+from app.repositories.profiles import ProfilesRepository
 from app.repositories.settings import SettingsRepository
 from app.repositories.usage import UsageRepository
 from app.settings import Settings, get_settings
@@ -78,6 +90,27 @@ _SERVER_DEFAULT: dict[Kind, Callable[[Settings], int]] = {
     "discover": lambda s: s.default_discover_per_day,
     "explain": lambda s: s.default_explain_per_day,
 }
+
+
+class EmailUnverified(Exception):
+    """Raised by the first gate (3.7.1) when the caller's email is not verified.
+
+    Rendered as **403** ``{"code": "email_unverified"}`` by the registered handler. Like the other
+    gate errors it is a bare ``Exception`` so it surfaces identically from the route dependency and
+    from inside ``ExplainService`` (cache miss), both converted by the app-level handler.
+    """
+
+
+class RateLimited(Exception):
+    """Raised by the rate-limit gate (3.3.2) when the per-user sliding window is full.
+
+    Carries ``retry_after`` (whole seconds until a slot frees) so the handler can render **429**
+    ``{"code": "rate_limited"}`` with a matching ``Retry-After`` header.
+    """
+
+    def __init__(self, retry_after: int) -> None:
+        self.retry_after = retry_after
+        super().__init__("Rate limit exceeded.")
 
 
 class DailyCapReached(Exception):
@@ -121,16 +154,43 @@ async def resolve_user_cap(
     return min(user_cap, server_max)
 
 
+async def _account_created_today(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    """True when ``user_id``'s profile was created on the current UTC day (a day-0 account).
+
+    Reads ``profiles.created_at`` via :class:`~app.repositories.profiles.ProfilesRepository` on the
+    request (RLS-scoped) session — a user can always read their own profile. A missing profile is
+    treated as *established* (return False) so the day-0 clamp never *over*-restricts on an
+    unexpected absence; the gate above it (email-verified) already guarantees a real caller.
+    """
+    profile = await ProfilesRepository(db).get(user_id)
+    if profile is None:
+        return False
+    return profile.created_at.astimezone(UTC).date() == _utc_today()
+
+
 async def enforce_daily_cap(
     db: AsyncSession, settings: Settings, user_id: uuid.UUID, kind: Kind
 ) -> None:
     """The daily-cap gate: raise :class:`DailyCapReached` when the user is at/over their cap.
 
-    Compares today's ``get_user_daily_count`` (RLS-scoped read on the request session) to
-    :func:`resolve_user_cap`; refuses with a 429 once ``count >= cap``. Read-only — it never
-    increments (that is :meth:`QuotaGuard.record_success`, post-success).
+    Compares today's ``get_user_daily_count`` (RLS-scoped read on the request session) to the
+    effective cap; refuses with a 429 once ``count >= cap``. Read-only — it never increments (that
+    is :meth:`QuotaGuard.record_success`, post-success).
+
+    **Signup-abuse day-0 clamp (3.7.2).** For ``generate`` the effective cap is
+    ``min(resolve_user_cap(...), NEW_ACCOUNT_DAY0_GENERATE_CAP)`` while the account is on its first
+    UTC day, so a brand-new account hits a reduced ceiling sooner and a burst of throwaway signups
+    can't drain the shared key on day one. Established accounts use their normal resolved cap. The
+    profile read is skipped when the resolved cap is already ``<=`` the day-0 ceiling (the clamp
+    could not lower it). The clamp is generate-only for now; ``discover``/``explain`` could get
+    their own day-0 ceilings later. (A CAPTCHA challenge on signup / first generate would slot in
+    here as an additional day-0 gate — DESIGN-ONLY; not built.)
     """
     cap = await resolve_user_cap(db, settings, user_id, kind)
+    if kind == "generate":
+        day0_cap = settings.new_account_day0_generate_cap
+        if cap > day0_cap and await _account_created_today(db, user_id):
+            cap = day0_cap
     count = await UsageRepository(db).get_user_daily_count(user_id, kind, _utc_today())
     if count >= cap:
         raise DailyCapReached(kind)
@@ -150,24 +210,40 @@ class QuotaGuard:
         *,
         kind: Kind,
         user_id: uuid.UUID,
+        email_verified: bool,
         db: AsyncSession,
         usage_db: UsageSession,
         settings: Settings,
+        rate_limiter: RateLimiter,
     ) -> None:
         self._kind = kind
         self._user_id = user_id
+        self._email_verified = email_verified
         self._db = db
         self._usage_db = usage_db
         self._settings = settings
+        self._rate_limiter = rate_limiter
 
     async def check(self) -> None:
-        """Run the gate chain; raise on the first failing gate.
+        """Run the gate chain in documented order; raise on the first (highest-priority) failure.
 
-        Today this is just the daily-cap gate (3.2). The documented order means future gates wrap
-        it: email-verified (3.7) + rate-limit (3.3) go *above* this line, the global-budget
-        kill-switch (3.4) goes *below* it.
+        Order (``planning/03-backend.md``): **email-verified → rate-limit → daily-cap →
+        global-budget**. The rate-limit token is consumed once the request passes the email gate,
+        even if the daily-cap gate then blocks (rate limiting is about frequency, not success).
         """
+        # 1) email-verified (3.7.1): the very first gate — no LLM spend for an unverified account.
+        if not self._email_verified:
+            raise EmailUnverified
+
+        # 2) rate-limit (3.3.2): per-user sliding window across all gated kinds; consumes a token.
+        decision = self._rate_limiter.hit(self._user_id)
+        if not decision.allowed:
+            raise RateLimited(decision.retry_after)
+
+        # 3) daily-cap (3.2) + the generate-only day-0 signup-abuse clamp (3.7.2).
         await enforce_daily_cap(self._db, self._settings, self._user_id, self._kind)
+
+        # 4) global-budget kill-switch (3.4) slots in HERE (below the daily cap) — group 3.4.
 
     async def record_success(self) -> None:
         """Count one successful provider call: atomically bump ``llm_usage`` + ``llm_budget``.
@@ -198,13 +274,38 @@ def quota_guard(kind: Kind, *, enforce: bool = True) -> Callable[..., Awaitable[
         db: Annotated[AsyncSession, Depends(get_db)],
         usage_db: Annotated[UsageSession, Depends(get_usage_db)],
         settings: Annotated[Settings, Depends(get_settings)],
+        rate_limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
     ) -> QuotaGuard:
-        guard = QuotaGuard(kind=kind, user_id=user.id, db=db, usage_db=usage_db, settings=settings)
+        guard = QuotaGuard(
+            kind=kind,
+            user_id=user.id,
+            email_verified=user.email_verified,
+            db=db,
+            usage_db=usage_db,
+            settings=settings,
+            rate_limiter=rate_limiter,
+        )
         if enforce:
             await guard.check()
         return guard
 
     return _dependency
+
+
+async def _email_unverified_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Render :class:`EmailUnverified` as the contract body with HTTP 403."""
+    assert isinstance(exc, EmailUnverified)  # registered only for EmailUnverified
+    return JSONResponse(status_code=403, content={"code": "email_unverified"})
+
+
+async def _rate_limited_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Render :class:`RateLimited` as the contract body with HTTP 429 + a ``Retry-After`` header."""
+    assert isinstance(exc, RateLimited)  # registered only for RateLimited
+    return JSONResponse(
+        status_code=429,
+        content={"code": "rate_limited"},
+        headers={"Retry-After": str(exc.retry_after)},
+    )
 
 
 async def _daily_cap_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -218,4 +319,6 @@ async def _daily_cap_handler(request: Request, exc: Exception) -> JSONResponse:
 
 def register_quota_handlers(app: FastAPI) -> None:
     """Wire the cost-guard exception handlers onto ``app`` (called from ``create_app``)."""
+    app.add_exception_handler(EmailUnverified, _email_unverified_handler)
+    app.add_exception_handler(RateLimited, _rate_limited_handler)
     app.add_exception_handler(DailyCapReached, _daily_cap_handler)

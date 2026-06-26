@@ -42,12 +42,12 @@ _Context: each LLM `kind` (generate / discover / explain) has a per-user daily c
 
 _Context: caps are per-day; rate limiting smooths bursts (e.g. N requests/minute) so one user can't hammer the provider's RPM ceiling._
 
-- [ ] **3.3.1** Choose and wire the limiter backend (slowapi in-process for single instance, or a Postgres/Upstash sliding-window counter for multi-instance) behind a small `RateLimiter` interface keyed by `user_id`.
-      verify: `pytest tests/quota/test_ratelimit.py::test_window_counts` — within one window the counter increments and resets after the window elapses (clock injected/faked).
-- [ ] **3.3.2** Rate-limit gate in `quota.py` running before the daily-cap gate; over the per-user `RATE_LIMIT_PER_MIN` it raises 429 with `Retry-After` and body `{code: "rate_limited"}`.
-      verify: `pytest tests/quota/test_ratelimit.py::test_blocks_over_limit` — the (limit+1)th call within the window returns 429 with a `Retry-After` header; a later call after the window passes.
-- [ ] **3.3.3** Confirm gate ordering matches 03-backend.md: email-verified → rate limit → daily cap → global budget.
-      verify: `pytest tests/quota/test_gate_order.py::test_order` — a request failing multiple gates surfaces the highest-priority failure (e.g. unverified email returns 403 even when also rate-limited).
+- [x] **3.3.1** Wired the limiter behind a small `RateLimiter` Protocol (keyed by `user_id`) in new `app/ratelimit.py`. **Decision (locked): in-process, NO new dependency** — an `InProcessRateLimiter` sliding-window-log with an **injectable clock** (default `time.monotonic`; tests fake it), exposed via the `get_rate_limiter()` dependency returning a process-wide singleton (overridable in tests). slowapi rejected (heavier, harder to fake the clock). The module docstring flags the **Phase-6 distributed (Postgres/Upstash) swap** (Cloud Run may scale >1 instance → in-process under-counts).
+      verify: `pytest tests/quota/test_ratelimit.py::test_window_counts` — within one window the counter increments and resets after the window elapses (clock injected/faked). ✅
+- [x] **3.3.2** Rate-limit gate in `QuotaGuard.check` running AFTER email and BEFORE the daily-cap gate; over the per-user `RATE_LIMIT_PER_MIN` (new env setting, default 10, documented in `.env.example`) it raises `RateLimited` → **429** with a `Retry-After` header (seconds until the window frees) and body `{code: "rate_limited"}`. Keyed by `user_id`, counting ALL gated kinds; the token is consumed once the request passes the email gate (even if the cap then blocks).
+      verify: `pytest tests/quota/test_ratelimit.py::test_blocks_over_limit` — the (limit+1)th call within the window returns 429 with a `Retry-After` header; a later call after the window passes. ✅
+- [x] **3.3.3** Gate ordering enforced in `QuotaGuard.check` exactly as 03-backend.md: **email-verified → rate-limit → daily-cap → global-budget** (the 3.4 global-budget slot is ordered but not built here), so the earliest failure surfaces.
+      verify: `pytest tests/quota/test_gate_order.py::test_order` — a request failing email+rate+cap surfaces them in order as the gates are relaxed (403 `email_unverified` → 429 `rate_limited` → 429 `daily_cap_reached`). ✅
 
 ## 3.4 — Global daily budget kill-switch  ·  M
 
@@ -87,11 +87,11 @@ _Context: cheapest call is the one you don't make; cap request size/output and r
 
 _Context: gate the gate — only verified accounts reach the LLM, with a light guard against signup-spam abuse of the shared key._
 
-- [ ] **3.7.1** Email-verified check as the first gate (403 when the JWT/profile shows email unverified), running before rate limit/caps.
-      verify: `pytest tests/quota/test_eligibility.py::test_unverified_blocked` — an unverified user calling `/generate` gets 403 `{code: "email_unverified"}` and no provider call happens.
+- [x] **3.7.1** Email-verified check as the FIRST gate in `QuotaGuard.check` (uses the verified-JWT `CurrentUser.email_verified`): an unverified caller is refused with `EmailUnverified` → **403** `{code: "email_unverified"}` before any rate limiter, counter, or provider is touched.
+      verify: `pytest tests/quota/test_eligibility.py::test_unverified_blocked` — an unverified user calling `/generate` gets 403 `{code: "email_unverified"}` and no provider call happens. ✅
       depends: Phase 2 (email verification)
-- [ ] **3.7.2** Basic signup-abuse guard: cap new-account LLM usage on day 0 (lower first-day cap or a short cooldown after signup) configurable via env; document where a captcha challenge would slot in.
-      verify: `pytest tests/quota/test_abuse_guard.py::test_new_account_cooldown` — an account created "today" hits the reduced first-day ceiling sooner than an established account.
+- [x] **3.7.2** Signup-abuse day-0 guard: a brand-new account (its `profiles.created_at` is on the current UTC day) gets a reduced first-day generate ceiling — effective generate cap = `min(resolve_user_cap(...,'generate'), NEW_ACCOUNT_DAY0_GENERATE_CAP)` (new env setting, default 5, documented in `.env.example`). Implemented as a clamp inside `enforce_daily_cap`'s generate path (reads `Profile.created_at` via `ProfilesRepository`); established accounts use the normal cap. A code comment notes where a CAPTCHA challenge would slot in (DESIGN-ONLY — not built). Generate-only for now (discover/explain could get their own day-0 caps later).
+      verify: `pytest tests/quota/test_abuse_guard.py::test_new_account_cooldown` — an account created "today" hits the reduced first-day ceiling sooner than an established account. ✅
 
 ## 3.8 — Metrics & spans per LLM call  ·  S
 

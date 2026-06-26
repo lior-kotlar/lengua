@@ -104,15 +104,29 @@ flows above keep working.)
 
 The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E).
 
-**Usage & cost limits.** Each LLM endpoint enforces a per-user **daily cap** per kind
-(`generate` / `discover` / `explain`; `/discover/accept` counts as `generate`). A user's own cap
-(set in their settings as `daily_cap_generate` / `daily_cap_discover` / `daily_cap_explain`) is
-clamped by a hard server maximum, and a generous default applies when unset — all configurable via
-env (`MAX_*_PER_DAY` / `DEFAULT_*_PER_DAY`; see [`.env.example`](.env.example)). Once a user is at
-their cap for the day, that endpoint returns **HTTP 429** with body
-`{"code": "daily_cap_reached", "kind": "<kind>"}`. Caps count only **successful** provider calls;
-`/explain` is cached, so a cache hit costs nothing (no cap, no count) — only a cache miss is
-counted.
+**Usage & cost limits.** Every LLM request passes a gate chain before the provider is called, in
+order **email-verified → rate-limit → daily-cap** (a global daily kill-switch lands later in
+Phase 3); the earliest failure is the one returned.
+
+- **Email verified first.** Generation requires a verified email — an unverified account gets
+  **HTTP 403** `{"code": "email_unverified"}` and no provider call.
+- **Per-user rate limit.** A sliding window caps gated LLM requests per user per minute across all
+  kinds (`RATE_LIMIT_PER_MIN`, default 10). Over it, the API returns **HTTP 429**
+  `{"code": "rate_limited"}` with a `Retry-After` header (seconds until the window frees). The
+  limiter is in-process today (single instance); the distributed swap for multi-instance is a
+  Phase-6 task.
+- **Per-user daily cap** per kind (`generate` / `discover` / `explain`; `/discover/accept` counts as
+  `generate`). A user's own cap (settings `daily_cap_generate` / `daily_cap_discover` /
+  `daily_cap_explain`) is clamped by a hard server maximum, with a generous default when unset — all
+  env-configurable (`MAX_*_PER_DAY` / `DEFAULT_*_PER_DAY`). At/over the cap, the endpoint returns
+  **HTTP 429** `{"code": "daily_cap_reached", "kind": "<kind>"}`.
+- **New-account guard.** A freshly-created account gets a reduced first-day `generate` ceiling
+  (`NEW_ACCOUNT_DAY0_GENERATE_CAP`, default 5) so signup-spam can't drain the shared key on day one;
+  established accounts use their normal cap.
+
+Caps count only **successful** provider calls; `/explain` is cached, so a cache hit costs nothing
+(no gate, no count) — only a cache miss is gated and counted. All limits are in
+[`.env.example`](.env.example).
 
 ### API contract & typed client (`packages/api-types`)
 
