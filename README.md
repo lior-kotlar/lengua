@@ -32,7 +32,7 @@ root, one root `pnpm-lock.yaml`). `apps/api` is a separate uv/Python project.
 | App | Location | How to run | Status |
 | --- | --- | --- | --- |
 | API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
-| Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (placeholder home); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
+| Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (app shell: theming, routing, screen stubs — copy `apps/web/.env.example` to `.env`); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
 | API types | `packages/api-types/` | `pnpm --filter api-types generate` (re-derive TS types from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
