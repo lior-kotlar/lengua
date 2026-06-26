@@ -99,3 +99,19 @@ def test_quota_ceilings_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert overridden.default_explain_per_day == 3
     # Untouched ones still fall back to defaults.
     assert overridden.max_discover_per_day == 30
+
+
+# ── Tasks 3.3.2 / 3.7.2 — rate-limit + signup-abuse day-0 config ──────────────
+def test_rate_limit_and_day0_caps_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The per-minute rate limit and day-0 generate cap fall back to defaults and load from env."""
+    for var in ("RATE_LIMIT_PER_MIN", "NEW_ACCOUNT_DAY0_GENERATE_CAP"):
+        monkeypatch.delenv(var, raising=False)
+    defaults = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert defaults.rate_limit_per_min == 10
+    assert defaults.new_account_day0_generate_cap == 5
+
+    monkeypatch.setenv("RATE_LIMIT_PER_MIN", "25")
+    monkeypatch.setenv("NEW_ACCOUNT_DAY0_GENERATE_CAP", "2")
+    overridden = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert overridden.rate_limit_per_min == 25
+    assert overridden.new_account_day0_generate_cap == 2

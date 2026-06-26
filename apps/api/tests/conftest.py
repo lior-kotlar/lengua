@@ -232,6 +232,7 @@ async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClien
     from app.db.session import UsageSession
     from app.deps import get_db, get_llm_provider, get_usage_db
     from app.main import create_app
+    from app.ratelimit import InProcessRateLimiter, RateLimiter, get_rate_limiter
     from lengua_core.llm.base import LLMProvider
     from lengua_core.llm.fake import FakeLLM
     from scripts.seed_dev_user import seed_dev_user
@@ -254,9 +255,17 @@ async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClien
     def _override_provider() -> LLMProvider:
         return FakeLLM()
 
+    # Fresh, effectively-unlimited per-user rate limiter (Phase 3.3) so cross-tenant assertions
+    # aren't perturbed by the per-minute ceiling and no global window bleeds across tests.
+    test_rate_limiter = InProcessRateLimiter(limit=1_000_000)
+
+    def _override_rate_limiter() -> RateLimiter:
+        return test_rate_limiter
+
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_usage_db] = _override_get_usage_db
     app.dependency_overrides[get_llm_provider] = _override_provider
+    app.dependency_overrides[get_rate_limiter] = _override_rate_limiter
     install_test_auth(app)  # verify real bearer tokens against the test secret
     FakeLLM.reset_call_count()
 

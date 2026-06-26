@@ -44,6 +44,20 @@ class Settings(BaseSettings):
     default_discover_per_day: int = 10
     default_explain_per_day: int = 50
 
+    # ── LLM cost guard — per-user rate limit (Phase 3.3) ──────────────────────
+    # Per-user sliding-window request ceiling, counted across ALL gated LLM kinds (generate /
+    # discover / explain). Smooths bursts against the provider's RPM ceiling — distinct from the
+    # per-kind *daily* caps above. In-process today (single instance); the distributed swap is a
+    # Phase-6 concern (see ``app/ratelimit.py``).
+    rate_limit_per_min: int = 10
+
+    # ── LLM cost guard — signup-abuse day-0 guard (Phase 3.7) ─────────────────
+    # A freshly-created account (its ``profiles.created_at`` falls on the current UTC day) gets a
+    # reduced first-day ``generate`` ceiling, so a burst of throwaway signups can't drain the shared
+    # operator key on day one. The effective generate cap is ``min(resolved_cap, this)``;
+    # established accounts use their normal cap.
+    new_account_day0_generate_cap: int = 5
+
     # ── App ───────────────────────────────────────────────────────────────────
     env: str = "local"
 

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import UsageSession
 from app.deps import get_db, get_llm_provider, get_usage_db
 from app.main import create_app
+from app.ratelimit import InProcessRateLimiter, RateLimiter, get_rate_limiter
 from lengua_core.llm.base import LLMProvider
 from lengua_core.llm.fake import FakeLLM
 from scripts.seed_dev_user import DEV_USER_ID as _DEV_USER_ID
@@ -59,9 +60,19 @@ async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
     def _override_provider() -> LLMProvider:
         return FakeLLM()
 
+    # The per-user rate limiter (Phase 3.3) is process-wide global state. Hand each test its own
+    # fresh, effectively-unlimited limiter so the global window can't bleed across tests and the
+    # generic API tests (which fire many gated calls) never trip the real per-minute ceiling — the
+    # dedicated rate-limit tests in ``tests/quota`` install their own small-limit limiter instead.
+    test_rate_limiter = InProcessRateLimiter(limit=1_000_000)
+
+    def _override_rate_limiter() -> RateLimiter:
+        return test_rate_limiter
+
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_usage_db] = _override_get_usage_db
     app.dependency_overrides[get_llm_provider] = _override_provider
+    app.dependency_overrides[get_rate_limiter] = _override_rate_limiter
     # Authenticate every request as the seeded dev user (routes now require a verified JWT; the
     # override stands in for one so the Phase 1 HTTP tests keep exercising the routers).
     authenticate_as(app, DEV_USER_UUID)

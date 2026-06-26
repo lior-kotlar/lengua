@@ -197,13 +197,34 @@ rolled-back `db_session` (hermetic, no committed counter pollution); `tests/test
 loop now also overrides `get_usage_db` onto its loop-local engine (so the newly-gated `/generate` doesn't leak a
 process-wide-engine connection across event loops). 3.3–3.9 not started.
 
+🛠 **3.3 + 3.7 landed (per-user rate limit + email-verified gate + signup-abuse guard)** — new
+`app/ratelimit.py`: a `RateLimiter` Protocol + an in-process sliding-window-log `InProcessRateLimiter`
+with an **injectable clock** (default `time.monotonic`), via the process-wide-singleton
+`get_rate_limiter()` dependency. **Locked decision implemented: in-process, NO slowapi** (heavier,
+harder to fake the clock); the module docstring + this log flag the **Phase-6 distributed
+(Postgres/Upstash) swap** (Cloud Run >1 instance → in-process under-counts). `QuotaGuard.check` now
+runs the FULL documented chain **email-verified → rate-limit → daily-cap (→ global-budget slot)**:
+3.7.1 email gate (`CurrentUser.email_verified` false → **403** `{"code":"email_unverified"}`, zero
+provider calls, FIRST gate); 3.3.2 rate gate (over `RATE_LIMIT_PER_MIN`=10 → **429**
+`{"code":"rate_limited"}` + `Retry-After`; keyed by `user_id`, counts ALL gated kinds; token consumed
+once past email even if the cap then blocks); 3.3.3 ordering proven by `test_gate_order.py` (relax the
+gates one at a time → 403→429 rate→429 cap). 3.7.2 day-0 clamp in `enforce_daily_cap`: a day-0 account
+(its `profiles.created_at` is today-UTC, read via `ProfilesRepository`) gets effective generate cap =
+`min(resolved, NEW_ACCOUNT_DAY0_GENERATE_CAP=5)`; established accounts unaffected; CAPTCHA slot is a
+code comment only (not built). `RATE_LIMIT_PER_MIN` + `NEW_ACCOUNT_DAY0_GENERATE_CAP` documented in
+`.env.example`; README updated; routers + `openapi.json` unchanged (gates = app-level exceptions + a
+dependency, no schema delta). Tests: `tests/quota/{test_eligibility,test_ratelimit,test_gate_order,test_abuse_guard}.py`
+(+ a `test_config` rate/day-0 load test); api fixtures override `get_rate_limiter` with a fresh
+per-test limiter for isolation. Backend gate green (396 tests, **100.00%** line+branch cov;
+`app/quota.py` + `app/ratelimit.py` both 100%). 3.4–3.6, 3.8–3.9 not started.
+
 | | Question / decision | Default I'm using | Task |
 |---|---|---|---|
 | ❓ | **`GLOBAL_DAILY_BUDGET`** — project-wide daily LLM-call ceiling, "set below the active provider's free RPD". Needs a real number vs Groq `llama-3.1-8b-instant` free-tier requests/day. | a conservative value comfortably below Groq's free daily limit; documented in `.env.example` with a pointer to the provider RPD | 3.4.1 |
 | ❓ | **Per-user daily caps + hard server maxima** (`MAX_GENERATE/DISCOVER/EXPLAIN_PER_DAY`) + defaults. | modest env-overridable defaults | 3.2.1 |
-| ❓ | **`RATE_LIMIT_PER_MIN`** per user. | a modest default | 3.3.2 |
-| ⚠ | **Rate-limiter backend**: in-process (slowapi, single instance) vs Postgres/Upstash sliding-window (multi-instance). Cloud Run may scale >1 instance (Phase 6) → in-process under-counts. | start in-process behind a `RateLimiter` interface; **flag the multi-instance swap for Phase 6** | 3.3.1 |
-| ❓ | **Signup-abuse guard** — day-0 cap / cooldown value; where a captcha would slot in. | reduced first-day cap (env-configurable); captcha documented only, not built | 3.7.2 |
+| ✅ | **`RATE_LIMIT_PER_MIN`** per user. | **IMPLEMENTED with default 10** (env-overridable; documented in `.env.example`). | 3.3.2 |
+| ✅ | **Rate-limiter backend**: in-process vs Postgres/Upstash sliding-window. Cloud Run may scale >1 instance (Phase 6) → in-process under-counts. | **IMPLEMENTED in-process** (`InProcessRateLimiter`) behind a `RateLimiter` Protocol; **distributed multi-instance swap flagged for Phase 6** at the seam (`app/ratelimit.py` docstring). | 3.3.1 |
+| ✅ | **Signup-abuse guard** — day-0 cap / cooldown value; where a captcha would slot in. | **IMPLEMENTED**: reduced first-day generate cap `NEW_ACCOUNT_DAY0_GENERATE_CAP=5` (env-overridable); captcha is a code comment only (not built). | 3.7.2 |
 | ⚠ | **`llm_budget` must be server-only under RLS** (carried from §7): the backend connects as the `authenticated` role, so the global kill-switch counter needs a SECURITY DEFINER increment function owned by `postgres` + `REVOKE` from `authenticated`/`anon`, so users can't read or tamper with it while the atomic `llm_usage`+`llm_budget` bump still works. | SECURITY DEFINER increment fn + REVOKE | 3.1.2/3.1.3 |
 
 ### Finalized Phase-3 defaults (chosen 2026-06-26 — conservative; env-overridable; confirm/adjust later)
