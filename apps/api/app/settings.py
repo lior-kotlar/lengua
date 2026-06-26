@@ -32,6 +32,18 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     gemini_api_key: str = ""
 
+    # ── LLM cost guard — per-user daily caps (Phase 3.2) ──────────────────────
+    # Hard server maxima per LLM ``kind``: a user can never exceed these even by raising their own
+    # per-user cap in ``user_settings`` (``resolve_user_cap`` clamps the user value with ``min()``).
+    max_generate_per_day: int = 50
+    max_discover_per_day: int = 30
+    max_explain_per_day: int = 100
+    # Per-user defaults applied when ``user_settings`` carries no (or a blank/non-numeric) override
+    # for that kind. Always ``<=`` the matching server maximum above.
+    default_generate_per_day: int = 20
+    default_discover_per_day: int = 10
+    default_explain_per_day: int = 50
+
     # ── App ───────────────────────────────────────────────────────────────────
     env: str = "local"
 

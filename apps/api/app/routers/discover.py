@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
 from app.deps import current_user, get_db, get_llm_provider
+from app.quota import QuotaGuard, quota_guard
 from app.schemas.cards import CardOut
 from app.schemas.discover import DiscoverAcceptRequest, DiscoverRequest, DiscoverResponse
 from app.services.discover import DiscoverService
@@ -22,6 +23,12 @@ from lengua_core.llm import LLMProvider
 
 router = APIRouter(prefix="/discover", tags=["discover"])
 
+# Module-level dependency singletons (evaluated once at import) so the factory call isn't in an
+# argument default (ruff B008). ``/discover`` is metered as ``discover``; ``/discover/accept``
+# reuses the generate path and so is metered as ``generate``.
+_DISCOVER_QUOTA = Depends(quota_guard("discover"))
+_ACCEPT_QUOTA = Depends(quota_guard("generate"))
+
 
 @router.post("", response_model=DiscoverResponse)
 async def discover(
@@ -29,14 +36,19 @@ async def discover(
     user_id: uuid.UUID = Depends(current_user),
     db: AsyncSession = Depends(get_db),
     provider: LLMProvider = Depends(get_llm_provider),
+    guard: QuotaGuard = _DISCOVER_QUOTA,
 ) -> DiscoverResponse:
-    """Preview new words at the learner's level, excluding vocabulary they already know."""
+    """Preview new words at the learner's level, excluding vocabulary they already know.
+
+    Gated by the per-user daily ``discover`` cap (``quota_guard``) before the provider call.
+    """
     try:
         words = await DiscoverService(db, provider).suggest(
             user_id, body.language_id, count=body.count, topic=body.topic
         )
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    await guard.record_success()  # increments for the JWT user_id only (never client-supplied)
     return DiscoverResponse(words=words)
 
 
@@ -46,9 +58,16 @@ async def accept(
     user_id: uuid.UUID = Depends(current_user),
     db: AsyncSession = Depends(get_db),
     provider: LLMProvider = Depends(get_llm_provider),
+    guard: QuotaGuard = _ACCEPT_QUOTA,
 ) -> list[Card]:
-    """Generate and save cards for the accepted ``words`` (delegates to the generate flow)."""
+    """Generate and save cards for the accepted ``words`` (delegates to the generate flow).
+
+    Accepting reuses the generate path, so it is gated and counted as ``generate`` (not
+    ``discover``).
+    """
     try:
-        return await DiscoverService(db, provider).accept(user_id, body.language_id, body.words)
+        cards = await DiscoverService(db, provider).accept(user_id, body.language_id, body.words)
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    await guard.record_success()  # increments for the JWT user_id only (never client-supplied)
+    return cards

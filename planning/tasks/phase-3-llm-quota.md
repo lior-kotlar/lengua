@@ -28,15 +28,15 @@ _Context: every gate reads and writes counters; this group lays the durable acco
 
 _Context: each LLM `kind` (generate / discover / explain) has a per-user daily ceiling from `user_settings`, clamped by a hard server maximum so a user can't raise their own cap past the operator limit._
 
-- [ ] **3.2.1** Typed quota config in `pydantic-settings`: hard server maxima per kind (`MAX_GENERATE_PER_DAY`, `MAX_DISCOVER_PER_DAY`, `MAX_EXPLAIN_PER_DAY`) plus defaults, all overridable by env.
-      verify: `pytest tests/test_config.py::test_quota_ceilings_load` — values load from env and fall back to documented defaults.
-- [ ] **3.2.2** `resolve_user_cap(user_id, kind)` reads the per-user value from `user_settings`, then `min()`s it against the server maximum (a missing/blank setting uses the server default).
-      verify: `pytest tests/quota/test_caps.py::test_user_cap_clamped` — a user-set cap above the server max resolves to the server max; an unset cap resolves to the default.
-- [ ] **3.2.3** Daily-cap gate in `quota.py`: before an LLM call of `kind`, compare `get_user_daily_count` to `resolve_user_cap`; raise a 429 with body `{code: "daily_cap_reached", kind}` when at/over.
-      verify: `pytest tests/quota/test_caps.py::test_daily_cap_blocks` — with cap=2 and count=2, the gate raises 429; with count=1 it allows and the call proceeds.
+- [x] **3.2.1** Typed quota config in `pydantic-settings` (`app/settings.py`): hard server maxima per kind (`MAX_GENERATE_PER_DAY=50`, `MAX_DISCOVER_PER_DAY=30`, `MAX_EXPLAIN_PER_DAY=100`) plus per-user defaults (`DEFAULT_GENERATE_PER_DAY=20`, `DEFAULT_DISCOVER_PER_DAY=10`, `DEFAULT_EXPLAIN_PER_DAY=50`), all env-overridable + documented in `.env.example` (`# ── LLM cost guard (Phase 3) ──`).
+      verify: `pytest tests/test_config.py::test_quota_ceilings_load` — values load from env and fall back to documented defaults. ✅
+- [x] **3.2.2** `resolve_user_cap(user_id, kind)` (in new `app/quota.py`) reads the per-user value from `user_settings` (keys `daily_cap_generate`/`daily_cap_discover`/`daily_cap_explain` via `SettingsRepository`), then `min()`s it against the server maximum (a missing/blank/non-numeric setting uses the server default).
+      verify: `pytest tests/quota/test_caps.py::test_user_cap_clamped` — a user-set cap above the server max resolves to the server max; an unset cap resolves to the default. ✅
+- [x] **3.2.3** Daily-cap gate in `app/quota.py` (`enforce_daily_cap` / `QuotaGuard.check`): before an LLM call of `kind`, compare `get_user_daily_count(user_id, kind, today-UTC)` to `resolve_user_cap`; raise `DailyCapReached` → 429 with body `{code: "daily_cap_reached", kind}` when at/over (mapped by an app-level exception handler so the body is exactly that shape).
+      verify: `pytest tests/quota/test_caps.py::test_daily_cap_blocks` — with cap=2 and count=2, the gate raises 429; with count=1 it allows and the call proceeds. ✅
       depends: 3.1.4
-- [ ] **3.2.4** Wire the gate into all three LLM endpoints (`/generate`, `/discover`, `/explain`) via a shared FastAPI dependency, passing the correct `kind`.
-      verify: `pytest tests/api/test_quota_endpoints.py::test_each_kind_capped` — exhausting each endpoint's cap returns 429 for that endpoint only, others unaffected.
+- [x] **3.2.4** Wire the gate into all LLM endpoints via the shared `app/quota.py` component: `/generate`, `/discover`, `/discover/accept` use the `quota_guard(kind)` **FastAPI dependency** (`/discover/accept` counts as `generate`); after a successful provider call each calls `QuotaGuard.record_success` to increment via `UsageRepository.increment_usage(current_user.id, kind, today)` on the privileged `get_usage_db` session. **Deviation (documented):** `/explain` is cache-aware — the guard is built `enforce=False` and the SAME gate runs **inside `ExplainService` after the cache lookup**, so a cache hit is free (no gate, no increment) and only a cache miss is gated + counted.
+      verify: `pytest tests/api/test_quota_endpoints.py::test_each_kind_capped` — exhausting each endpoint's cap returns 429 for that endpoint only, others unaffected (covers all four routes + the explain cache-hit-is-free path). ✅
 
 ## 3.3 — Per-user sliding-window rate limiting  ·  S
 

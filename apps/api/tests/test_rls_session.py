@@ -270,8 +270,9 @@ async def test_real_get_db_persists_the_full_write_loop_under_rls() -> None:
     from httpx import ASGITransport, AsyncClient
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
+    from app.db.session import UsageSession
     from app.db.session import get_db as raw_get_db
-    from app.deps import get_llm_provider
+    from app.deps import get_llm_provider, get_usage_db
     from app.main import create_app
     from lengua_core.llm.fake import FakeLLM
     from tests.auth_helpers import authenticate_as
@@ -291,10 +292,20 @@ async def test_real_get_db_persists_the_full_write_loop_under_rls() -> None:
         async with sessionmaker() as session:
             yield session
 
+    async def _raw_usage_session() -> AsyncIterator[UsageSession]:
+        # /generate now passes the Phase 3.2 cost-guard, whose privileged usage session would
+        # otherwise come from the process-wide engine and leak a connection bound to this loop.
+        # Bind it to the same loop-local (postgres-role) engine; unbound, so it stays privileged
+        # and keeps EXECUTE on the SECURITY DEFINER increment function.
+        async with sessionmaker() as session:
+            yield UsageSession(session)
+
     app = create_app()
-    # Swap ONLY the raw session sub-dependency (loop-local engine); the scoped get_db that binds the
-    # RLS identity still runs for real, so every write below executes as the authenticated role.
+    # Swap the raw session sub-dependency AND the privileged usage session for loop-local ones; the
+    # scoped get_db that binds the RLS identity still runs for real, so every write below executes
+    # as the authenticated role.
     app.dependency_overrides[raw_get_db] = _raw_session
+    app.dependency_overrides[get_usage_db] = _raw_usage_session
     app.dependency_overrides[get_llm_provider] = lambda: FakeLLM()
     authenticate_as(app, uid)
     try:

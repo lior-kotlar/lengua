@@ -173,7 +173,29 @@ RLS-bound request session → would have run the RPCs as `authenticated`); (B) `
 deny-by-default RLS on `llm_budget` as a second lock; (D) schema-qualified definer bodies; (E)
 `UsageSession` newtype marks the privileged boundary (full repo-type split deferred — see §7); (F1)
 Alembic-side role-privilege lockstep test; (F2) `anon` denial assertions; (G) runbook + docstrings
-("never downgrade past 0004 in prod"). 3.2–3.9 not started.
+("never downgrade past 0004 in prod").
+
+🛠 **3.2 landed (per-user daily caps)** — typed quota config in `app/settings.py` (`MAX_GENERATE/DISCOVER/EXPLAIN_PER_DAY`
+= 50/30/100, `DEFAULT_*_PER_DAY` = 20/10/50; env-overridable; documented in `.env.example` under
+`# ── LLM cost guard (Phase 3) ──`). New `app/quota.py` (the single gate-chain chokepoint, with a module
+docstring laying out the documented order **email-verified→rate-limit→daily-cap→global-budget** + extension
+points so 3.3/3.4 slot in cleanly): `resolve_user_cap(user_id, kind)` reads the per-user `user_settings`
+override (`daily_cap_generate`/`daily_cap_discover`/`daily_cap_explain`) and clamps it with `min()` to the
+server max (missing/blank/non-numeric → server default); `enforce_daily_cap`/`QuotaGuard.check` compares
+today-UTC's `get_user_daily_count` to the cap and raises `DailyCapReached` → **429** with the exact body
+`{"code":"daily_cap_reached","kind":...}` (app-level exception handler). One shared `QuotaGuard` is wired into
+every LLM endpoint: `/generate`, `/discover`, `/discover/accept` via the `quota_guard(kind)` FastAPI dependency
+(accept counted as `generate`); **`/explain` cache-aware deviation** — the guard is built `enforce=False` and the
+same gate runs inside `ExplainService` *after* the cache lookup, so a cache hit is free (no gate/increment) and only
+a cache miss is gated+counted. On success, `QuotaGuard.record_success` increments via
+`UsageRepository.increment_usage(current_user.id, kind, today)` on the privileged `get_usage_db` session (always the
+JWT-derived id; the global `llm_budget` counter now begins accumulating, but its kill-switch GATE is still 3.4).
+Tests: `tests/test_config.py::test_quota_ceilings_load`, `tests/quota/test_caps.py`,
+`tests/api/test_quota_endpoints.py::test_each_kind_capped`, `tests/services/test_explain_service.py`. Backend gate
+green (388 tests, 100% line+branch; `app/quota.py` 100%). Test-infra note: api tests override `get_usage_db` onto the
+rolled-back `db_session` (hermetic, no committed counter pollution); `tests/test_rls_session.py`'s real-`get_db`
+loop now also overrides `get_usage_db` onto its loop-local engine (so the newly-gated `/generate` doesn't leak a
+process-wide-engine connection across event loops). 3.3–3.9 not started.
 
 | | Question / decision | Default I'm using | Task |
 |---|---|---|---|

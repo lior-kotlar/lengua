@@ -23,7 +23,8 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_db, get_llm_provider
+from app.db.session import UsageSession
+from app.deps import get_db, get_llm_provider, get_usage_db
 from app.main import create_app
 from lengua_core.llm.base import LLMProvider
 from lengua_core.llm.fake import FakeLLM
@@ -46,10 +47,20 @@ async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         yield db_session  # do not close — the test still queries this session afterwards
 
+    async def _override_get_usage_db() -> AsyncIterator[UsageSession]:
+        # The cost-guard's privileged usage session (Phase 3.2) shares the test's rolled-back
+        # ``db_session`` instead of opening its own real connection. That keeps the on-success
+        # increments inside the test transaction (no committed pollution, no cross-event-loop pool
+        # reuse) AND lets them see rows the test created uncommitted (e.g. a token-only user's
+        # profile). Safe because ``db_session`` runs as superuser, which keeps EXECUTE on the
+        # ``SECURITY DEFINER`` increment function; production keeps the two sessions separate.
+        yield UsageSession(db_session)
+
     def _override_provider() -> LLMProvider:
         return FakeLLM()
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_usage_db] = _override_get_usage_db
     app.dependency_overrides[get_llm_provider] = _override_provider
     # Authenticate every request as the seeded dev user (routes now require a verified JWT; the
     # override stands in for one so the Phase 1 HTTP tests keep exercising the routers).

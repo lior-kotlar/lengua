@@ -1127,7 +1127,7 @@
     },
     "/discover": {
       "post": {
-        "description": "Preview new words at the learner's level, excluding vocabulary they already know.",
+        "description": "Preview new words at the learner's level, excluding vocabulary they already know.\n\nGated by the per-user daily ``discover`` cap (``quota_guard``) before the provider call.",
         "operationId": "discover_discover_post",
         "requestBody": {
           "content": {
@@ -1174,7 +1174,7 @@
     },
     "/discover/accept": {
       "post": {
-        "description": "Generate and save cards for the accepted ``words`` (delegates to the generate flow).",
+        "description": "Generate and save cards for the accepted ``words`` (delegates to the generate flow).\n\nAccepting reuses the generate path, so it is gated and counted as ``generate`` (not\n``discover``).",
         "operationId": "accept_discover_accept_post",
         "requestBody": {
           "content": {
@@ -1225,7 +1225,7 @@
     },
     "/explain": {
       "post": {
-        "description": "Explain a tapped word in a sentence (served from the card's cache when available).",
+        "description": "Explain a tapped word in a sentence (served from the card's cache when available).\n\nThe ``guard`` is built **unchecked** and handed to ``ExplainService`` so the per-user daily\n``explain`` cap is enforced (and counted) only on a cache miss — a cache hit stays free.",
         "operationId": "explain_explain_post",
         "requestBody": {
           "content": {
@@ -1272,7 +1272,7 @@
     },
     "/generate": {
       "post": {
-        "description": "Generate recognition+production card previews for ``words`` (nothing is persisted yet).",
+        "description": "Generate recognition+production card previews for ``words`` (nothing is persisted yet).\n\nThe ``quota_guard`` dependency enforces the per-user daily ``generate`` cap before the provider\nis called; on success we count the spend (cache-miss equivalent — generate always calls).",
         "operationId": "generate_generate_post",
         "requestBody": {
           "content": {

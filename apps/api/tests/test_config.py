@@ -61,3 +61,41 @@ def test_get_provider_real_providers_fail_fast_without_key(
     for name in ("groq", "gemini"):
         with pytest.raises(RuntimeError):
             get_provider(name)
+
+
+# ── Task 3.2.1 — typed per-user daily-cap quota config ────────────────────────
+_QUOTA_ENV_VARS = (
+    "MAX_GENERATE_PER_DAY",
+    "MAX_DISCOVER_PER_DAY",
+    "MAX_EXPLAIN_PER_DAY",
+    "DEFAULT_GENERATE_PER_DAY",
+    "DEFAULT_DISCOVER_PER_DAY",
+    "DEFAULT_EXPLAIN_PER_DAY",
+)
+
+
+def test_quota_ceilings_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The six daily-cap ceilings fall back to their documented defaults and load from env."""
+    # Defaults (no env): the conservative finalized values (outstanding-work.md §9 + .env.example).
+    for var in _QUOTA_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+    defaults = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert defaults.max_generate_per_day == 50
+    assert defaults.max_discover_per_day == 30
+    assert defaults.max_explain_per_day == 100
+    assert defaults.default_generate_per_day == 20
+    assert defaults.default_discover_per_day == 10
+    assert defaults.default_explain_per_day == 50
+    # Every per-user default is <= its hard server maximum (a user can never default above the cap).
+    assert defaults.default_generate_per_day <= defaults.max_generate_per_day
+    assert defaults.default_discover_per_day <= defaults.max_discover_per_day
+    assert defaults.default_explain_per_day <= defaults.max_explain_per_day
+
+    # Env overrides win (UPPER_SNAKE of each field).
+    monkeypatch.setenv("MAX_GENERATE_PER_DAY", "7")
+    monkeypatch.setenv("DEFAULT_EXPLAIN_PER_DAY", "3")
+    overridden = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert overridden.max_generate_per_day == 7
+    assert overridden.default_explain_per_day == 3
+    # Untouched ones still fall back to defaults.
+    assert overridden.max_discover_per_day == 30
