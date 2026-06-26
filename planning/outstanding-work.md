@@ -100,7 +100,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
 | 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
-| 4 — React web app | 45 | 🛠 in progress — **4.1 app shell DONE** (6 boxes); remaining: typed API client, auth screens, generate/review/discover/settings, RTL+diacritics, Streamlit retirement |
+| 4 — React web app | 45 | 🛠 in progress — **4.1 app shell + 4.2 typed API client DONE** (8 boxes); remaining: auth screens, generate/review/discover/settings, RTL+diacritics, Streamlit retirement |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
 | 7 — Mobile (Capacitor) | 58 | paid store accts, signing, native projects/plugins, OAuth-in-webview, iOS/Android builds, OTA, device validation |
@@ -474,8 +474,22 @@ shared layouts, TanStack Query, and a lazy auth-only supabase-js client + fail-f
 Web gate green (35 vitest tests, 100% product coverage; lint/format/typecheck/build clean; env-less
 Playwright home smoke updated + passing).
 
+**4.2 — Typed API client · DONE.** Root `pnpm gen:api` convenience script (delegates to
+`pnpm --filter api-types generate`) regenerates `packages/api-types/src/schema.ts` from
+`apps/api/openapi.json` — no backend change, so the existing CI drift check stays clean. `apps/web`
+now depends on the `api-types` workspace package (root `pnpm-lock.yaml` updated). New
+`apps/web/src/lib/api-client.ts` is the single typed seam: a lazy authed singleton
+(`getApiClient()`) whose request middleware injects `Authorization: Bearer <token>` from the
+CURRENT Supabase session (read fresh per request, never cached, never logged), plus `unwrap()` →
+typed data on 2xx / throws `ApiError {status,code,message,retryAfter,body}` parsed from body+headers
+(the cost-guard contract; transport failures → status 0). `api-types/index.ts` re-exports the
+`ApiClient`/`Middleware`/`ClientOptions` types so web imports only from `api-types` (no phantom
+`openapi-fetch` dep). Web gate green (49 vitest tests, 100% product coverage incl. `api-client.ts`;
+`pnpm gen:api` no-diff; frozen-lockfile install clean).
+
 | | Item | Where | Status / decision | Noticed |
 |---|---|---|---|---|
+| ☑ | **4.2.1 / 4.2.2** root `pnpm gen:api` + drift check (already in CI) + typed authed `apiClient` (bearer-from-session middleware, `unwrap`, typed `ApiError` for the cost-guard states) | apps/web/src/lib/api-client.ts; package.json; packages/api-types/src/index.ts | merged | 2026-06-27 |
 | ◐ | **Env fail-fast vs env-less CI build (decision).** 4.1.6's verify says `vite build` should "fail fast" on a missing `VITE_*` var, but Vite statically **inlines** build-time env and the CI build/E2E jobs build **without** these vars (the env-less home smoke must render). **Safe default chosen:** validate at config-load / first Supabase use via `readEnv()` (throws a clear error naming the missing var), proven by `apps/web/src/lib/env.test.ts` — NOT by failing `vite build`. Documented in `apps/web/.env.example` + the phase-4 doc. | apps/web/src/lib/env.ts; supabase.ts | decided (no owner action needed; flag if a literal build-time guard is later wanted) | 2026-06-27 |
-| ☐ | **4.1 scope deferrals (by design):** route gating / redirect-unauthenticated is NOT wired yet (auth screens + `useAuth` land in **4.3**); the typed `apiClient` + `api-types` workspace dep land in **4.2**. Authenticated screens are heading-only stubs until their groups. | apps/web/src/components/app-layout.tsx; pages/ | expected — later 4.x groups | 2026-06-27 |
+| ☐ | **4.1 scope deferrals (by design):** route gating / redirect-unauthenticated is NOT wired yet (auth screens + `useAuth` land in **4.3**); ~~the typed `apiClient` + `api-types` workspace dep land in **4.2**~~ (**landed in 4.2**). Authenticated screens are heading-only stubs until their groups. | apps/web/src/components/app-layout.tsx; pages/ | expected — later 4.x groups | 2026-06-27 |
 | ☐ | **CI E2E harness unchanged this group** (per 4.1 scope): the existing env-less home smoke is kept green; the ephemeral-stack auth/full-loop E2E is wired in **4.3**. | apps/web/e2e/home.spec.ts; .github/workflows/ci.yml | expected — 4.3 | 2026-06-27 |

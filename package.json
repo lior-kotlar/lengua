@@ -6,5 +6,8 @@
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=20"
+  },
+  "scripts": {
+    "gen:api": "pnpm --filter api-types generate"
   }
 }

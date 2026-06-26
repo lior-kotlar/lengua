@@ -33,7 +33,7 @@ root, one root `pnpm-lock.yaml`). `apps/api` is a separate uv/Python project.
 | --- | --- | --- | --- |
 | API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
 | Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (app shell: theming, routing, screen stubs — copy `apps/web/.env.example` to `.env`); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
-| API types | `packages/api-types/` | `pnpm --filter api-types generate` (re-derive TS types from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
+| API types | `packages/api-types/` | `pnpm gen:api` (root convenience for `pnpm --filter api-types generate` — re-derive TS types from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
 ### API endpoints (Phase 1 — full loop)
@@ -161,14 +161,21 @@ checked in as `apps/api/openapi.json` and kept in lockstep by two CI drift check
 
 ```bash
 python apps/api/scripts/dump_openapi.py   # rewrite apps/api/openapi.json from the live app
-pnpm --filter api-types generate          # re-derive packages/api-types/src/schema.ts from it
+pnpm gen:api                              # re-derive packages/api-types/src/schema.ts from it
 ```
 
 Regenerate both whenever the HTTP surface changes (routers/schemas). CI fails the PR if
 `openapi.json` is stale versus `app.openapi()` (`tests/test_openapi_stable.py`) or if the
 generated TS types are stale versus `openapi.json` (a `git diff` check). `packages/api-types`
 exports the generated `paths` / `components` / `operations` types plus a typed `openapi-fetch`
-client via `createApiClient(...)`.
+client via `createApiClient(...)` and the `ApiClient` type.
+
+The web app calls the backend exclusively through this client. `apps/web/src/lib/api-client.ts`
+wraps it into a lazy authed singleton (`getApiClient()`) whose middleware injects
+`Authorization: Bearer <token>` from the current Supabase session on every request, plus an
+`unwrap()` helper that returns typed data on success or throws a typed `ApiError`
+(`{ status, code, message, retryAfter }`) — the shape the cost-guard states surface as friendly,
+actionable UI. Supabase is auth-only; all data flows through this client.
 
 ### Observability (traces + structured logs)
 

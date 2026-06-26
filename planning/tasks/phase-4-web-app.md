@@ -31,9 +31,9 @@ _Context: the Vite/React/TS skeleton, routing, server-state, Supabase client, st
 
 _Context: the OpenAPI-generated client from `packages/api-types` is the single typed seam between web and FastAPI; everything calls the backend through it (Supabase is auth-only)._
 
-- [ ] **4.2.1** Wire `packages/api-types` codegen into the web build: a `pnpm gen:api` script that regenerates the TS client from the backend OpenAPI schema, plus a CI check that the committed types are up to date.
+- [x] **4.2.1** Wire `packages/api-types` codegen into the web build: a `pnpm gen:api` script that regenerates the TS client from the backend OpenAPI schema, plus a CI check that the committed types are up to date.
       verify: `pnpm gen:api` produces no git diff in CI when run against the current `apps/api` OpenAPI schema (drift check fails the PR if stale).
-- [ ] **4.2.2** Build a thin typed `apiClient` wrapper around the generated client that injects `Authorization: Bearer <token>`, sets the API base URL from env, and parses typed responses/errors.
+- [x] **4.2.2** Build a thin typed `apiClient` wrapper around the generated client that injects `Authorization: Bearer <token>`, sets the API base URL from env, and parses typed responses/errors.
       verify: vitest asserts the wrapper attaches the bearer header from the current session and surfaces a typed error object for a non-2xx response.
 
 ## 4.3 — Auth screens & session handling  ·  M
