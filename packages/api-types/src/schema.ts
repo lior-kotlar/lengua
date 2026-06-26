@@ -181,7 +181,7 @@ export interface paths {
         };
         /**
          * Read Me
-         * @description Return the authenticated user's identity (requires a valid Supabase JWT).
+         * @description Return the authenticated user's identity, plan, and per-language proficiency levels.
          */
         get: operations["read_me_me_get"];
         put?: never;
@@ -458,6 +458,24 @@ export interface components {
             vowelized: boolean;
         };
         /**
+         * LanguageLevel
+         * @description One of the user's languages with its current proficiency level.
+         */
+        LanguageLevel: {
+            /** Band */
+            band: string;
+            /** Code */
+            code?: string | null;
+            /** Language Id */
+            language_id: number;
+            /** Name */
+            name: string;
+            /** Progress */
+            progress: number;
+            /** Score */
+            score: number;
+        };
+        /**
          * LanguageOut
          * @description A language as returned by the API.
          */
@@ -481,7 +499,7 @@ export interface components {
         };
         /**
          * MeOut
-         * @description The authenticated user's identity, derived solely from the verified access token.
+         * @description The authenticated user's account overview (identity + plan + per-language levels).
          */
         MeOut: {
             /** Email */
@@ -493,6 +511,10 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Languages */
+            languages: components["schemas"]["LanguageLevel"][];
+            /** Plan */
+            plan: string;
         };
         /**
          * ProficiencyOut

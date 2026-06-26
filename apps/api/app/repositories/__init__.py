@@ -10,6 +10,7 @@ from __future__ import annotations
 from app.repositories.cards import CardsRepository, NewCard
 from app.repositories.languages import LanguagesRepository
 from app.repositories.proficiency import ProficiencyRepository
+from app.repositories.profiles import ProfilesRepository
 from app.repositories.reviews import ReviewsRepository
 from app.repositories.settings import SettingsRepository
 
@@ -18,6 +19,7 @@ __all__ = [
     "LanguagesRepository",
     "NewCard",
     "ProficiencyRepository",
+    "ProfilesRepository",
     "ReviewsRepository",
     "SettingsRepository",
 ]

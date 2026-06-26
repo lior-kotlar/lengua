@@ -1,19 +1,34 @@
-"""HTTP tests for the ``current_user`` dependency via the ``/me`` smoke route (task 2.3.2).
+"""Unit tests for the ``current_user`` auth dependency (task 2.3.2), driven offline.
 
-Drives the real app over ASGI: no ``Authorization`` header -> 401; a valid Supabase JWT -> 200 with
-the token's user id. No DB is needed — ``/me`` is derived entirely from the verified token.
+A missing/invalid token is rejected during dependency resolution — before the handler (and before
+the DB) is reached — so these run in the fast offline suite with no Postgres:
+
+* the HTTP cases hit the JWT-protected ``GET /me`` and assert ``401`` for no token / garbage /
+  non-Bearer scheme;
+* a direct call asserts a *valid* token resolves to the typed :class:`~app.auth.CurrentUser`.
+
+The full ``GET /me`` response (profile plan + per-language proficiency, which needs the DB) is
+covered by the integration ``tests/test_me.py`` (task 2.4.4).
 """
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
+from fastapi.security import HTTPAuthorizationCredentials
 from httpx import ASGITransport, AsyncClient
 
+from app.auth import CurrentUser
+from app.deps import get_current_user
 from app.main import create_app
-from tests.auth_helpers import auth_header, install_test_auth, make_supabase_jwt
+from tests.auth_helpers import (
+    install_test_auth,
+    make_supabase_jwt,
+    make_test_settings,
+)
 
 USER_ID = "12345678-1234-5678-1234-567812345678"
 
@@ -37,16 +52,6 @@ async def test_me_without_token_returns_401(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_me_with_valid_token_returns_user(client: AsyncClient) -> None:
-    response = await client.get("/me", headers=auth_header(USER_ID, email="a@b.com"))
-    assert response.status_code == 200
-    body = response.json()
-    assert body["id"] == USER_ID
-    assert body["email"] == "a@b.com"
-    assert body["email_verified"] is True
-
-
-@pytest.mark.asyncio
 async def test_me_with_garbage_token_returns_401(client: AsyncClient) -> None:
     response = await client.get("/me", headers={"Authorization": "Bearer not.a.jwt"})
     assert response.status_code == 401
@@ -57,3 +62,16 @@ async def test_me_with_non_bearer_scheme_returns_401(client: AsyncClient) -> Non
     token = make_supabase_jwt(USER_ID)
     response = await client.get("/me", headers={"Authorization": f"Basic {token}"})
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_accepts_valid_token() -> None:
+    """A valid Supabase-shaped token resolves to the typed identity (no HTTP/DB needed)."""
+    credentials = HTTPAuthorizationCredentials(
+        scheme="Bearer", credentials=make_supabase_jwt(USER_ID, email="a@b.com")
+    )
+    user = await get_current_user(credentials, make_test_settings())
+    assert isinstance(user, CurrentUser)
+    assert user.id == uuid.UUID(USER_ID)
+    assert user.email == "a@b.com"
+    assert user.email_verified is True

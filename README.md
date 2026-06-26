@@ -50,7 +50,7 @@ Supabase CLI stack), seed it with `uv run python scripts/seed_dev_user.py`, and 
 
 | Method + path | Purpose |
 | --- | --- |
-| `GET /me` | The authenticated user's identity (`id`, `email_verified`) from the verified token. |
+| `GET /me` | The authenticated user's account overview: identity (`id`, `email_verified`) from the verified token, profile `plan`, and per-language proficiency levels (`score`/`band`/`progress`) — scoped to that user only. |
 | `GET/POST/DELETE /languages`, `PATCH /languages/{id}` | List/add/remove a language; `PATCH` toggles `vowelized`. |
 | `POST /generate` | `{language_id, words}` → recognition+production card previews (unsaved). |
 | `POST /cards/save` | Persist generated previews into the deck (`saved=true`). |

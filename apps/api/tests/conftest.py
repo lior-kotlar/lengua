@@ -22,6 +22,7 @@ import os
 import shutil
 import subprocess
 from collections.abc import AsyncIterator, Iterator
+from typing import TYPE_CHECKING
 
 import psycopg
 import pytest
@@ -30,6 +31,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.db.session import async_dsn
 from scripts.seed_e2e import SeedResult, seed
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 # Map ``supabase status -o env`` keys → the env vars our seed/DB code reads. Auto-sourced once
 # at import so the literal verify (``uv run pytest tests/test_seed.py``) works against a running
@@ -206,3 +210,49 @@ async def db_session(clean_db: None) -> AsyncIterator[AsyncSession]:
             await trans.rollback()
         await conn.close()
         await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
+    """An ASGI client that verifies **real** test JWTs, so one test can act as multiple users.
+
+    Unlike ``tests/api/conftest.py``'s ``api_client`` (which pins a single authenticated identity
+    via a dependency override), this leaves the real ``current_user`` verification in place and only
+    points it at the test JWT secret (:func:`tests.auth_helpers.install_test_auth`). Each request
+    then carries its own ``auth_header(<user_id>)`` token, so a single test can drive both user A
+    and user B and prove cross-tenant isolation at the HTTP layer.
+
+    The DB dependency is the test's rolled-back :func:`db_session` (shared so the test can both act
+    through the API and assert on the same session) and the LLM is the deterministic ``FakeLLM``.
+    User A's profile (the seeded ``DEV_USER_ID``) is provisioned so A's FK-bound inserts resolve;
+    user B is a token-only identity that owns no rows.
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    from app.deps import get_db, get_llm_provider
+    from app.main import create_app
+    from lengua_core.llm.base import LLMProvider
+    from lengua_core.llm.fake import FakeLLM
+    from scripts.seed_dev_user import seed_dev_user
+    from tests.auth_helpers import install_test_auth
+
+    _skip_if_db_unreachable()
+    seed_dev_user()  # committed profile for user A (DEV_USER_ID) so its inserts resolve
+
+    app = create_app()
+
+    async def _override_get_db() -> AsyncIterator[AsyncSession]:
+        yield db_session  # do not close — the test still queries this session afterwards
+
+    def _override_provider() -> LLMProvider:
+        return FakeLLM()
+
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_llm_provider] = _override_provider
+    install_test_auth(app)  # verify real bearer tokens against the test secret
+    FakeLLM.reset_call_count()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+    app.dependency_overrides.clear()
