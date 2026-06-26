@@ -68,6 +68,11 @@ admin-creates a pre-confirmed Supabase auth user (`demo@lengua.test` / `demo-pas
 Spanish deck of due cards, so signing in with those credentials immediately exercises the full
 review loop.
 
+The operator's pre-productionization history (the legacy single-user `apps/api/data/lengua.db`) can
+be imported into a real account with `uv run python scripts/import_sqlite.py --user-id <UUID>`
+(dry-run first; idempotent; preserves FSRS state, due dates, and proficiency) — see the
+[runbook](docs/runbook.md) "Historical data import" section.
+
 **Supabase Auth configuration** lives in the version-controlled, CLI-read repo-root
 [`supabase/config.toml`](supabase/config.toml): email/password signup requires **email
 confirmation** (`enable_confirmations`) and enforces a **password policy**
