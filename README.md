@@ -57,6 +57,19 @@ admin-creates a pre-confirmed Supabase auth user (`demo@lengua.test` / `demo-pas
 Spanish deck of due cards, so signing in with those credentials immediately exercises the full
 review loop.
 
+**Supabase Auth configuration** lives in the version-controlled, CLI-read repo-root
+[`supabase/config.toml`](supabase/config.toml): email/password signup requires **email
+confirmation** (`enable_confirmations`) and enforces a **password policy**
+(`minimum_password_length = 8`, lower- + upper-case letters and digits); `site_url` +
+`additional_redirect_urls` form the post-auth **redirect allow-list** (local/staging/prod web
+origins + `capacitor://localhost` + the `app.lengua://` deep-link scheme); and the confirmation /
+password-reset / magic-link emails render branded templates under
+[`supabase/templates/`](supabase/templates). Google OAuth is scaffolded (env-wired, inert until the
+owner supplies credentials) and Apple is documented for later — the owner setup steps (OAuth
+credentials + custom SMTP) are in [`infra/supabase/oauth-setup.md`](infra/supabase/oauth-setup.md).
+(Admin-created accounts such as the demo/reviewer user bypass email confirmation, so the seeded
+flows above keep working.)
+
 | Method + path | Purpose |
 | --- | --- |
 | `GET /me` | The authenticated user's account overview: identity (`id`, `email_verified`) from the verified token, profile `plan`, and per-language proficiency levels (`score`/`band`/`progress`) — scoped to that user only. |

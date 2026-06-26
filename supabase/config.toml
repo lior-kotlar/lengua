@@ -155,12 +155,34 @@ max_indexes = 5
 [auth]
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
-# in emails.
-site_url = "http://127.0.0.1:3000"
+# in emails. Local dev = the Vite dev server (`apps/web`, port 5173). Hosted projects MUST override
+# this per environment (staging/prod web origin) via the Supabase dashboard / project config.
+site_url = "http://localhost:5173"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Allow-list (task 2.1.4) of URLs auth providers / email links are permitted to redirect to after
+# authentication, across all environments. Supabase matches each entry literally or via `*`/`**`
+# globs; any origin NOT matched here is rejected (GoTrue falls back to `site_url`). Owner action:
+# confirm/replace the staging + prod web domains and the native deep-link scheme below once final.
+additional_redirect_urls = [
+  # ── Local web — Vite dev (:5173), Playwright/preview (:4173), alt (:3000) ──
+  "http://localhost:5173",
+  "http://localhost:5173/**",
+  "http://127.0.0.1:5173/**",
+  "http://localhost:4173/**",
+  "http://localhost:3000/**",
+  "http://127.0.0.1:3000/**",
+  # ── Staging web (Vercel) — confirm the final staging domain with the owner ──
+  "https://lengua-staging.vercel.app/**",
+  "https://lengua-*.vercel.app/**", # Vercel preview deployments
+  # ── Production web — confirm the final custom domain with the owner ──
+  "https://lengua.vercel.app/**",
+  "https://lengua.app/**",
+  # ── Capacitor native app (iOS/Android): local WebView origin + deep-link scheme ──
+  "capacitor://localhost",
+  "app.lengua://login-callback",
+  "app.lengua://**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -179,10 +201,13 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
-# are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+# are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`.
+# Lengua requires lower- + upper-case letters and digits (task 2.1.1). NOTE: this policy is enforced
+# on public signup / password change only; admin-created users (the demo/reviewer account and the
+# test fixtures, made via the Auth Admin API) bypass it, so those flows are unaffected.
+password_requirements = "lower_upper_letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -222,8 +247,10 @@ enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
-# If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# If enabled, users need to confirm their email address before signing in. Lengua requires email
+# confirmation (task 2.1.1): a fresh signup stays unconfirmed (`email_confirmed_at = null`,
+# `confirmation_sent_at` set) until the user clicks the link in the confirmation email.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -243,7 +270,25 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
+# Branded Auth email templates (task 2.2.3). `content_path` is resolved relative to the directory
+# the Supabase CLI runs from (the repo root). Each template carries the Lengua branding and the
+# correct Go action variable; `{{ .ConfirmationURL }}` resolves to the verify link whose
+# `redirect_to` is validated against `site_url` + `additional_redirect_urls` above (so links always
+# land on a configured origin). Custom SMTP delivery (task 2.2.1) is an owner step; these templates
+# apply to both the built-in/Inbucket mailer and the eventual production SMTP sender.
+[auth.email.template.confirmation]
+subject = "Confirm your Lengua account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Lengua password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Your Lengua sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+# Uncomment to customize the remaining templates (not used by Lengua yet).
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
@@ -319,6 +364,13 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# ── Apple OAuth (task 2.1.3) ──────────────────────────────────────────────────────────────────
+# SCAFFOLD ONLY — left disabled (OWNER action). Apple requires a paid Apple Developer account and a
+# generated client-secret JWT (Service ID + Team ID + Key ID + .p8 private key); it is otherwise a
+# Phase 7 (mobile) concern. The env-var wiring below is in place so the owner only flips `enabled`
+# to `true` once the secrets exist. Setup steps: infra/supabase/oauth-setup.md.
+#   SUPABASE_AUTH_EXTERNAL_APPLE_CLIENT_ID = the Apple Service ID (e.g. app.lengua.signin)
+#   SUPABASE_AUTH_EXTERNAL_APPLE_SECRET    = the generated ES256 client-secret JWT
 [auth.external.apple]
 enabled = false
 client_id = "env(SUPABASE_AUTH_EXTERNAL_APPLE_CLIENT_ID)"
@@ -334,10 +386,18 @@ skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 
+# ── Google OAuth (task 2.1.2) ─────────────────────────────────────────────────────────────────
+# SCAFFOLD — the provider is wired to env-substituted credentials (never committed). It stays inert
+# until the OWNER creates a Google Cloud OAuth client and supplies the two secrets below; with them
+# unset the local/CI stack still boots (GoTrue validates provider credentials lazily, per request),
+# the provider is simply non-functional until configured. The live 302-to-accounts.google.com probe
+# therefore needs the real client id/secret. Setup steps: infra/supabase/oauth-setup.md.
+#   SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID / _SECRET = the Google Cloud OAuth 2.0 client credentials
 [auth.external.google]
-enabled = false
+enabled = true
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+# Skip the OIDC nonce check so local "Sign in with Google" works against the CLI stack.
 skip_nonce_check = true
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
