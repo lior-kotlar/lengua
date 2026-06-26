@@ -10,7 +10,9 @@ implementation from the ``LLM_PROVIDER`` env var:
   burns real quota.
 
 The structured output models (:class:`GeneratedCard`, :class:`WordNote`) are re-exported here
-from :mod:`lengua_core.models` so callers have a single import surface for the seam.
+from :mod:`lengua_core.models` so callers have a single import surface for the seam, along with the
+key-resolution seam (:func:`resolve_llm_key`, task 3.9) and the persistent-transient error
+(:class:`LLMTransientError`, task 3.5.2) the app layer maps to a friendly busy response.
 """
 
 from __future__ import annotations
@@ -18,6 +20,16 @@ from __future__ import annotations
 from lengua_core.models import GeneratedCard, WordNote
 
 from .base import LLMProvider
+from .keys import KeyUser, resolve_llm_key
 from .provider import get_provider
+from .retry import LLMTransientError
 
-__all__ = ["GeneratedCard", "LLMProvider", "WordNote", "get_provider"]
+__all__ = [
+    "GeneratedCard",
+    "KeyUser",
+    "LLMProvider",
+    "LLMTransientError",
+    "WordNote",
+    "get_provider",
+    "resolve_llm_key",
+]

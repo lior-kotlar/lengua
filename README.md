@@ -129,6 +129,15 @@ returned.
   the day's budget is spent, *every* user gets **HTTP 429**
   `{"code": "daily_limit_reached", "message": "Daily limit reached, please try again tomorrow."}`
   until the UTC day rolls over.
+- **Concurrency cap.** A process-wide limit bounds how many provider calls run at once
+  (`LLM_MAX_CONCURRENCY`, default 4) so a burst can't flood the free tier (the blocking provider call
+  runs in a worker thread, so the event loop stays responsive). Under sustained load, once the cap is
+  full and no slot frees within a short wait, the request gets **HTTP 503**
+  `{"code": "server_busy", "message": "The server is busy, please try again in a moment."}` with a
+  `Retry-After` header — never an unbounded queue.
+- **Transient-error backoff.** A provider 429/5xx is retried a few times with exponential backoff +
+  jitter; if it *persists*, the request surfaces the same friendly **HTTP 503** `server_busy`
+  response rather than an opaque error.
 
 Caps count only **successful** provider calls; `/explain` is cached, so a cache hit costs nothing
 (no gate, no count) — only a cache miss is gated and counted. All limits are in

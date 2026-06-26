@@ -4,15 +4,16 @@
 :class:`~lengua_core.llm.base.LLMProvider`:
 
 - ``groq`` (default) -> :class:`~lengua_core.llm.groq.GroqProvider` (OpenAI-compatible
-  JSON mode); requires ``GROQ_API_KEY``.
+  JSON mode); requires the Groq operator key.
 - ``gemini`` -> :class:`~lengua_core.llm.gemini.GeminiProvider` (native schema output,
-  reserved for prod); requires ``GEMINI_API_KEY``.
+  reserved for prod); requires the Gemini operator key.
 - ``fake`` -> the deterministic :class:`~lengua_core.llm.fake.FakeLLM` (no key, no I/O).
 
-The selected provider's key is checked **once, eagerly** (each provider's ``from_env``
-fails fast with a clear error), so a misconfigured deployment dies at startup rather
-than on the first LLM call. The vendor SDKs are imported lazily — only the chosen
-provider's SDK is loaded, and the ``fake`` path pulls in neither.
+The selected provider's key is checked **once, eagerly** (each provider's ``from_env`` obtains it
+through the single :func:`~lengua_core.llm.keys.resolve_llm_key` seam, which fails fast with a clear
+error), so a misconfigured deployment dies at startup rather than on the first LLM call. The vendor
+SDKs are imported lazily — only the chosen provider's SDK is loaded, and the ``fake`` path pulls in
+neither.
 """
 
 from __future__ import annotations
