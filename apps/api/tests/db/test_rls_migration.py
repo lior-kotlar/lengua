@@ -49,9 +49,12 @@ def test_upgrade_enables_rls_and_owner_policies() -> None:
             assert status.get(table) is True, f"RLS not enabled on {table}"
             assert f"{table}_owner" in policies.get(table, []), f"no owner policy on {table}"
 
-        # The global budget table is deliberately NOT protected.
-        assert status.get(GLOBAL_TABLE) is False, "llm_budget must stay global (no RLS)"
-        assert GLOBAL_TABLE not in policies
+        # The global budget table is under deny-by-default RLS (enabled, no policy) as of 0004 —
+        # a second lock on the kill-switch; it has no per-user *owner* policy.
+        assert status.get(GLOBAL_TABLE) is True, (
+            "llm_budget must have RLS enabled (deny-by-default)"
+        )
+        assert GLOBAL_TABLE not in policies, "llm_budget must have no policy"
 
 
 def test_owner_policy_predicates_match_canonical() -> None:

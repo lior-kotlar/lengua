@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -36,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthError, CurrentUser, decode_supabase_jwt
 from app.db.rls import bind_request_identity
+from app.db.session import UsageSession, get_sessionmaker
 from app.db.session import get_db as _get_session
 from app.services.account import AccountDeletionService
 from app.settings import Settings, get_settings
@@ -110,23 +112,30 @@ async def get_db(
     return session
 
 
-async def get_usage_db(
-    session: Annotated[AsyncSession, Depends(_get_session)],
-) -> AsyncSession:
+async def get_usage_db() -> AsyncGenerator[UsageSession, None]:
     """A **privileged, RLS-bypassing** DB session for the server-only cost-guard counters (3.1).
 
-    ⚠️ BOUNDARY: this deliberately skips :func:`app.db.rls.bind_request_identity`, so the session
-    stays on the connecting ``postgres``/owner role rather than dropping to ``authenticated``. That
-    is required — and only safe — for the global ``llm_budget`` kill-switch: its rows are
-    ``REVOKE``\\d from ``authenticated``/``anon`` and written only via ``SECURITY DEFINER``
-    functions the request role cannot EXECUTE, so the increment/read runs as the privileged role.
+    ⚠️ BOUNDARY: this opens its **own** session straight from the sessionmaker and **never** calls
+    :func:`app.db.rls.bind_request_identity`, so it stays on the connecting ``postgres``/owner role
+    rather than dropping to ``authenticated``. It is deliberately *independent* of the request's
+    :func:`get_db` session — they must not collapse to one object, because FastAPI caches a shared
+    sub-dependency per request and :func:`get_db` RLS-binds that session to ``authenticated``; an
+    endpoint depending on both would otherwise run the kill-switch RPCs as ``authenticated`` →
+    permission denied. A dedicated session keeps the privileged path privileged.
+
+    That privilege is required — and only safe — for the global ``llm_budget`` kill-switch: its rows
+    are ``REVOKE``\\d from ``authenticated``/``anon`` (and under deny-by-default RLS), and it is
+    written only via ``SECURITY DEFINER`` functions the request role cannot EXECUTE, so the
+    increment/read must run as the privileged role.
 
     It must **never** be used for per-user application data — running un-bound bypasses Row-Level
-    Security entirely (the latent footgun flagged in §7 of ``planning/outstanding-work.md``). The
-    per-user ``llm_usage`` reads use the normal :func:`get_db` session, where the RLS owner policy
-    scopes them to the caller. Group 3.2/3.4 wire this into the quota gate; 3.1 only provides it.
+    Security entirely (the latent footgun flagged in §7 of ``planning/outstanding-work.md``). Group
+    3.2/3.4 wire this into the quota gate; the service owning the request must
+    ``await usage_session.commit()`` after the post-success increment (this session's own
+    transaction). 3.1 only provides the dependency.
     """
-    return session
+    async with get_sessionmaker()() as session:
+        yield UsageSession(session)
 
 
 def get_llm_provider() -> LLMProvider:

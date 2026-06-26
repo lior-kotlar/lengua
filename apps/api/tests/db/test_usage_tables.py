@@ -14,6 +14,7 @@ proven separately in ``tests/test_rls.py``.
 
 from __future__ import annotations
 
+import psycopg
 import pytest
 
 from tests.db.alembic_helpers import (
@@ -25,6 +26,7 @@ from tests.db.alembic_helpers import (
     run_alembic,
     throwaway_database_with_auth_uid,
 )
+from tests.rls_helpers import policies_by_table, rls_status
 
 pytestmark = pytest.mark.integration
 
@@ -64,6 +66,15 @@ def test_killswitch_functions_created() -> None:
     with throwaway_database_with_auth_uid() as url:
         run_alembic(url, "upgrade", "head")
         assert public_functions(url) >= _KILLSWITCH_FUNCTIONS
+
+
+def test_llm_budget_is_deny_by_default_rls() -> None:
+    """Migration 0004 puts ``llm_budget`` under RLS with no policy (deny-by-default lock)."""
+    with throwaway_database_with_auth_uid() as url:
+        run_alembic(url, "upgrade", "head")
+        with psycopg.connect(url) as conn:
+            assert rls_status(conn).get("llm_budget") is True, "llm_budget RLS must be enabled"
+            assert not policies_by_table(conn).get("llm_budget"), "llm_budget must have no policy"
 
 
 def test_migration_0004_round_trips() -> None:

@@ -12,6 +12,7 @@ test ``conftest``, and ``.env`` all emit — so :func:`async_dsn` rewrites the s
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from typing import NewType
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -21,6 +22,12 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.settings import get_settings
+
+#: A privileged, **RLS-bypassing** session for the server-only cost-guard counters (group 3.1). It
+#: is a distinct type from a plain :class:`AsyncSession` so the cost-guard code path is visible in
+#: signatures (it is what :func:`app.deps.get_usage_db` yields); it runs as the connecting
+#: ``postgres`` role and must never be RLS-bound or used for per-user application data.
+UsageSession = NewType("UsageSession", AsyncSession)
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None

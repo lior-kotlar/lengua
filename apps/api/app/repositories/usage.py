@@ -5,9 +5,9 @@ Two tables back the Phase 3 cost guard:
 * ``llm_usage`` — a per-user, per-day, per-kind call counter (RLS owner policy: a user sees only
   their own rows), and
 * ``llm_budget`` — the GLOBAL daily kill-switch counter. It is **server-only**: the migration
-  ``REVOKE``\\s it from the ``authenticated``/``anon`` roles and exposes writes only through a
-  ``SECURITY DEFINER`` function owned by the privileged role, so a logged-in user can neither read
-  nor tamper with it.
+  ``REVOKE``\\s it from the ``authenticated``/``anon`` roles (and puts it under deny-by-default RLS)
+  and exposes writes only through a ``SECURITY DEFINER`` function owned by the privileged role, so a
+  logged-in user can neither read nor tamper with it.
 
 This repository is the sole DB-touching layer for those counters (the Phase 1 boundary rule):
 
@@ -16,11 +16,17 @@ This repository is the sole DB-touching layer for those counters (the Phase 1 bo
   ``postgres``/owner role retains EXECUTE, whereas the per-request ``authenticated`` session does
   not. :meth:`increment_usage` performs the atomic both-counter bump in one statement, so concurrent
   callers cannot lose an update.
-* :meth:`get_user_daily_count` is a plain ``SELECT`` on ``llm_usage`` and is safe on the normal,
-  RLS-bound request session (the owner policy scopes it to the caller).
+* :meth:`get_user_daily_count` is a plain ``SELECT`` on ``llm_usage`` and may run either on the
+  normal RLS-bound request session (the owner policy scopes it to the caller) or on the privileged
+  usage session (its explicit ``WHERE user_id`` scopes it); ``authenticated`` keeps SELECT on
+  ``llm_usage`` for exactly this read while its writes are revoked.
 
-Like the other repositories it takes an :class:`~sqlalchemy.ext.asyncio.AsyncSession`, ``flush``\\es
-rather than ``commit``\\s, and leaves the transaction boundary to the calling service.
+Like the other repositories it takes an :class:`~sqlalchemy.ext.asyncio.AsyncSession` and does
+**not** ``commit`` — the calling service owns the transaction boundary (for the privileged increment
+that is the ``app.deps.get_usage_db`` session, which the service ``commit``\\s after a successful
+provider call). The constructor takes a plain ``AsyncSession`` (not the ``UsageSession`` newtype)
+precisely so :meth:`get_user_daily_count` can be served by the request session too; see ``§7`` of
+``planning/outstanding-work.md`` for why a stronger compile-time session-type split is deferred.
 """
 
 from __future__ import annotations

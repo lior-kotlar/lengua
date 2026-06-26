@@ -135,10 +135,11 @@ in CI** (all 3 lenses high-confidence; no critical/high issues). Items to close:
 | | Item | Severity | Where |
 |---|---|---|---|
 | ☑ | ~~**Real `authenticated`-role write path proven only for `/languages`**~~ — CLOSED in the PR #28 hardening: added an un-overridden write round-trip (generate→save, review-grade, proficiency/settings) + explicit `has_table_privilege('authenticated', …)`/sequence assertions; went green → grants proven. | medium | apps/api/tests/test_rls_session.py (resolved) |
-| ☑ | ~~**Phase 3 / `llm_budget` privilege**~~ — CLOSED in group 3.1 (PR open, pre-merge): `REVOKE ALL ON llm_budget FROM authenticated, anon` + SECURITY DEFINER increment/read functions `EXECUTE`-granted to `service_role` ONLY; the backend reaches the kill-switch only via the privileged `app.deps.get_usage_db` session, never `get_db`. Proven by `tests/test_rls.py` (authenticated denied SELECT/UPDATE + no EXECUTE). | high (Phase 3) | migration 0004; supabase/migrations/20260626120000_llm_killswitch.sql |
+| ☑ | ~~**Phase 3 / `llm_budget` privilege**~~ — CLOSED in group 3.1 (PR #31, pre-merge) + the 3-lens hardening: `llm_budget` is `REVOKE`d from `authenticated`/`anon` **and** under deny-by-default RLS; `llm_usage` writes (INSERT/UPDATE/DELETE) are also revoked (SELECT kept for the RLS-scoped count read) so a user can't reset their own cap; both SECURITY DEFINER functions schema-qualify their tables and are `EXECUTE`-granted to `service_role` ONLY; the backend reaches them via a **dedicated** privileged `app.deps.get_usage_db` session (its own connection, never the RLS-bound `get_db`). Proven by `tests/test_rls.py`, `tests/db/test_role_privileges.py` (Alembic-side lockstep), `tests/test_usage_deps.py` (distinct sessions). | high (Phase 3) | migration 0004; supabase/migrations/20260626120000_llm_killswitch.sql |
+| ◐ | **Stronger compile-time session-type split deferred (review item E).** `get_usage_db` yields a `UsageSession` newtype (marks the privileged boundary), but `UsageRepository` still takes a plain `AsyncSession` — required so `get_user_daily_count` can also be served by the RLS request session (must-fix B keeps `authenticated` SELECT for exactly that). A full guard (distinct request-vs-usage session types across *all* repos, so a per-user repo can't accept the RLS-off session) is a larger refactor left for later; the boundary docstrings on `get_usage_db`/`UsageRepository` carry the rule meanwhile. | nit | apps/api/app/deps.py; app/repositories/usage.py |
 | ⚠ | **Prod transaction-pooler caveat:** asyncpg's prepared-statement cache breaks against Supabase's transaction pooler (6543) unless `statement_cache_size=0` / session pooler. RLS itself is pooler-safe (SET LOCAL re-applied per txn). Confirm prod `DATABASE_URL` **before Phase 6 deploy**. | medium (Phase 6) | apps/api/app/db/session.py:50 |
 | ☐ | Migration drift test hardcodes predicate strings instead of parsing the canonical SQL — the "byte-for-byte match" isn't self-checking. | nit | apps/api/tests/db/test_rls_migration.py |
-| ☐ | Latent footgun: any future session obtained **not** via `app.deps.get_db` runs as table owner (postgres) and silently bypasses RLS — add a boundary comment/guard as the surface grows. | nit | apps/api/app/db/rls.py |
+| ☑ | ~~Latent footgun: a session obtained **not** via `app.deps.get_db` bypasses RLS~~ — the one such surface (group 3.1's `get_usage_db`) now carries an explicit ⚠ BOUNDARY docstring + the `UsageSession` newtype marker; revisit if more privileged sessions appear. | nit | apps/api/app/db/rls.py; app/deps.py |
 
 ---
 
@@ -163,10 +164,16 @@ blocking issues (no orphans, hard-delete proven in CI, secrets safe, authz struc
 Phase 3 is being driven autonomously (owner asked to complete it without pausing). I'm proceeding
 with safe, conservative defaults; **confirm/adjust these later:**
 
-**Progress:** 🛠 **3.1 landed (PR open, NOT yet merged)** — usage accounting + the server-only
-kill-switch privilege model (Alembic `0004` + canonical `20260626120000_llm_killswitch.sql`,
-`UsageRepository`, privileged `get_usage_db`; 379 tests green, 100% line+branch cov). Held for the
-cost-guard 3-lens adversarial review before merge. 3.2–3.9 not started.
+**Progress:** 🛠 **3.1 landed (PR #31, merging after the review's must-fixes)** — usage accounting +
+the server-only kill-switch privilege model (Alembic `0004` + canonical `20260626120000_llm_killswitch.sql`,
+`UsageRepository`, privileged `get_usage_db`). The 3-lens cost-guard review approved-with-fixes; all
+folded into PR #31: (A) `get_usage_db` now opens its **own** dedicated session (was sharing the
+RLS-bound request session → would have run the RPCs as `authenticated`); (B) `llm_usage` writes
+`REVOKE`d from `authenticated`/`anon` so a user can't reset their own cap (SELECT kept); (C)
+deny-by-default RLS on `llm_budget` as a second lock; (D) schema-qualified definer bodies; (E)
+`UsageSession` newtype marks the privileged boundary (full repo-type split deferred — see §7); (F1)
+Alembic-side role-privilege lockstep test; (F2) `anon` denial assertions; (G) runbook + docstrings
+("never downgrade past 0004 in prod"). 3.2–3.9 not started.
 
 | | Question / decision | Default I'm using | Task |
 |---|---|---|---|
