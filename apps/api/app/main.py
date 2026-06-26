@@ -88,8 +88,10 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     # Account lifecycle (export + hard delete), scoped to current_user (task 2.8).
     application.include_router(account.router)
 
-    # LLM cost guard (Phase 3): map the daily-cap gate's DailyCapReached to a 429 with the
-    # contract body {"code": "daily_cap_reached", "kind": ...}.
+    # LLM cost guard (Phase 3): map each gate's exception to its contract response — email gate →
+    # 403 {"code":"email_unverified"}, rate-limit → 429 {"code":"rate_limited"} (+ Retry-After),
+    # daily-cap → 429 {"code":"daily_cap_reached","kind":...}, and the global-budget kill-switch
+    # (3.4) → 429 {"code":"daily_limit_reached","message":...}.
     register_quota_handlers(application)
 
     if include_test_routes is None:

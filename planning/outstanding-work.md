@@ -216,11 +216,48 @@ code comment only (not built). `RATE_LIMIT_PER_MIN` + `NEW_ACCOUNT_DAY0_GENERATE
 dependency, no schema delta). Tests: `tests/quota/{test_eligibility,test_ratelimit,test_gate_order,test_abuse_guard}.py`
 (+ a `test_config` rate/day-0 load test); api fixtures override `get_rate_limiter` with a fresh
 per-test limiter for isolation. Backend gate green (396 tests, **100.00%** line+branch cov;
-`app/quota.py` + `app/ratelimit.py` both 100%). 3.4–3.6, 3.8–3.9 not started.
+`app/quota.py` + `app/ratelimit.py` both 100%).
+
+🛠 **3.4 landed (global daily budget kill-switch) — ⏸ PR OPEN, awaiting orchestrator 3-lens review +
+merge (cost-critical; not self-merged).** Config `GLOBAL_DAILY_BUDGET` (default **1000**, env-overridable,
+documented in `.env.example` as "set BELOW the active provider's free RPD"; Groq `llama-3.1-8b-instant`
+free tier ≈ a few thousand/day). The **LAST** gate in `QuotaGuard.check` (after the per-user daily cap):
+it reads the GLOBAL `llm_budget` counter on the **privileged** `get_usage_db`/`UsageSession` (the
+`authenticated` role is REVOKE'd from `llm_budget` and can't EXECUTE the reader, so the read MUST be on
+the privileged session — never the RLS `get_db`) and, once the day's count `>= GLOBAL_DAILY_BUDGET`,
+refuses **every** caller with **429** `{"code":"daily_limit_reached","message":"Daily limit reached,
+please try again tomorrow."}` (`GlobalBudgetReached` → app-level handler; `DAILY_LIMIT_MESSAGE` constant
+shared by handler + tests). **Status 429** chosen — 03-backend.md lists "503/429" without mandating 503,
+so 429 keeps the kill-switch consistent with `rate_limited`/`daily_cap_reached`. Increment is
+**check-then-increment-on-success** (unchanged from 3.2): `record_success` runs only after the provider
+returns, atomically bumping both `llm_usage`+`llm_budget`; failed/blocked/cache-hit calls burn no budget;
+the bounded overshoot under concurrency (read-before-call, increment-after-success) is documented at the
+gate (bounded by `LLM_MAX_CONCURRENCY` from 3.5; no refund/decrement path — a refund would let a failed
+call un-spend budget). Applies to all three gated kinds (generate/discover/explain-on-cache-miss); a
+cache hit never consults the budget. Tests: `tests/quota/test_budget.py`
+(`test_kill_switch_trips` over real HTTP + at the gate, `test_failed_call_no_increment`),
+`tests/integration/test_global_killswitch.py` (NEW `tests/integration/` dir — drives real HTTP `/generate`
+as user A until the ceiling, then proves a DIFFERENT user B is refused too → budget is GLOBAL not
+per-user, FakeLLM only, `call_count == BUDGET` so blocked calls make zero provider calls),
+`tests/test_config.py::test_global_budget_loads`. Backend gate green (**400 tests, 100.00% line+branch**;
+`app/quota.py` 100%); ruff+mypy --strict clean; `openapi.json` unchanged (gate = app-level exception, no
+schema delta). 3.5–3.6, 3.8–3.9 not started.
+
+> **Lazy privileged-session acquisition — deferred (logged, not done).** The 3.2 review flagged that
+> `quota_guard` resolves the privileged `get_usage_db` session eagerly (as a FastAPI sub-dependency) even
+> on fast-fail paths (email/rate/cap-blocked, explain cache-hit) that never read the budget. Making it
+> lazy was considered for this PR but **deferred**: every quota/api test fixture overrides `get_usage_db`
+> to share the rolled-back `db_session`, so a clean lazy acquisition would require reworking the override
+> seam (a session *factory* the tests re-override) across `tests/api/conftest.py`,
+> `tests/quota/conftest.py`, and `multiuser_client` — a non-trivial change that risks correctness/clarity
+> on the cost-critical kill-switch PR. Eager acquisition is correct and fully tested today; revisit as a
+> follow-up (pairs naturally with the Phase-6 connection-pool/exit-gate load-test work and the §7
+> session-type-split item). The bounded overshoot/pool pressure is acceptable because the budget sits far
+> below the provider's free RPD.
 
 | | Question / decision | Default I'm using | Task |
 |---|---|---|---|
-| ❓ | **`GLOBAL_DAILY_BUDGET`** — project-wide daily LLM-call ceiling, "set below the active provider's free RPD". Needs a real number vs Groq `llama-3.1-8b-instant` free-tier requests/day. | a conservative value comfortably below Groq's free daily limit; documented in `.env.example` with a pointer to the provider RPD | 3.4.1 |
+| ◐ | **`GLOBAL_DAILY_BUDGET`** — project-wide daily LLM-call ceiling, "set below the active provider's free RPD". **IMPLEMENTED with default 1000** (env-overridable; documented in `.env.example` with a pointer to provider RPD; kill-switch gate + tests landed in 3.4). **Still wants owner confirmation of the real Groq `llama-3.1-8b-instant` free-tier requests/day** so the ceiling is set from a real number (the 1000 default is a deliberately conservative placeholder « any plausible free RPD). | a conservative value comfortably below Groq's free daily limit; documented in `.env.example` with a pointer to the provider RPD | 3.4.1 |
 | ❓ | **Per-user daily caps + hard server maxima** (`MAX_GENERATE/DISCOVER/EXPLAIN_PER_DAY`) + defaults. | modest env-overridable defaults | 3.2.1 |
 | ✅ | **`RATE_LIMIT_PER_MIN`** per user. | **IMPLEMENTED with default 10** (env-overridable; documented in `.env.example`). | 3.3.2 |
 | ✅ | **Rate-limiter backend**: in-process vs Postgres/Upstash sliding-window. Cloud Run may scale >1 instance (Phase 6) → in-process under-counts. | **IMPLEMENTED in-process** (`InProcessRateLimiter`) behind a `RateLimiter` Protocol; **distributed multi-instance swap flagged for Phase 6** at the seam (`app/ratelimit.py` docstring). | 3.3.1 |

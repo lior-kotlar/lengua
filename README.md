@@ -105,8 +105,8 @@ flows above keep working.)
 The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E).
 
 **Usage & cost limits.** Every LLM request passes a gate chain before the provider is called, in
-order **email-verified → rate-limit → daily-cap** (a global daily kill-switch lands later in
-Phase 3); the earliest failure is the one returned.
+order **email-verified → rate-limit → daily-cap → global-budget**; the earliest failure is the one
+returned.
 
 - **Email verified first.** Generation requires a verified email — an unverified account gets
   **HTTP 403** `{"code": "email_unverified"}` and no provider call.
@@ -123,6 +123,12 @@ Phase 3); the earliest failure is the one returned.
 - **New-account guard.** A freshly-created account gets a reduced first-day `generate` ceiling
   (`NEW_ACCOUNT_DAY0_GENERATE_CAP`, default 5) so signup-spam can't drain the shared key on day one;
   established accounts use their normal cap.
+- **Global daily kill-switch.** The backstop that guarantees the operator key can never produce a
+  bill: a project-wide ceiling on **successful** LLM calls per day across *all* users
+  (`GLOBAL_DAILY_BUDGET`, default 1000, set below the active provider's free requests-per-day). Once
+  the day's budget is spent, *every* user gets **HTTP 429**
+  `{"code": "daily_limit_reached", "message": "Daily limit reached, please try again tomorrow."}`
+  until the UTC day rolls over.
 
 Caps count only **successful** provider calls; `/explain` is cached, so a cache hit costs nothing
 (no gate, no count) — only a cache miss is gated and counted. All limits are in
