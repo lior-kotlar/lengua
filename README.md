@@ -48,6 +48,17 @@ scheme) fronts the API. For local work, point `DATABASE_URL` at a Postgres (e.g.
 Supabase CLI stack), seed it with `uv run python scripts/seed_dev_user.py`, and send
 `Authorization: Bearer <token>` (a JWT signed with the project's `SUPABASE_JWT_SECRET`).
 
+**Tenant isolation is enforced twice (Phase 2.6).** On top of the app-layer `WHERE user_id = …`
+scoping, every per-user table has Postgres **Row-Level Security** (`using (user_id = auth.uid())`;
+`profiles` keys on `id`), so an app-code bug still cannot leak data across tenants. To make those
+policies bite, each request's DB session assumes the non-privileged `authenticated` role and
+publishes the caller's `request.jwt.claims` (`SET LOCAL ROLE` + `set_config`, re-applied on every
+transaction) — see [`app/db/rls.py`](apps/api/app/db/rls.py), wired through `app/deps.get_db`.
+Migrations and seed scripts keep their privileged connections (they must bypass RLS), so the
+backend's `DATABASE_URL` should point at a Supabase-provisioned Postgres where the `authenticated`
+role and `auth.uid()` exist. The policies live in `supabase/migrations/…` and are reproduced for
+the backend's own schema by Alembic revision `0003`.
+
 A `profiles` row (`plan='free'`) is created automatically for every user on first signup by the
 `handle_new_user` Postgres trigger (defined in `supabase/migrations/…` and reproduced for the
 backend's own schema by Alembic revision `0002`) — no guest/anonymous mode

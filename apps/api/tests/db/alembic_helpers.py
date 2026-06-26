@@ -92,6 +92,39 @@ def throwaway_database_with_auth() -> Iterator[str]:
         yield url
 
 
+# A minimal stand-in for Supabase's ``auth.uid()`` (same body as the real one), so the RLS
+# migration's ``auth.uid()``-referencing policies can be created on a throwaway Postgres.
+_CREATE_AUTH_UID = """
+create or replace function auth.uid()
+returns uuid
+language sql
+stable
+as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+  )::uuid
+$$;
+"""
+
+
+@contextlib.contextmanager
+def throwaway_database_with_auth_uid() -> Iterator[str]:
+    """A throwaway database with both ``auth.users`` *and* an ``auth.uid()`` shim.
+
+    The 2.6.1 RLS migration's owner policies reference ``auth.uid()`` (a Supabase-only function), so
+    to apply that migration on a throwaway Postgres we add a faithful ``auth.uid()`` stand-in (it
+    reads ``request.jwt.claims`` exactly like the real one). With it present,
+    ``to_regprocedure('auth.uid()')`` resolves and the guarded migration creates the policies — so
+    the structural assertions (RLS enabled + an owner policy per table) can run off the Supabase
+    stack. Builds on :func:`throwaway_database_with_auth` so the 0002 trigger also applies.
+    """
+    with throwaway_database_with_auth() as url:
+        with psycopg.connect(url, autocommit=True) as conn:
+            conn.execute(_CREATE_AUTH_UID)
+        yield url
+
+
 def public_tables(url: str) -> set[str]:
     """The set of table names in the ``public`` schema of ``url``."""
     with psycopg.connect(url) as conn:
