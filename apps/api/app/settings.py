@@ -14,6 +14,8 @@ from typing import Annotated
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from lengua_core.llm.retry import MAX_WORDS_PER_REQUEST
+
 
 class Settings(BaseSettings):
     """Typed view over the environment for the Lengua API."""
@@ -53,6 +55,21 @@ class Settings(BaseSettings):
     # ``server_busy`` rather than queuing unbounded. NOTE: this is per-process; safe horizontal
     # scale-out beyond one instance additionally needs the distributed rate limiter (Phase 6).
     llm_max_concurrency: int = 4
+
+    # ── LLM cost guard — request-size + reuse caps (Phase 3.6) ────────────────
+    # Hard ceiling on the number of vocabulary words a single ``/generate`` request may carry. It is
+    # surfaced here (defaulting to the shared ``lengua_core.llm.retry.MAX_WORDS_PER_REQUEST`` value
+    # the providers already cap at) so it is env-overridable; the ``/generate`` request schema
+    # rejects an over-limit list with **422** (a hard reject, not silent truncation) — bounding
+    # prompt size and cost.
+    max_words_per_request: int = MAX_WORDS_PER_REQUEST
+    # Short reuse window (seconds) for ``/discover`` previews: a repeated discover for the same
+    # ``(user, language, topic, count)`` within this window returns the PRIOR preview from an
+    # in-process cache WITHOUT a fresh provider call (and without burning a daily-cap/budget count)
+    # — the cheapest call is the one we don't make. In-process today (single instance); the
+    # distributed (Postgres/Upstash) swap is a Phase-6 concern (see ``app/discover_cache.py``), the
+    # same caveat family as the in-process rate limiter.
+    discover_reuse_window_seconds: int = 300
 
     # ── LLM cost guard — per-user rate limit (Phase 3.3) ──────────────────────
     # Per-user sliding-window request ceiling, counted across ALL gated LLM kinds (generate /

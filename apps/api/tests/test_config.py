@@ -117,6 +117,23 @@ def test_rate_limit_and_day0_caps_load(monkeypatch: pytest.MonkeyPatch) -> None:
     assert overridden.new_account_day0_generate_cap == 2
 
 
+# ── Task 3.6 — request-size cap + discover reuse window config ────────────────
+def test_cost_minimization_caps_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The /generate words cap and discover reuse window use defaults and load from env."""
+    for var in ("MAX_WORDS_PER_REQUEST", "DISCOVER_REUSE_WINDOW_SECONDS"):
+        monkeypatch.delenv(var, raising=False)
+    defaults = Settings(_env_file=None)  # type: ignore[call-arg]
+    # ``MAX_WORDS_PER_REQUEST`` reuses the shared provider-side cap constant (30).
+    assert defaults.max_words_per_request == 30
+    assert defaults.discover_reuse_window_seconds == 300
+
+    monkeypatch.setenv("MAX_WORDS_PER_REQUEST", "12")
+    monkeypatch.setenv("DISCOVER_REUSE_WINDOW_SECONDS", "60")
+    overridden = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert overridden.max_words_per_request == 12
+    assert overridden.discover_reuse_window_seconds == 60
+
+
 # ── Task 3.4.1 — global daily budget kill-switch config ───────────────────────
 def test_global_budget_loads(monkeypatch: pytest.MonkeyPatch) -> None:
     """``GLOBAL_DAILY_BUDGET`` falls back to its documented default and loads from env."""

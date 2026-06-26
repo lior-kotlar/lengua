@@ -17,6 +17,14 @@ ran, a post-persist increment would skip — a billed call that bumped neither t
 passes one) ``accept`` records the spend **immediately after the successful provider call and before
 ``save``**. A ``save`` failure then still counts the call (the safe direction for a "never get a
 bill" guard) and rolls the cards back; the increment commits on its own privileged usage session.
+
+**Reuse cache (Phase 3.6.3 — cache-aware, like ``ExplainService``).** ``suggest`` first consults a
+short-window in-process reuse cache (:mod:`app.discover_cache`). On a **hit** it returns the prior
+preview with **no provider call and no gate/increment** — so the cap is enforced and counted only
+when a real (billed) provider call actually happens (a cache **miss**). That is why the
+``/discover`` route hands in an *unchecked* guard (``quota_guard("discover", enforce=False)``) and
+``suggest`` runs :meth:`~app.quota.QuotaGuard.check`/``record_success`` itself on a miss, exactly as
+``ExplainService`` does for its persisted ``word_explanations`` cache.
 """
 
 from __future__ import annotations
@@ -27,6 +35,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
+from app.discover_cache import DiscoverCache, DiscoverKey, get_discover_cache
 from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
 from app.repositories.cards import CardsRepository
 from app.repositories.languages import LanguagesRepository
@@ -54,11 +63,14 @@ class DiscoverService:
         session: AsyncSession,
         provider: LLMProvider,
         limiter: LLMConcurrencyLimiter | None = None,
+        cache: DiscoverCache | None = None,
     ) -> None:
         self._provider = provider
         # Bound provider calls under the global concurrency cap (task 3.5.1); default to the
         # singleton and thread the same limiter into the generate flow ``accept`` delegates to.
         self._limiter = limiter if limiter is not None else get_llm_limiter()
+        # Short-window preview reuse cache (task 3.6.3); default to the process-wide singleton.
+        self._cache = cache if cache is not None else get_discover_cache()
         self._languages = LanguagesRepository(session)
         self._cards = CardsRepository(session)
         self._proficiency = ProficiencyRepository(session)
@@ -71,14 +83,32 @@ class DiscoverService:
         *,
         count: int = 5,
         topic: str | None = None,
+        guard: QuotaGuard | None = None,
     ) -> list[str]:
         """Return up to ``count`` new words for the learner (excludes already-known vocabulary).
 
         Raises :class:`NotFoundError` if the language is not the user's.
+
+        **Cache-aware (task 3.6.3).** A repeat for the same ``(user, language, topic, count)``
+        within the reuse window is served from the in-process cache: no provider call, and — because
+        no operator key was spent — no gate and no increment. The per-user daily ``discover`` cap is
+        therefore enforced (via ``guard.check``) and counted (via ``guard.record_success``) **only
+        on a cache miss**, the same cache-aware shape ``ExplainService`` uses. The language check
+        runs first (and unconditionally) so an unknown language is a 404 even on a cache hit.
         """
         language = await self._languages.get(user_id, language_id)
         if language is None:
             raise NotFoundError(f"Language {language_id} not found.")
+
+        key = DiscoverKey(user_id=user_id, language_id=language_id, topic=topic, count=count)
+        cached = self._cache.get(key)
+        if cached is not None:
+            # Reuse hit: prior preview, no provider call, no gate, no increment — it is free.
+            return cached
+
+        # Cache miss: this WILL call the provider, so gate the per-user daily cap first (429 if at).
+        if guard is not None:
+            await guard.check()
 
         score = await self._proficiency.get_score(user_id, language_id)
         band: str = proficiency.band_for_score(score)
@@ -92,6 +122,10 @@ class DiscoverService:
             count=count,
             topic=topic,
         )
+        # Count the successful spend, then memoise the preview for the reuse window.
+        if guard is not None:
+            await guard.record_success()
+        self._cache.put(key, suggestions)
         return suggestions
 
     async def accept(
