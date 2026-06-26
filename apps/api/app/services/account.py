@@ -110,7 +110,7 @@ class AccountDeletionService:
         non-success, non-404 response from GoTrue is surfaced as :class:`AccountAdminError`.
         """
         base_url = (self._settings.supabase_url or "").rstrip("/")
-        service_key = self._settings.supabase_service_role_key
+        service_key = self._settings.supabase_service_role_key.get_secret_value()
         if not base_url or not service_key:
             raise AccountAdminError("Supabase admin credentials are not configured")
 
@@ -118,7 +118,14 @@ class AccountDeletionService:
         headers = {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=30.0) as client:
-                response = await client.delete(url, headers=headers)
+                # Send ``should_soft_delete=false`` EXPLICITLY rather than leaning on GoTrue's
+                # implicit default: this is the single most GDPR-load-bearing line in the app, so a
+                # hard delete (which fires the ``auth.users → profiles → domain`` FK cascade) must
+                # not be silently flippable to a soft delete by an upstream default change.
+                # ``httpx.AsyncClient.delete`` takes no body, so use the generic ``request``.
+                response = await client.request(
+                    "DELETE", url, headers=headers, json={"should_soft_delete": False}
+                )
         except httpx.HTTPError as exc:  # network/timeout — nothing was deleted, safe to retry
             raise AccountAdminError(f"auth admin request failed: {exc}") from exc
 

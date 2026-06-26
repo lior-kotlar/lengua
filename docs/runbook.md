@@ -14,6 +14,12 @@ to watch, and what "healthy" looks like for the API, web app, and database._
 _TODO: how to deploy to staging and production, how to promote a build, and the
 exact steps to roll back a bad release._
 
+> **Schema invariant — never migrate prod with Alembic-only.** `DELETE /account` relies on the
+> `auth.users → profiles` `ON DELETE CASCADE` present in the canonical Supabase schema
+> (`supabase/migrations/...`), which the bare Alembic-0001 schema intentionally omits (it has no
+> `auth` schema to reference); prod is Supabase so the cascade holds, but prod must **never** be
+> migrated via Alembic-only or a deletion would orphan the profile and all domain data.
+
 ## On-call
 
 _TODO: on-call rotation, escalation path, alert routing, and the first-response

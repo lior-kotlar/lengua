@@ -139,8 +139,9 @@ full operator procedure is in [`docs/runbook.md`](../../docs/runbook.md) ("Histo
 Two store-compliance / GDPR endpoints, both scoped strictly to the authenticated user (no user-id
 parameter — the id comes from the verified JWT):
 
-- `GET /account/export` — a downloadable JSON bundle of everything the user owns (profile,
-  languages, cards, reviews, proficiency, settings), assembled read-only via the repositories.
+- `GET /account/export` — a downloadable JSON bundle of the user's learning data (profile,
+  languages, cards, reviews, proficiency, settings), assembled read-only via the repositories. It
+  omits internal `llm_usage` counters and the auth email (which lives in Supabase Auth).
 - `DELETE /account` — hard-deletes the user's Supabase `auth.users` record via the **service-role
   Auth Admin API**; the `auth.users → profiles → domain` `ON DELETE CASCADE` chain removes the
   profile and all domain data atomically. The auth-user delete is the single irreversible step and

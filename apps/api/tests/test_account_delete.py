@@ -28,6 +28,7 @@ import httpx
 import psycopg
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pydantic import SecretStr
 
 from app.services.account import AccountAdminError, AccountDeletionService
 from app.settings import Settings
@@ -44,7 +45,7 @@ def _admin_settings(*, url: str = _ADMIN_URL, key: str = _SERVICE_KEY) -> Settin
     return Settings(  # type: ignore[call-arg]
         _env_file=None,
         supabase_url=url,
-        supabase_service_role_key=key,
+        supabase_service_role_key=SecretStr(key),
     )
 
 
@@ -217,7 +218,7 @@ def _real_stack_settings() -> Settings:
         supabase_jwt_secret="",
         supabase_jwks_url=jwks_url(),
         supabase_url=_supabase_url(),
-        supabase_service_role_key=_service_role_key(),
+        supabase_service_role_key=SecretStr(_service_role_key()),
     )
 
 
@@ -303,3 +304,39 @@ async def test_delete_account_cascades_and_invalidates_session() -> None:
         finally:
             delete_user(http, user_a.id)  # already gone (404 tolerated) — defensive
             delete_user(http, user_b.id)  # cascades B's committed graph away
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_delete_account_twice_is_idempotent_over_http() -> None:
+    """Two ``DELETE /account`` calls for the same user both return ``204`` (HTTP-layer idempotency).
+
+    The second call hits GoTrue for an already-deleted user, which answers ``404``; the service
+    treats that as success, so the endpoint stays ``204``. The access token is a stateless JWT
+    still inside its ``exp``, so it re-verifies (JWKS) even though GoTrue has revoked the session —
+    exactly the double-tap a client could trigger by retrying a slow/networky first request.
+    """
+    from app.main import create_app
+    from app.settings import get_settings
+    from tests.supabase_auth import create_confirmed_user, delete_user, login
+
+    with httpx.Client(timeout=30.0) as http:
+        user = create_confirmed_user(http, email=f"del-twice-{uuid.uuid4().hex[:8]}@lengua.test")
+        try:
+            token = login(http, user.email, user.password)
+            assert token
+
+            app = create_app(include_test_routes=False)
+            app.dependency_overrides[get_settings] = _real_stack_settings
+            try:
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                    headers = {"Authorization": f"Bearer {token}"}
+                    first = await client.delete("/account", headers=headers)
+                    assert first.status_code == 204, first.text
+                    second = await client.delete("/account", headers=headers)
+                    assert second.status_code == 204, second.text
+            finally:
+                app.dependency_overrides.clear()
+        finally:
+            delete_user(http, user.id)  # already gone (404 tolerated) — defensive

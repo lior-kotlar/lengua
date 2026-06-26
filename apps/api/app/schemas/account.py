@@ -1,10 +1,12 @@
 """DTOs for the account-lifecycle endpoints (task 2.8).
 
-``GET /account/export`` returns :class:`AccountExport` — a faithful JSON bundle of *all* of the
-authenticated user's data (their profile, languages, cards, reviews, per-language proficiency, and
-settings), for store-compliance data export (Apple/Google) and GDPR portability. Every sub-model
-mirrors a row of the canonical schema; the bundle is assembled scoped to ``current_user`` by
-:class:`~app.services.account.ExportService`, so it can only ever contain the caller's own rows.
+``GET /account/export`` returns :class:`AccountExport` — a faithful JSON bundle of the
+authenticated user's learning data: their profile, languages, cards, reviews, per-language
+proficiency, and settings, for store-compliance data export (Apple/Google) and GDPR portability.
+(It deliberately omits internal LLM-usage counters — ``llm_usage`` — and the auth email, which
+lives in Supabase Auth, not the app schema.) Every sub-model mirrors a row of the canonical schema;
+the bundle is assembled scoped to ``current_user`` by :class:`~app.services.account.ExportService`,
+so it can only ever contain the caller's own rows.
 
 ``DELETE /account`` returns no body (``204``), so it needs no response DTO here.
 """
