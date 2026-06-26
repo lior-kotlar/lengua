@@ -108,6 +108,32 @@ def make_review(**overrides: Any) -> dict[str, Any]:
     return row
 
 
+def make_llm_usage(**overrides: Any) -> dict[str, Any]:
+    """Build an ``llm_usage`` row (per-user, per-day, per-kind cost-guard counter).
+
+    Defaults to ``kind='generate'`` on :data:`FIXED_NOW`'s date with ``count=0``; override
+    ``kind`` / ``day`` / ``count`` to craft specific counter states.
+    """
+    row: dict[str, Any] = {
+        "user_id": DEMO_USER_ID,
+        "day": FIXED_NOW.date(),
+        "kind": "generate",
+        "count": 0,
+    }
+    row.update(overrides)
+    return row
+
+
+def make_llm_budget(**overrides: Any) -> dict[str, Any]:
+    """Build an ``llm_budget`` row (the global daily kill-switch counter). PK ``day``."""
+    row: dict[str, Any] = {
+        "day": FIXED_NOW.date(),
+        "count": 0,
+    }
+    row.update(overrides)
+    return row
+
+
 def make_generated_card(**overrides: Any) -> GeneratedCard:
     """Build a :class:`GeneratedCard` — the structured LLM output (pre-persistence)."""
     defaults: dict[str, Any] = {

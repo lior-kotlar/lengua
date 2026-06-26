@@ -14,6 +14,13 @@
   **UUID**, so the Phase 1 routers/services/repositories that take a ``user_id`` keep working
   unchanged. Tests override either dependency (see ``tests/auth_helpers.py``) to authenticate as a
   given user.
+- :func:`get_usage_db` — a **privileged, RLS-bypassing** session for the server-only cost-guard
+  counters (``llm_budget`` + the ``SECURITY DEFINER`` increment/read functions). Unlike
+  :func:`get_db` it deliberately does **not** call :func:`app.db.rls.bind_request_identity`, so it
+  runs as the connecting ``postgres``/owner role — the only role with EXECUTE on those functions.
+  It must NEVER be used for per-user application data (see the §7 footgun note in
+  ``planning/outstanding-work.md``); the per-user ``llm_usage`` reads stay on the normal
+  :func:`get_db` session, where the RLS owner policy scopes them to the caller.
 - :func:`get_llm_provider` — the active LLM provider behind the ``lengua_core.llm`` seam, selected
   by ``LLM_PROVIDER`` (Groq by default). Overridden with the deterministic ``FakeLLM`` in tests.
 """
@@ -21,6 +28,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -29,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthError, CurrentUser, decode_supabase_jwt
 from app.db.rls import bind_request_identity
+from app.db.session import UsageSession, get_sessionmaker
 from app.db.session import get_db as _get_session
 from app.services.account import AccountDeletionService
 from app.settings import Settings, get_settings
@@ -42,6 +51,7 @@ __all__ = [
     "get_current_user",
     "get_db",
     "get_llm_provider",
+    "get_usage_db",
 ]
 
 # The fixed-UUID seeded dev/demo user. No longer returned by ``current_user`` in the request path
@@ -100,6 +110,32 @@ async def get_db(
     """
     bind_request_identity(session, user_id)
     return session
+
+
+async def get_usage_db() -> AsyncGenerator[UsageSession, None]:
+    """A **privileged, RLS-bypassing** DB session for the server-only cost-guard counters (3.1).
+
+    ⚠️ BOUNDARY: this opens its **own** session straight from the sessionmaker and **never** calls
+    :func:`app.db.rls.bind_request_identity`, so it stays on the connecting ``postgres``/owner role
+    rather than dropping to ``authenticated``. It is deliberately *independent* of the request's
+    :func:`get_db` session — they must not collapse to one object, because FastAPI caches a shared
+    sub-dependency per request and :func:`get_db` RLS-binds that session to ``authenticated``; an
+    endpoint depending on both would otherwise run the kill-switch RPCs as ``authenticated`` →
+    permission denied. A dedicated session keeps the privileged path privileged.
+
+    That privilege is required — and only safe — for the global ``llm_budget`` kill-switch: its rows
+    are ``REVOKE``\\d from ``authenticated``/``anon`` (and under deny-by-default RLS), and it is
+    written only via ``SECURITY DEFINER`` functions the request role cannot EXECUTE, so the
+    increment/read must run as the privileged role.
+
+    It must **never** be used for per-user application data — running un-bound bypasses Row-Level
+    Security entirely (the latent footgun flagged in §7 of ``planning/outstanding-work.md``). Group
+    3.2/3.4 wire this into the quota gate; the service owning the request must
+    ``await usage_session.commit()`` after the post-success increment (this session's own
+    transaction). 3.1 only provides the dependency.
+    """
+    async with get_sessionmaker()() as session:
+        yield UsageSession(session)
 
 
 def get_llm_provider() -> LLMProvider:

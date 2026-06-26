@@ -153,3 +153,52 @@ def column_names(url: str, table: str) -> set[str]:
             (table,),
         ).fetchall()
     return {row[0] for row in rows}
+
+
+def primary_key_columns(url: str, table: str) -> list[str]:
+    """The ordered list of primary-key column names of ``public.<table>`` in ``url``."""
+    with psycopg.connect(url) as conn:
+        rows = conn.execute(
+            "SELECT a.attname "
+            "FROM pg_index i "
+            "JOIN pg_class c ON c.oid = i.indrelid "
+            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey) "
+            "WHERE n.nspname = 'public' AND c.relname = %s AND i.indisprimary "
+            "ORDER BY array_position(i.indkey, a.attnum)",
+            (table,),
+        ).fetchall()
+    return [str(row[0]) for row in rows]
+
+
+def foreign_keys(url: str, table: str) -> list[tuple[str, str, str, str]]:
+    """FKs of ``public.<table>`` as ``(column, ref_table, ref_column, delete_rule)`` tuples."""
+    with psycopg.connect(url) as conn:
+        rows = conn.execute(
+            "SELECT kcu.column_name, ccu.table_name, ccu.column_name, rc.delete_rule "
+            "FROM information_schema.table_constraints tc "
+            "JOIN information_schema.key_column_usage kcu "
+            "  ON kcu.constraint_name = tc.constraint_name "
+            "  AND kcu.table_schema = tc.table_schema "
+            "JOIN information_schema.constraint_column_usage ccu "
+            "  ON ccu.constraint_name = tc.constraint_name "
+            "  AND ccu.table_schema = tc.table_schema "
+            "JOIN information_schema.referential_constraints rc "
+            "  ON rc.constraint_name = tc.constraint_name "
+            "  AND rc.constraint_schema = tc.table_schema "
+            "WHERE tc.constraint_type = 'FOREIGN KEY' "
+            "  AND tc.table_schema = 'public' AND tc.table_name = %s",
+            (table,),
+        ).fetchall()
+    return [(str(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
+
+
+def public_functions(url: str) -> set[str]:
+    """The set of function names in the ``public`` schema of ``url``."""
+    with psycopg.connect(url) as conn:
+        rows = conn.execute(
+            "SELECT p.proname FROM pg_proc p "
+            "JOIN pg_namespace n ON n.oid = p.pronamespace "
+            "WHERE n.nspname = 'public'"
+        ).fetchall()
+    return {str(row[0]) for row in rows}

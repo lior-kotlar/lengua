@@ -13,6 +13,7 @@ from app.repositories.proficiency import ProficiencyRepository
 from app.repositories.profiles import ProfilesRepository
 from app.repositories.reviews import ReviewsRepository
 from app.repositories.settings import SettingsRepository
+from app.repositories.usage import UsageRepository
 
 __all__ = [
     "CardsRepository",
@@ -22,4 +23,5 @@ __all__ = [
     "ProfilesRepository",
     "ReviewsRepository",
     "SettingsRepository",
+    "UsageRepository",
 ]

@@ -41,7 +41,10 @@ RLS_USER_TABLES: tuple[str, ...] = (
     "llm_usage",
 )
 
-#: The project-wide table that is intentionally global (no RLS — only the service role writes it).
+#: The project-wide kill-switch table. It carries no per-user *owner* policy (it is not per-user),
+#: but as of group 3.1 it is under **deny-by-default RLS** (RLS enabled, zero policies) and is
+#: ``REVOKE``\\d from ``authenticated``/``anon`` — only the privileged server role / the SECURITY
+#: DEFINER functions (which bypass RLS) touch it.
 GLOBAL_TABLE = "llm_budget"
 
 #: The RLS tables whose primary key is an integer ``GENERATED ALWAYS AS IDENTITY`` column. Their
@@ -212,6 +215,15 @@ def has_sequence_privilege(
     """Whether ``role`` holds ``privilege`` (USAGE/SELECT/UPDATE) on ``sequence``."""
     row = conn.execute(
         "SELECT has_sequence_privilege(%s, %s, %s)", (role, sequence, privilege)
+    ).fetchone()
+    assert row is not None
+    return bool(row[0])
+
+
+def has_function_privilege(conn: psycopg.Connection, role: str, signature: str) -> bool:
+    """Whether ``role`` holds EXECUTE on function ``signature`` (e.g. ``public.fn(uuid, date)``)."""
+    row = conn.execute(
+        "SELECT has_function_privilege(%s, %s, 'EXECUTE')", (role, signature)
     ).fetchone()
     assert row is not None
     return bool(row[0])

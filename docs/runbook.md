@@ -20,6 +20,15 @@ exact steps to roll back a bad release._
 > `auth` schema to reference); prod is Supabase so the cascade holds, but prod must **never** be
 > migrated via Alembic-only or a deletion would orphan the profile and all domain data.
 
+> **Cost-guard invariant — never `alembic downgrade` past `0004` in prod.** Migration `0004`
+> (`llm_killswitch`) is what makes the global daily kill-switch (`llm_budget`) server-only: it
+> `REVOKE`s the counter tables from `authenticated`/`anon`, puts `llm_budget` under deny-by-default
+> RLS, and exposes writes only through `SECURITY DEFINER` functions granted to `service_role`. Its
+> `downgrade` re-grants `authenticated`/`anon` access to `llm_budget` and drops those functions —
+> **re-exposing the kill-switch to any logged-in user via PostgREST**. Downgrading past `0004` in
+> production would let a user trip or hide the cost guard for everyone; treat `0004` as a one-way
+> migration in prod.
+
 ## On-call
 
 _TODO: on-call rotation, escalation path, alert routing, and the first-response
