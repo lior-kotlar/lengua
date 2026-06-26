@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
 from app.discover_cache import DiscoverCache, DiscoverKey, get_discover_cache
-from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
+from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter, run_provider
 from app.repositories.cards import CardsRepository
 from app.repositories.languages import LanguagesRepository
 from app.repositories.proficiency import ProficiencyRepository
@@ -113,8 +113,12 @@ class DiscoverService:
         score = await self._proficiency.get_score(user_id, language_id)
         band: str = proficiency.band_for_score(score)
         known = await self._cards.known_words(user_id, language_id)
-        # Blocking provider call under the global concurrency cap (task 3.5.1).
-        suggestions: list[str] = await self._limiter.run(
+        # Blocking provider call under the global concurrency cap (3.5.1); ``run_provider`` stamps
+        # the ``llm.*`` attributes on the guard's per-call span (3.8.1).
+        suggestions: list[str] = await run_provider(
+            self._limiter,
+            self._provider,
+            guard.span if guard is not None else None,
             self._provider.suggest_new_words,
             language.name,
             band,
@@ -140,9 +144,10 @@ class DiscoverService:
         The provider runs inside :meth:`GenerateService.generate`; when a ``guard`` is supplied the
         spend is counted **right after** that successful provider call and **before** :meth:`save`,
         so a persistence failure still bills the (already-made) provider call rather than leaving a
-        real call uncounted — the safe direction for the global kill-switch.
+        real call uncounted — the safe direction for the global kill-switch. The guard is also
+        handed to :meth:`GenerateService.generate` so its per-call span carries the ``llm.*`` attrs.
         """
-        built = await self._generate.generate(user_id, language_id, words)
+        built = await self._generate.generate(user_id, language_id, words, guard=guard)
         if guard is not None:
             await guard.record_success()
         return await self._generate.save(user_id, language_id, built)

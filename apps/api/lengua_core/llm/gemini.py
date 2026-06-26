@@ -31,6 +31,7 @@ from .retry import (
     call_with_retry,
     cap_words,
 )
+from .usage import report_gemini_usage
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
@@ -46,6 +47,10 @@ def _is_transient(exc: BaseException) -> bool:
 
 class GeminiProvider:
     """An :class:`~lengua_core.llm.base.LLMProvider` backed by ``google-genai``."""
+
+    #: Provider identity surfaced on the per-call observability span (``llm.provider``); the model
+    #: id is exposed via the :attr:`model` property below.
+    name = "gemini"
 
     def __init__(self, *, api_key: str, model: str, client: Any | None = None) -> None:
         self._api_key = api_key
@@ -98,6 +103,7 @@ class GeminiProvider:
             resp = self._get_client().models.generate_content(
                 model=self._model, contents=contents, config=config
             )
+            report_gemini_usage(resp)  # thread the vendor token usage out for the per-call span
             return list(resp.parsed or [])
 
         return call_with_retry(_call, is_transient=_is_transient)
@@ -128,6 +134,7 @@ class GeminiProvider:
                 contents=f"Suggest {count} new {language} vocabulary words.",
                 config=config,
             )
+            report_gemini_usage(resp)  # thread the vendor token usage out for the per-call span
             return list(resp.parsed or [])
 
         return call_with_retry(_call, is_transient=_is_transient)[:count]
@@ -153,6 +160,7 @@ class GeminiProvider:
             resp = self._get_client().models.generate_content(
                 model=self._model, contents=prompt, config=config
             )
+            report_gemini_usage(resp)  # thread the vendor token usage out for the per-call span
             return (resp.text or "").strip()
 
         text = call_with_retry(_call, is_transient=_is_transient)

@@ -32,15 +32,25 @@ instance safe.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from functools import lru_cache
 from typing import ParamSpec, TypeVar
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from opentelemetry.trace import Span
 
+from app.llm_observability import (
+    ATTR_LLM_LATENCY_MS,
+    ATTR_LLM_MODEL,
+    ATTR_LLM_PROVIDER,
+    ATTR_LLM_TOKENS_IN,
+    ATTR_LLM_TOKENS_OUT,
+)
 from app.settings import get_settings
-from lengua_core.llm import LLMTransientError
+from lengua_core.llm import LLMProvider, LLMTransientError
+from lengua_core.llm.usage import capture_usage
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -100,6 +110,53 @@ class LLMConcurrencyLimiter:
             return await asyncio.to_thread(fn, *args, **kwargs)
         finally:
             self._semaphore.release()
+
+
+def _provider_identity(provider: LLMProvider) -> tuple[str, str]:
+    """``(provider_name, model)`` for the ``llm.provider`` / ``llm.model`` span attributes.
+
+    Reads the optional ``name`` / ``model`` attributes the concrete providers expose (Groq / Gemini
+    / FakeLLM), falling back to the class name so any structural provider still yields a value.
+    """
+    name = str(getattr(provider, "name", type(provider).__name__))
+    model = str(getattr(provider, "model", name))
+    return name, model
+
+
+async def run_provider[**P, R](
+    limiter: LLMConcurrencyLimiter,
+    provider: LLMProvider,
+    span: Span | None,
+    fn: Callable[P, R],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> R:
+    """The provider-call boundary (task 3.8.1): run ``fn`` under the cap, timing + capturing usage.
+
+    Wraps :meth:`LLMConcurrencyLimiter.run` so it stays the single place each blocking provider call
+    passes through, and — when a ``span`` is supplied (the per-call ``llm.call`` span the cost guard
+    started) — stamps the ``llm.*`` attributes on it: ``llm.provider`` / ``llm.model`` up front,
+    ``llm.latency_ms`` always (even if the call raises), and ``llm.tokens_in`` / ``llm.tokens_out``
+    from the vendor usage the provider reported (via :func:`lengua_core.llm.usage.capture_usage`).
+    With no span (a provider call outside a gated request, e.g. a service unit test) it is a thin
+    pass-through to the limiter. Any exception from ``fn`` propagates unchanged.
+    """
+    if span is not None:
+        name, model = _provider_identity(provider)
+        span.set_attribute(ATTR_LLM_PROVIDER, name)
+        span.set_attribute(ATTR_LLM_MODEL, model)
+    start = time.perf_counter()
+    with capture_usage() as usage:
+        try:
+            result = await limiter.run(fn, *args, **kwargs)
+        finally:
+            if span is not None:
+                latency_ms = round((time.perf_counter() - start) * 1000, 3)
+                span.set_attribute(ATTR_LLM_LATENCY_MS, latency_ms)
+    if span is not None:
+        span.set_attribute(ATTR_LLM_TOKENS_IN, usage.tokens_in)
+        span.set_attribute(ATTR_LLM_TOKENS_OUT, usage.tokens_out)
+    return result
 
 
 @lru_cache(maxsize=1)

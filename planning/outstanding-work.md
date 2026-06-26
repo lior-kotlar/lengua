@@ -99,7 +99,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 0 | 6 | all owner-deferred/non-blocking (§2 above); impl complete |
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
-| 3 — LLM quota & cost guard | 35 | usage counters, per-user caps, sliding-window rate limit, global kill-switch, abuse guard, BYOK seam |
+| 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
 | 4 — React web app | 51 | app shell, typed API client, auth screens, generate/review/discover/settings, RTL+diacritics, Streamlit retirement |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
@@ -159,10 +159,50 @@ blocking issues (no orphans, hard-delete proven in CI, secrets safe, authz struc
 
 ---
 
-## 9. Phase 3 (LLM quota & cost guard) — open questions for owner · logged, not blocked
+## 9. Phase 3 (LLM quota & cost guard) — ✅ COMPLETE (M2 reached) · owner-confirmation items remain
 
-Phase 3 is being driven autonomously (owner asked to complete it without pausing). I'm proceeding
-with safe, conservative defaults; **confirm/adjust these later:**
+**✅ Phase 3 is COMPLETE — M2 reached (multi-user with the LLM cost guard armed).** All 8 groups
+(3.1–3.9) + the 8 exit-gate boxes are merged green; the per-PR quality gate held throughout (446
+backend tests, 100% line+branch, mypy --strict, ruff). The headline **zero-paid-usage load test**
+(`tests/integration/test_load_cost_guard.py`) proves caps/limits/budget hold under sustained
+concurrent multi-user traffic with `FakeLLM` (zero real LLM calls) and `FakeLLM.call_count ==
+GLOBAL_DAILY_BUDGET` (the operator key can never be billed past the budget). **Every default below is
+IMPLEMENTED-with-a-default** and env-overridable; the items still marked OPEN are owner *confirmation*
+calls (nothing is blocked):
+
+- ☐ **OPEN (owner):** confirm `GLOBAL_DAILY_BUDGET` (default 1000) + the per-user caps
+  (`MAX_*_PER_DAY` / `DEFAULT_*_PER_DAY`) against the **real Groq `llama-3.1-8b-instant` free-tier
+  requests/day** so the ceiling is set from a real number (the defaults are conservative placeholders
+  « any plausible free RPD; note RPD ÷ retry attempts (3) bounds worst-case fan-out).
+- ☐ **OPEN (Phase 6):** swap the **in-process** rate limiter (`app/ratelimit.py`) and the
+  **in-process** `/discover` reuse cache (`app/discover_cache.py`) for a distributed backend
+  (Postgres/Upstash) behind their existing Protocol seams when Cloud Run scales >1 instance — until
+  then in-process under-counts/misses across replicas (never over-spends).
+- ☐ **OPEN (Phase 6 DEPLOY CONSTRAINT):** **run a single API instance** until the distributed rate
+  limiter lands — the global kill-switch + per-process concurrency cap (3.5, `LLM_MAX_CONCURRENCY`)
+  bound overshoot per process, but the per-user rate limiter under-counts across instances.
+
+🛠 **3.8 landed + Phase 3 EXIT GATE closed (observability spans/metrics + the load test).** New
+`app/llm_observability.py` owns the LLM span tracer + a no-op-unless-configured `MeterProvider`
+(mirrors the tracer's zero-egress discipline) with the cost-guard instruments (`llm_calls_total
+{kind,result}`, `llm_cap_hits_total{gate}`, `llm_budget_remaining` ObservableGauge). `QuotaGuard`
+starts the `llm.call` span in `check()` (sets `quota.kind`/`quota.cap_hit`/`budget.remaining` + the
+blocked/success/error metrics), and the new `app/llm_runner.py` `run_provider(...)` boundary sets the
+`llm.*` attrs (provider/model/latency/tokens). Vendor token usage is threaded out through a core seam
+(`lengua_core/llm/usage.py` `capture_usage`/`report_usage`; Groq/Gemini report real tokens via a
+contextvar-held mutable sink that survives the `to_thread` hop; `FakeLLM` reports deterministic stubs
++ `FakeLLM.call_count` is now lock-guarded for atomic counting under the concurrency cap). `quota_guard`
+became a **generator dependency** so the span is always finalized (even on a provider error after the
+gate admits). Path reconciled: tests live in `tests/obs/` (the task said `tests/observability/`). The
+load test (`tests/integration/test_load_cost_guard.py`) drives genuinely concurrent committed-session
+traffic for the kill-switch (resets the persistent `llm_budget[today]` row on setup/teardown, sizes
+the budget for the accumulated count, and waves are sized so no request races the boundary → exact
+`call_count`) + rolled-back bursts for the per-user cap / rate limit + a DB-free `run_provider`
+concurrency-cap check. `openapi.json` unchanged (spans/metrics are internal).
+
+_(Original autonomous-defaults note, retained for history:)_ Phase 3 was driven autonomously (owner
+asked to complete it without pausing) with safe, conservative defaults; **confirm/adjust the OPEN
+items above later:**
 
 **Progress:** 🛠 **3.1 landed (PR #31, merging after the review's must-fixes)** — usage accounting +
 the server-only kill-switch privilege model (Alembic `0004` + canonical `20260626120000_llm_killswitch.sql`,

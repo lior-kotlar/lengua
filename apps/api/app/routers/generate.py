@@ -40,7 +40,7 @@ async def generate(
     """
     try:
         built = await GenerateService(db, provider, limiter).generate(
-            user_id, body.language_id, body.words
+            user_id, body.language_id, body.words, guard=guard
         )
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
