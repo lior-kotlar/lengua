@@ -15,6 +15,7 @@ import {
   ActiveLanguageContext,
   type ActiveLanguageState,
 } from '@/components/active-language-context';
+import { VowelMarksProvider } from '@/components/vowel-marks-provider';
 import { takeHandedOffWords } from '@/lib/generate-handoff';
 import type { LanguageOut } from '@/lib/languages';
 import Discover from '@/pages/Discover';
@@ -89,10 +90,12 @@ function renderDiscover(value: ActiveLanguageState = makeValue()) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={['/discover']}>
         <ActiveLanguageContext.Provider value={value}>
-          <Routes>
-            <Route path="/discover" element={<Discover />} />
-            <Route path="/generate" element={<div>GENERATE ROUTE</div>} />
-          </Routes>
+          <VowelMarksProvider>
+            <Routes>
+              <Route path="/discover" element={<Discover />} />
+              <Route path="/generate" element={<div>GENERATE ROUTE</div>} />
+            </Routes>
+          </VowelMarksProvider>
         </ActiveLanguageContext.Provider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -142,6 +145,14 @@ describe('Discover — language gating', () => {
     renderDiscover();
     expect(
       await screen.findByText(/example sentences in Spanish/i),
+    ).toBeInTheDocument();
+  });
+
+  it('renders defensively when a language id is selected but its object is unresolved', async () => {
+    // Race-state fallback: id set, object not yet in the list → the workspace still mounts.
+    renderDiscover(makeValue({ activeLanguageId: 1, activeLanguage: null }));
+    expect(
+      await screen.findByRole('button', { name: 'Discover' }),
     ).toBeInTheDocument();
   });
 });

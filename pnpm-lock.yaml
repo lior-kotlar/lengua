@@ -10,6 +10,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@fontsource/noto-naskh-arabic':
+        specifier: ^5.2.11
+        version: 5.2.11
+      '@fontsource/noto-sans-hebrew':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@radix-ui/react-dialog':
         specifier: ^1.1.17
         version: 1.1.17(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -470,6 +476,12 @@ packages:
   '@eslint/plugin-kit@0.4.1':
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@fontsource/noto-naskh-arabic@5.2.11':
+    resolution: {integrity: sha512-mi4QOG3EK+iho//vjB+13Ww4Oy1ulkgBgUuVpVZQBjBPkaMoHOJZBpSIZOXTzL7ZFTvMPzdSTvt0juE9NVl+PA==}
+
+  '@fontsource/noto-sans-hebrew@5.2.8':
+    resolution: {integrity: sha512-FN/GDpE709JQN5f7vmqlbIwz2/vAM6ZnXqRsw47Piq731hvti55V/FLbyU2RWUvlis16ezPf0r+zKTjfdeXF/g==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -2793,6 +2805,10 @@ snapshots:
     dependencies:
       '@eslint/core': 0.17.0
       levn: 0.4.1
+
+  '@fontsource/noto-naskh-arabic@5.2.11': {}
+
+  '@fontsource/noto-sans-hebrew@5.2.8': {}
 
   '@humanfs/core@0.19.2':
     dependencies:

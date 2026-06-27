@@ -13,6 +13,7 @@ import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
+import { LanguageText } from '@/components/language-text';
 import { TappableSentence } from '@/components/tappable-sentence';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +24,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
+import { useVowelMarks } from '@/components/vowel-marks-context';
+import { VowelMarksToggle } from '@/components/vowel-marks-toggle';
 import { apiErrorMessage } from '@/lib/api-client';
+import { directionForCode } from '@/lib/language-text';
+import { fallbackLanguage, type LanguageOut } from '@/lib/languages';
 import {
   isProductionCard,
   RATINGS,
@@ -36,9 +41,14 @@ import { cn } from '@/lib/utils';
 
 export default function Review() {
   const { activeLanguageId, activeLanguage, isLoading } = useActiveLanguage();
+  const { showVowels } = useVowelMarks();
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
+    <section
+      dir={directionForCode(activeLanguage?.code)}
+      data-testid="review-content"
+      className="mx-auto max-w-2xl space-y-6"
+    >
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Review</h1>
         <p className="text-sm text-muted-foreground">
@@ -46,6 +56,8 @@ export default function Review() {
           {activeLanguage !== null ? ` in ${activeLanguage.name}` : ''}.
         </p>
       </div>
+
+      <VowelMarksToggle />
 
       {isLoading ? (
         <p
@@ -73,8 +85,8 @@ export default function Review() {
         // Re-mount the session per language so the walk position never leaks across a switch.
         <ReviewSession
           key={activeLanguageId}
-          languageId={activeLanguageId}
-          languageName={activeLanguage?.name ?? ''}
+          language={activeLanguage ?? fallbackLanguage(activeLanguageId)}
+          showVowels={showVowels}
         />
       )}
     </section>
@@ -82,12 +94,14 @@ export default function Review() {
 }
 
 interface ReviewSessionProps {
-  languageId: number;
-  languageName: string;
+  language: LanguageOut;
+  showVowels: boolean;
 }
 
 /** Load + walk the due batch for a known (non-null) active language. */
-function ReviewSession({ languageId, languageName }: ReviewSessionProps) {
+function ReviewSession({ language, showVowels }: ReviewSessionProps) {
+  const languageId = language.id;
+  const languageName = language.name;
   const due = useDueQuery(languageId);
   const grade = useGradeCard();
   const [index, setIndex] = useState(0);
@@ -226,10 +240,10 @@ function ReviewSession({ languageId, languageName }: ReviewSessionProps) {
         // Fresh card component (and tap-a-word state) per card.
         key={current.id}
         card={current}
-        languageId={languageId}
-        languageName={languageName}
+        language={language}
         revealed={revealed}
         grading={grade.isPending}
+        showVowels={showVowels}
         onReveal={reveal}
         onGrade={submitGrade}
       />
@@ -287,10 +301,10 @@ function ReviewProgress({
 
 interface ReviewCardProps {
   card: CardOut;
-  languageId: number;
-  languageName: string;
+  language: LanguageOut;
   revealed: boolean;
   grading: boolean;
+  showVowels: boolean;
   onReveal: () => void;
   onGrade: (rating: number) => void;
 }
@@ -298,14 +312,15 @@ interface ReviewCardProps {
 /** One review card: prompt (front), reveal control, then the answer + rating buttons. */
 function ReviewCard({
   card,
-  languageId,
-  languageName,
+  language,
   revealed,
   grading,
+  showVowels,
   onReveal,
   onGrade,
 }: ReviewCardProps) {
   const production = isProductionCard(card);
+  const languageName = language.name;
   const promptLabel = production
     ? `Build the sentence${languageName !== '' ? ` in ${languageName}` : ''}`
     : 'Read and understand';
@@ -316,7 +331,18 @@ function ReviewCard({
       <CardHeader>
         <CardDescription>{promptLabel}</CardDescription>
         <CardTitle className="text-xl font-medium leading-relaxed">
-          {card.front}
+          {/* The prompt is target text for recognition cards (read it) and English for production
+              cards (build it) — only the former gets direction/font/diacritics treatment. */}
+          {production ? (
+            card.front
+          ) : (
+            <LanguageText
+              as="span"
+              text={card.front}
+              language={language}
+              showVowels={showVowels}
+            />
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -334,13 +360,17 @@ function ReviewCard({
                 <TappableSentence
                   text={card.back}
                   translation={card.front}
-                  languageId={languageId}
+                  language={language}
                   explanations={card.word_explanations}
+                  showVowels={showVowels}
                 />
               ) : (
-                <p className="text-xl font-medium leading-relaxed">
-                  {card.back}
-                </p>
+                <LanguageText
+                  className="text-xl font-medium leading-relaxed"
+                  text={card.back}
+                  language={language}
+                  showVowels={showVowels}
+                />
               )}
               {production && (
                 <p className="mt-1 text-xs text-muted-foreground">

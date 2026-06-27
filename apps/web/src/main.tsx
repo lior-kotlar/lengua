@@ -9,6 +9,14 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { createQueryClient } from '@/lib/query-client';
 import '@/index.css';
+// Self-hosted diacritic-correct fonts for the complex scripts (group 4.9.2). Bundled by Vite (no
+// runtime CDN — mobile-webview-safe): Noto Naskh Arabic positions harakat, Noto Sans Hebrew positions
+// nikkud. Only the script subset of each is imported; `font-arabic` / `font-hebrew` (tailwind.config)
+// select them for the matching language regions.
+import '@fontsource/noto-naskh-arabic/arabic-400.css';
+import '@fontsource/noto-naskh-arabic/arabic-700.css';
+import '@fontsource/noto-sans-hebrew/hebrew-400.css';
+import '@fontsource/noto-sans-hebrew/hebrew-700.css';
 
 const queryClient = createQueryClient();
 

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import httpx
@@ -50,6 +51,11 @@ DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 DEMO_EMAIL = "demo@lengua.test"
 DEMO_PASSWORD = "demo-password-123"  # noqa: S105 — fixed local test credential, not a secret
 DEMO_LANGUAGE = "Spanish"
+
+# A second, vowelized right-to-left language (Hebrew) so the RTL / diacritics / vowel-marks E2E
+# (group 4.9) has a deterministic deck with real nikkud. Additive + idempotent.
+DEMO_RTL_LANGUAGE = "Hebrew"
+DEMO_RTL_CODE = "he"
 
 
 @dataclass(frozen=True)
@@ -157,6 +163,55 @@ _DEMO_SENTENCES = (
     ("El gato duerme en la silla.", "The cat sleeps on the chair.", ["gato", "silla"]),
 )
 
+# Fixed nikkud (vowel-marked) Hebrew sentences for the RTL deck — each becomes a recognition +
+# production pair, so the review screen has a vowel-marked, right-to-left, tappable sentence.
+_DEMO_RTL_SENTENCES = (
+    ("שָׁלוֹם, מַה שְׁלוֹמְךָ?", "Hello, how are you?", ["שָׁלוֹם"]),
+    ("אֲנִי לוֹמֵד עִבְרִית.", "I am learning Hebrew.", ["לוֹמֵד", "עִבְרִית"]),
+    ("הֶחָתוּל יָשֵׁן עַל הַכִּסֵּא.", "The cat sleeps on the chair.", ["חָתוּל", "כִּסֵּא"]),
+)
+
+
+def _insert_due_card_pairs(
+    conn: psycopg.Connection,
+    user_id: str,
+    language_id: int,
+    sentences: Sequence[tuple[str, str, list[str]]],
+) -> None:
+    """Insert a recognition + production due-card pair for each sentence.
+
+    Each card gets a real fresh FSRS state (due immediately) — the same state
+    ``lengua_core.scheduler.new_card_state`` / the save service write — so it is gradeable
+    (``fsrs_state IS NULL`` would make the grade endpoint 422 and stall the review loop). Built
+    straight from ``fsrs`` (a dependency) rather than importing ``lengua_core``, since this script
+    runs as ``python scripts/seed_e2e.py`` with the package root off ``sys.path``.
+    """
+    for sentence, translation, used in sentences:
+        used_json = json.dumps(used)
+        for direction, front, back in (
+            ("recognition", sentence, translation),
+            ("production", translation, sentence),
+        ):
+            fsrs_dict = Card().to_dict()
+            fsrs_json = json.dumps(fsrs_dict)
+            due_iso = fsrs_dict["due"]
+            conn.execute(
+                "INSERT INTO cards "
+                "(user_id, language_id, front, back, used_words, direction, "
+                "fsrs_state, saved, due) "
+                "VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, true, %s)",
+                (
+                    user_id,
+                    language_id,
+                    front,
+                    back,
+                    used_json,
+                    direction,
+                    fsrs_json,
+                    due_iso,
+                ),
+            )
+
 
 def _ensure_cards(conn: psycopg.Connection, user_id: str, language_id: int) -> int:
     """Insert the demo due cards if the deck is empty; return the total card count.
@@ -169,37 +224,7 @@ def _ensure_cards(conn: psycopg.Connection, user_id: str, language_id: int) -> i
     ).fetchone()
     assert existing is not None
     if existing[0] == 0:
-        for sentence, translation, used in _DEMO_SENTENCES:
-            used_json = json.dumps(used)
-            for direction, front, back in (
-                ("recognition", sentence, translation),
-                ("production", translation, sentence),
-            ):
-                # Seed a real FSRS state (due immediately) — the same fresh-card state
-                # ``lengua_core.scheduler.new_card_state`` / the save service write — so these
-                # cards are gradeable. Without it the grade endpoint rejects them
-                # (``fsrs_state IS NULL`` → 422) and the review loop can't advance. Built straight
-                # from ``fsrs`` (a dependency) rather than importing ``lengua_core``, since this
-                # script runs as ``python scripts/seed_e2e.py`` with the package root off sys.path.
-                fsrs_dict = Card().to_dict()
-                fsrs_json = json.dumps(fsrs_dict)
-                due_iso = fsrs_dict["due"]
-                conn.execute(
-                    "INSERT INTO cards "
-                    "(user_id, language_id, front, back, used_words, direction, "
-                    "fsrs_state, saved, due) "
-                    "VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, true, %s)",
-                    (
-                        user_id,
-                        language_id,
-                        front,
-                        back,
-                        used_json,
-                        direction,
-                        fsrs_json,
-                        due_iso,
-                    ),
-                )
+        _insert_due_card_pairs(conn, user_id, language_id, _DEMO_SENTENCES)
 
     total = conn.execute(
         "SELECT count(*) FROM cards WHERE user_id = %s AND language_id = %s",
@@ -207,6 +232,36 @@ def _ensure_cards(conn: psycopg.Connection, user_id: str, language_id: int) -> i
     ).fetchone()
     assert total is not None
     return int(total[0])
+
+
+def _ensure_rtl_language(conn: psycopg.Connection, user_id: str) -> int:
+    """Insert the vowelized Hebrew language + nikkud cards if absent; return its id.
+
+    A second, right-to-left language so the RTL / diacritics / vowel-marks E2E (group 4.9) has a
+    deterministic vowel-marked deck (recognition + production pairs, due now). Idempotent like the
+    Spanish deck; the returned ``SeedResult`` still reports the primary Spanish language, so the
+    existing seed assertions are unaffected.
+    """
+    conn.execute(
+        "INSERT INTO languages (user_id, name, code, vowelized) VALUES (%s, %s, %s, %s) "
+        "ON CONFLICT (user_id, name) DO NOTHING",
+        (user_id, DEMO_RTL_LANGUAGE, DEMO_RTL_CODE, True),
+    )
+    row = conn.execute(
+        "SELECT id FROM languages WHERE user_id = %s AND name = %s",
+        (user_id, DEMO_RTL_LANGUAGE),
+    ).fetchone()
+    assert row is not None
+    language_id = int(row[0])
+
+    existing = conn.execute(
+        "SELECT count(*) FROM cards WHERE user_id = %s AND language_id = %s",
+        (user_id, language_id),
+    ).fetchone()
+    assert existing is not None
+    if existing[0] == 0:
+        _insert_due_card_pairs(conn, user_id, language_id, _DEMO_RTL_SENTENCES)
+    return language_id
 
 
 def seed() -> SeedResult:
@@ -218,6 +273,8 @@ def seed() -> SeedResult:
         _ensure_profile(conn, user_id)
         language_id = _ensure_language(conn, user_id)
         card_count = _ensure_cards(conn, user_id, language_id)
+        # Additive RTL deck for the group-4.9 E2E (Spanish stays the primary SeedResult language).
+        _ensure_rtl_language(conn, user_id)
 
     return SeedResult(user_id=user_id, language_id=language_id, card_count=card_count)
 

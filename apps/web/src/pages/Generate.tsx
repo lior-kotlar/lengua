@@ -14,6 +14,7 @@ import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
+import { LanguageText } from '@/components/language-text';
 import { LlmErrorState } from '@/components/llm-error-state';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,7 +25,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
+import { useVowelMarks } from '@/components/vowel-marks-context';
+import { VowelMarksToggle } from '@/components/vowel-marks-toggle';
 import { apiErrorMessage } from '@/lib/api-client';
+import { directionForCode } from '@/lib/language-text';
+import { fallbackLanguage, type LanguageOut } from '@/lib/languages';
 import {
   cardsForSentences,
   groupSentences,
@@ -40,9 +45,14 @@ import { cn } from '@/lib/utils';
 
 export default function Generate() {
   const { activeLanguageId, activeLanguage, isLoading } = useActiveLanguage();
+  const { showVowels } = useVowelMarks();
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
+    <section
+      dir={directionForCode(activeLanguage?.code)}
+      data-testid="generate-content"
+      className="mx-auto max-w-2xl space-y-6"
+    >
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Generate</h1>
         <p className="text-sm text-muted-foreground">
@@ -50,6 +60,8 @@ export default function Generate() {
           {activeLanguage !== null ? ` in ${activeLanguage.name}` : ''}.
         </p>
       </div>
+
+      <VowelMarksToggle />
 
       {isLoading ? (
         <p
@@ -77,7 +89,8 @@ export default function Generate() {
         // Re-mount the workspace per language so its draft/results never leak across a switch.
         <GenerateWorkspace
           key={activeLanguageId}
-          languageId={activeLanguageId}
+          language={activeLanguage ?? fallbackLanguage(activeLanguageId)}
+          showVowels={showVowels}
         />
       )}
     </section>
@@ -85,7 +98,14 @@ export default function Generate() {
 }
 
 /** The generate -> review -> save workflow for a known (non-null) active language. */
-function GenerateWorkspace({ languageId }: { languageId: number }) {
+function GenerateWorkspace({
+  language,
+  showVowels,
+}: {
+  language: LanguageOut;
+  showVowels: boolean;
+}) {
+  const languageId = language.id;
   // Seed the word input from a Discover → Generate handoff (group 4.7.2), consumed once on mount so a
   // later language switch or revisit starts blank; normal visits get an empty form.
   const [rawWords, setRawWords] = useState(() => {
@@ -169,6 +189,8 @@ function GenerateWorkspace({ languageId }: { languageId: number }) {
     return (
       <ResultsPanel
         sentences={sentences}
+        language={language}
+        showVowels={showVowels}
         onSave={handleSave}
         onStartOver={() => startOver(false)}
         isSaving={save.isPending}
@@ -181,6 +203,8 @@ function GenerateWorkspace({ languageId }: { languageId: number }) {
       rawWords={rawWords}
       onRawWordsChange={setRawWords}
       words={words}
+      language={language}
+      showVowels={showVowels}
       overCap={overCap}
       canGenerate={canGenerate}
       isGenerating={generate.isPending}
@@ -194,6 +218,8 @@ interface WordFormProps {
   rawWords: string;
   onRawWordsChange: (value: string) => void;
   words: string[];
+  language: LanguageOut;
+  showVowels: boolean;
   overCap: boolean;
   canGenerate: boolean;
   isGenerating: boolean;
@@ -205,6 +231,8 @@ function WordForm({
   rawWords,
   onRawWordsChange,
   words,
+  language,
+  showVowels,
   overCap,
   canGenerate,
   isGenerating,
@@ -229,6 +257,7 @@ function WordForm({
               </label>
               <textarea
                 id="generate-words"
+                dir={directionForCode(language.code)}
                 value={rawWords}
                 onChange={(event) => onRawWordsChange(event.target.value)}
                 disabled={isGenerating}
@@ -258,7 +287,12 @@ function WordForm({
                     key={`${word}-${index}`}
                     className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
                   >
-                    {word}
+                    <LanguageText
+                      as="span"
+                      text={word}
+                      language={language}
+                      showVowels={showVowels}
+                    />
                   </li>
                 ))}
               </ul>
@@ -313,6 +347,8 @@ function WordForm({
 
 interface ResultsPanelProps {
   sentences: GeneratedSentence[];
+  language: LanguageOut;
+  showVowels: boolean;
   onSave: (cards: GeneratedCard[]) => void;
   onStartOver: () => void;
   isSaving: boolean;
@@ -320,6 +356,8 @@ interface ResultsPanelProps {
 
 function ResultsPanel({
   sentences,
+  language,
+  showVowels,
   onSave,
   onStartOver,
   isSaving,
@@ -416,7 +454,12 @@ function ResultsPanel({
                   aria-label={`Save this card — ${sentence.translation}`}
                 />
                 <div className="min-w-0 space-y-1">
-                  <p className="font-medium">{sentence.sentence}</p>
+                  <LanguageText
+                    className="font-medium"
+                    text={sentence.sentence}
+                    language={language}
+                    showVowels={showVowels}
+                  />
                   <p className="text-sm text-muted-foreground">
                     {sentence.translation}
                   </p>
@@ -427,7 +470,12 @@ function ResultsPanel({
                           key={`${word}-${index}`}
                           className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                         >
-                          {word}
+                          <LanguageText
+                            as="span"
+                            text={word}
+                            language={language}
+                            showVowels={showVowels}
+                          />
                         </li>
                       ))}
                     </ul>

@@ -1,13 +1,19 @@
 /**
- * Tap-a-word sentence (group 4.6.4) — renders a target-language sentence whose words can be tapped
- * for a short explanation in a popover.
+ * Tap-a-word sentence (groups 4.6.4 + 4.9.4) — renders a target-language sentence whose words can be
+ * tapped for a short explanation in a popover, with full RTL + diacritics support.
  *
  * Used on production review cards: each whitespace token becomes a button; tapping one opens a
  * popover anchored to that word and fetches its explanation via `POST /explain` (keyed by word +
  * language, served from the card's pre-generated note when present). A single tap (mouse or touch —
  * a tap synthesises a click) selects the word; tapping it again, the close button, `Escape`, or
- * anywhere outside dismisses the popover. Word boundaries come from {@link segmentSentence}, so they
- * are exact on both touch and click. (RTL-aware refinements land in group 4.9.)
+ * anywhere outside dismisses the popover.
+ *
+ * RTL + diacritics (4.9): direction + script font come from the language code, so an Arabic/Hebrew
+ * sentence reads right-to-left in a harakat/nikkud-correct font and the popover anchors to the
+ * correct edge. Word boundaries come from {@link segmentSentence} (exact on touch and click), and
+ * the visible glyphs honour the vowel-marks toggle — but the word looked up is always the canonical
+ * one WITH its marks ({@link SentenceSegment.bare}), so a stripped display still matches the cached
+ * explanation key.
  */
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
@@ -18,6 +24,12 @@ import {
   useExplainWord,
   type ExplainParams,
 } from '@/lib/review';
+import {
+  directionForCode,
+  displayText,
+  scriptFontClass,
+} from '@/lib/language-text';
+import type { LanguageOut } from '@/lib/languages';
 import { cn } from '@/lib/utils';
 
 export interface TappableSentenceProps {
@@ -25,12 +37,12 @@ export interface TappableSentenceProps {
   text: string;
   /** Its English gloss (the production card's front), sent with the explain request. */
   translation: string;
-  /** The active language id (part of the explanation cache key). */
-  languageId: number;
+  /** The active language (its id keys the explanation cache; its code drives direction + font). */
+  language: Pick<LanguageOut, 'id' | 'code'>;
   /** The card's pre-generated word→note map, if any (instant popover, no request). */
   explanations: Record<string, unknown> | null;
-  /** Text direction for the sentence region (group 4.9 sets RTL; defaults to LTR). */
-  dir?: 'ltr' | 'rtl';
+  /** Whether to show vowel marks (false strips harakat / nikkud from the displayed glyphs). */
+  showVowels: boolean;
 }
 
 /** The currently-tapped word: its bare form plus the segment index it was tapped at (the anchor). */
@@ -42,18 +54,25 @@ interface Selection {
 export function TappableSentence({
   text,
   translation,
-  languageId,
+  language,
   explanations,
-  dir = 'ltr',
+  showVowels,
 }: TappableSentenceProps) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const rootRef = useRef<HTMLParagraphElement>(null);
   const segments = segmentSentence(text);
+  const dir = directionForCode(language.code);
+  const fontClass = scriptFontClass(language.code);
 
   const explainParams: ExplainParams | null =
     selection === null
       ? null
-      : { languageId, word: selection.word, sentence: text, translation };
+      : {
+          languageId: language.id,
+          word: selection.word,
+          sentence: text,
+          translation,
+        };
   const explain = useExplainWord(
     explainParams,
     selection === null
@@ -95,7 +114,11 @@ export function TappableSentence({
   }
 
   return (
-    <p ref={rootRef} dir={dir} className="text-xl font-medium leading-relaxed">
+    <p
+      ref={rootRef}
+      dir={dir}
+      className={cn('text-xl font-medium leading-relaxed', fontClass)}
+    >
       {segments.map((segment, index) => {
         if (!segment.isWord) {
           return <span key={index}>{segment.raw}</span>;
@@ -105,6 +128,8 @@ export function TappableSentence({
           <span key={index} className="relative inline-block">
             <button
               type="button"
+              // The looked-up word is the canonical bare form WITH marks; only the glyphs honour the
+              // vowel-marks toggle.
               onClick={() => toggle(segment.bare, index)}
               aria-expanded={isOpen}
               aria-haspopup="dialog"
@@ -113,15 +138,16 @@ export function TappableSentence({
                 isOpen && 'bg-accent text-accent-foreground',
               )}
             >
-              {segment.raw}
+              {displayText(segment.raw, showVowels)}
             </button>
             {isOpen && (
               <WordPopover
-                word={selection.word}
+                word={displayText(selection.word, showVowels)}
                 explanation={explain.data?.explanation}
                 isLoading={explain.isLoading}
                 isError={explain.isError}
                 dir={dir}
+                fontClass={fontClass}
                 onClose={() => setSelection(null)}
               />
             )}
@@ -138,6 +164,7 @@ interface WordPopoverProps {
   isLoading: boolean;
   isError: boolean;
   dir: 'ltr' | 'rtl';
+  fontClass: string;
   onClose: () => void;
 }
 
@@ -148,6 +175,7 @@ function WordPopover({
   isLoading,
   isError,
   dir,
+  fontClass,
   onClose,
 }: WordPopoverProps) {
   return (
@@ -162,7 +190,7 @@ function WordPopover({
       )}
     >
       <span className="flex items-start justify-between gap-2">
-        <span className="font-semibold">{word}</span>
+        <span className={cn('font-semibold', fontClass)}>{word}</span>
         <button
           type="button"
           onClick={onClose}

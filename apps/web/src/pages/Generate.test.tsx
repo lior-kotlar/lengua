@@ -17,6 +17,7 @@ import {
   ActiveLanguageContext,
   type ActiveLanguageState,
 } from '@/components/active-language-context';
+import { VowelMarksProvider } from '@/components/vowel-marks-provider';
 import { handOffWords, takeHandedOffWords } from '@/lib/generate-handoff';
 import type { LanguageOut } from '@/lib/languages';
 import Generate from '@/pages/Generate';
@@ -109,7 +110,9 @@ function renderGenerate(value: ActiveLanguageState = makeValue()) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <ActiveLanguageContext.Provider value={value}>
-          <Generate />
+          <VowelMarksProvider>
+            <Generate />
+          </VowelMarksProvider>
         </ActiveLanguageContext.Provider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -158,6 +161,12 @@ describe('Generate — language gating', () => {
     expect(
       screen.getByText(/example sentences in Spanish/i),
     ).toBeInTheDocument();
+  });
+
+  it('renders defensively when a language id is selected but its object is unresolved', () => {
+    // Race-state fallback: id set, object not yet in the list → the workspace still mounts.
+    renderGenerate(makeValue({ activeLanguageId: 1, activeLanguage: null }));
+    expect(screen.getByText('Your words')).toBeInTheDocument();
   });
 });
 

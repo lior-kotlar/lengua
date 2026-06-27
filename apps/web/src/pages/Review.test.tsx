@@ -17,6 +17,7 @@ import {
   ActiveLanguageContext,
   type ActiveLanguageState,
 } from '@/components/active-language-context';
+import { VowelMarksProvider } from '@/components/vowel-marks-provider';
 import type { LanguageOut } from '@/lib/languages';
 import type { CardOut } from '@/lib/review';
 import Review from '@/pages/Review';
@@ -26,6 +27,20 @@ const SPANISH: LanguageOut = {
   name: 'Spanish',
   code: 'es',
   vowelized: false,
+};
+
+const HEBREW: LanguageOut = {
+  id: 3,
+  name: 'Hebrew',
+  code: 'he',
+  vowelized: true,
+};
+
+const ARABIC: LanguageOut = {
+  id: 5,
+  name: 'Arabic',
+  code: 'ar',
+  vowelized: true,
 };
 
 interface ApiResult {
@@ -101,7 +116,9 @@ function renderReview(value: ActiveLanguageState = makeValue()) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <ActiveLanguageContext.Provider value={value}>
-          <Review />
+          <VowelMarksProvider>
+            <Review />
+          </VowelMarksProvider>
         </ActiveLanguageContext.Provider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -119,6 +136,53 @@ function ratingButton(value: number): HTMLButtonElement {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The real VowelMarksProvider persists to localStorage — reset so the toggle state never leaks.
+  localStorage.clear();
+});
+
+describe('Review — RTL & vowel marks (4.9)', () => {
+  it('sets dir on the content region from the language code (4.9.1)', () => {
+    get.mockReturnValue(okResult(due([], [])));
+    const view = renderReview(
+      makeValue({
+        languages: [ARABIC],
+        activeLanguageId: 5,
+        activeLanguage: ARABIC,
+      }),
+    );
+    expect(screen.getByTestId('review-content')).toHaveAttribute('dir', 'rtl');
+    view.unmount();
+
+    renderReview(); // default Spanish (LTR)
+    expect(screen.getByTestId('review-content')).toHaveAttribute('dir', 'ltr');
+  });
+
+  it('strips and restores the diacritics in the rendered prompt when the toggle flips (4.9.3)', async () => {
+    const user = userEvent.setup();
+    get.mockReturnValue(
+      okResult(
+        due([makeCard(1, 'recognition', 'שָׁלוֹם עוֹלָם', 'hello world')], []),
+      ),
+    );
+    renderReview(
+      makeValue({
+        languages: [HEBREW],
+        activeLanguageId: 3,
+        activeLanguage: HEBREW,
+      }),
+    );
+
+    // The vowelized prompt renders first (marks shown by default).
+    expect(await screen.findByText('שָׁלוֹם עוֹלָם')).toBeInTheDocument();
+
+    const toggle = screen.getByRole('switch', { name: 'Show vowel marks' });
+    await user.click(toggle); // marks off → stripped glyphs
+    expect(screen.getByText('שלום עולם')).toBeInTheDocument();
+    expect(screen.queryByText('שָׁלוֹם עוֹלָם')).toBeNull();
+
+    await user.click(toggle); // marks on → restored
+    expect(screen.getByText('שָׁלוֹם עוֹלָם')).toBeInTheDocument();
+  });
 });
 
 describe('Review — language gating', () => {

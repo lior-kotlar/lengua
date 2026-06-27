@@ -129,14 +129,18 @@ _Context: ports Settings (per-user daily new/total limits, discover count) and A
 
 _Context: a key reason Capacitor was chosen — the web text engine shapes Arabic/Hebrew well. Per-language direction, correct diacritic-rendering fonts, a vowel-marks toggle, and RTL-aware tap-a-word must all work on web and survive into the mobile webview._
 
-- [ ] **4.9.1** Per-language direction: set `dir="rtl"` for Arabic/Hebrew (and `ltr` otherwise) on the content region and mirror layout (paddings, icons, alignment) accordingly.
+- [x] **4.9.1** Per-language direction: set `dir="rtl"` for Arabic/Hebrew (and `ltr` otherwise) on the content region and mirror layout (paddings, icons, alignment) accordingly.
       verify: vitest renders an Arabic language and asserts the content container has `dir="rtl"`; an English language asserts `ltr`; Playwright snapshot shows mirrored layout for an RTL language.
-- [ ] **4.9.2** Bundle/select fonts that correctly render harakat/nikkud and Arabic/Hebrew shaping; apply them to language text regions.
+      _Done: `directionForCode` (lib/language-text.ts) drives `dir` on each screen's content `<section>` (`*-content` testid) + on `LanguageText`/`TappableSentence`; Review.test asserts rtl for Arabic / ltr for Spanish; `e2e/rtl.spec.ts` asserts `dir="rtl"` + attaches a mirrored-layout screenshot._
+- [x] **4.9.2** Bundle/select fonts that correctly render harakat/nikkud and Arabic/Hebrew shaping; apply them to language text regions.
       verify: Playwright renders a vowel-marked Hebrew/Arabic sentence and a visual snapshot shows diacritics positioned on base letters (no tofu/boxes); the font is confirmed loaded via `document.fonts.check`.
-- [ ] **4.9.3** Vowel-marks (harakat/nikkud) toggle that strips/restores diacritics in displayed text per the user's preference.
+      _Done: self-hosted `@fontsource/noto-naskh-arabic` + `@fontsource/noto-sans-hebrew` (imported in main.tsx, bundled by Vite — no runtime CDN); `font-arabic`/`font-hebrew` Tailwind utilities applied via `scriptFontClass`; `e2e/rtl.spec.ts` asserts `document.fonts.check('16px "Noto Sans Hebrew"')` + nikkud present in the rendered text + attaches the visual snapshot._
+- [x] **4.9.3** Vowel-marks (harakat/nikkud) toggle that strips/restores diacritics in displayed text per the user's preference.
       verify: vitest asserts toggling off removes the diacritic marks from rendered text and back on restores them; Playwright toggles and the on/off rendering differs.
-- [ ] **4.9.4** RTL-aware tap-a-word: word segmentation respects RTL boundaries so tapping selects the correct word in Arabic/Hebrew on both touch and click.
+      _Done: `VowelMarksProvider`/`useVowelMarks` (device-persisted, default on) + the self-gating `VowelMarksToggle` (shown only for vowelized languages); `stripDiacritics` applied in `LanguageText`/`TappableSentence`; Review.test toggles and asserts the prompt's nikkud strip/restore; `e2e/rtl.spec.ts` toggles on a Hebrew card._
+- [x] **4.9.4** RTL-aware tap-a-word: word segmentation respects RTL boundaries so tapping selects the correct word in Arabic/Hebrew on both touch and click.
       verify: Playwright taps a word mid-RTL-sentence and asserts the correct word's explanation opens (touch emulation + click); vitest asserts the segmenter returns correct word spans for an RTL string.
+      _Done: `TappableSentence` is RTL-anchored + keys the lookup off the canonical bare word WITH marks (so a stripped display still hits the cached note); `segmentSentence` RTL unit tests (Hebrew nikkud + Arabic harakat retained); `e2e/rtl.spec.ts` taps mid-sentence words via touch (`.tap()`) AND click on a Hebrew production card (a fresh vowelized RTL deck added to `scripts/seed_e2e.py`)._
 
 ## 4.10 — Cross-cutting UX states & consent  ·  S
 
