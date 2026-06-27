@@ -11,10 +11,16 @@ instrumentation hooks the roadmap starts here (dashboards/alerts land in Phase 5
   and that **only** attaches an OTLP span exporter when ``OTEL_EXPORTER_OTLP_ENDPOINT`` (or the
   traces-specific variant) is set, so local dev and CI are a no-op with zero network egress;
 * auto-instrumentation for **FastAPI** (HTTP server spans, per app), **SQLAlchemy** (DB query
-  spans), and **httpx** (outbound client spans); and
+  spans), and **httpx** (outbound client spans);
 * a middleware that emits exactly one structured JSON access-log line per request
   (``method`` / ``path`` / ``status`` / ``latency_ms``) carrying the active ``trace_id`` so logs
-  correlate with traces.
+  correlate with traces; and
+* (task 5.3) a module-owned OTel :class:`~opentelemetry.sdk._logs.LoggerProvider` + a
+  :class:`~opentelemetry.sdk._logs.LoggingHandler` routing stdlib logging through OTel so records
+  can export to Loki — attached to the root and access loggers, sharing :func:`build_resource`, and
+  (like the tracer/meter) a no-op with zero egress unless an OTLP logs endpoint is set. A
+  :class:`TraceCorrelationFilter` stamps ``trace_id`` / ``span_id`` / ``user_id`` onto every record
+  (task 5.3.2) so each log line — stdout JSON and OTLP — joins to its trace.
 
 The OTLP endpoint, headers, and protocol are read from the standard ``OTEL_EXPORTER_OTLP_*``
 environment variables — the exporter picks them up itself, so wiring a real backend in Phase 5 is
@@ -36,12 +42,16 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
+
+from app.request_context import get_current_user_id
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -63,6 +73,12 @@ _request_logger = logging.getLogger(REQUEST_LOGGER_NAME)
 # re-instrument the global libraries or stack duplicate log handlers.
 _globally_instrumented = False
 _logging_configured = False
+_otel_log_export_configured = False
+
+# The module-owned OTel LoggerProvider (task 5.3.1), built lazily — mirrors the cost-guard
+# MeterProvider (app.llm_observability): it is NOT the OTel global, and it has no log-record
+# processors unless an OTLP logs endpoint is configured, so local/CI stay no-op with zero egress.
+_logger_provider: LoggerProvider | None = None
 
 # Standard LogRecord attributes; everything else on a record is a structured "extra" and is
 # merged into the JSON payload as a top-level key (so the middleware's method/path/status/... and
@@ -131,6 +147,38 @@ def current_trace_id() -> str | None:
     if not span_context.is_valid:
         return None
     return format(span_context.trace_id, "032x")
+
+
+class TraceCorrelationFilter(logging.Filter):
+    """Stamp every log record with the active trace/span ids and the request's user id (task 5.3.2).
+
+    Attached to the access-log stdout handler and the OTLP :class:`LoggingHandler`, so each emitted
+    record carries:
+
+    * ``trace_id`` (32 hex) / ``span_id`` (16 hex) — from the active OpenTelemetry span, or ``None``
+      when no recording span is active (outside a request); and
+    * ``user_id`` — the authenticated user's id from the per-request contextvar
+      (:func:`app.request_context.get_current_user_id`), set where ``current_user`` resolves;
+      ``None`` when unauthenticated/unavailable (e.g. the access line, emitted in the outer task).
+
+    Each field is written with ``setdefault`` so an explicit ``extra=`` value already on the record
+    (e.g. the access line's own ``trace_id``) is preserved. The filter never drops a record.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        span_context = trace.get_current_span().get_span_context()
+        if span_context.is_valid:
+            trace_id: str | None = format(span_context.trace_id, "032x")
+            span_id: str | None = format(span_context.span_id, "016x")
+        else:
+            trace_id = span_id = None
+        user_id = get_current_user_id()
+        # Write into __dict__ (where logging stores `extra=` fields) so the JSON formatter and the
+        # OTLP LoggingHandler both pick them up; setdefault preserves any explicitly-passed value.
+        record.__dict__.setdefault("trace_id", trace_id)
+        record.__dict__.setdefault("span_id", span_id)
+        record.__dict__.setdefault("user_id", str(user_id) if user_id is not None else None)
+        return True
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -213,6 +261,38 @@ def _ensure_tracer_provider() -> TracerProvider:
     return provider
 
 
+def _otlp_logs_endpoint() -> str | None:
+    """The configured OTLP logs endpoint, if any (standard OpenTelemetry env vars)."""
+    return os.getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+
+def _build_logger_provider() -> LoggerProvider:
+    """Build a :class:`LoggerProvider`, attaching an OTLP log exporter only when an endpoint is set.
+
+    Mirrors :func:`_build_tracer_provider`: with no endpoint the provider has no log-record
+    processors, so records routed through the OTel :class:`LoggingHandler` are dropped (zero network
+    egress — the no-op path for local dev and CI). When an endpoint is set a batching OTLP log
+    exporter is attached; it reads the endpoint, headers, and protocol from the standard
+    ``OTEL_EXPORTER_OTLP_*`` environment variables. Carries the same :func:`build_resource`
+    (``service.name`` + ``deployment.environment``) as the tracer/meter so Loki can filter logs by
+    ``service_name="lengua-api"`` consistently with traces and metrics (task 5.3.1).
+    """
+    provider = LoggerProvider(resource=build_resource())
+    if _otlp_logs_endpoint():
+        from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+
+        provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
+    return provider
+
+
+def get_logger_provider() -> LoggerProvider:
+    """The module-owned OTel :class:`LoggerProvider`, built lazily on first use (idempotent)."""
+    global _logger_provider
+    if _logger_provider is None:
+        _logger_provider = _build_logger_provider()
+    return _logger_provider
+
+
 def _instrument_globals(provider: TracerProvider) -> None:
     """Auto-instrument httpx + SQLAlchemy once (process-global, so guarded against repeats).
 
@@ -234,10 +314,37 @@ def _configure_request_logging() -> None:
         return
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonLogFormatter())
+    handler.addFilter(TraceCorrelationFilter())  # stamp trace_id/span_id/user_id (task 5.3.2)
     _request_logger.addHandler(handler)
     _request_logger.setLevel(logging.INFO)
     _request_logger.propagate = False  # this handler owns the access lines; don't double-log
     _logging_configured = True
+
+
+def _configure_otel_log_export() -> None:
+    """Route stdlib logging through OTel so records can export to Loki (task 5.3.1), once.
+
+    Attaches one :class:`LoggingHandler` (bound to the module-owned :func:`get_logger_provider`, and
+    carrying the :class:`TraceCorrelationFilter` so exported records keep ``user_id`` — the handler
+    itself stamps ``trace_id`` / ``span_id`` from the active span) to:
+
+    * the **root** logger — so application/library log records that propagate there are exported;
+      and
+    * the **access** logger — which has ``propagate=False`` (it owns its stdout line), so it would
+      otherwise never reach the root handler.
+
+    The existing stdout JSON line is kept (Cloud Run ships stdout to Loki as the primary path; this
+    OTLP export is the direct-to-Loki alternative). With no OTLP logs endpoint the provider has no
+    processors, so this is a no-op with zero egress (the local/CI path).
+    """
+    global _otel_log_export_configured
+    if _otel_log_export_configured:
+        return
+    otel_handler = LoggingHandler(level=logging.NOTSET, logger_provider=get_logger_provider())
+    otel_handler.addFilter(TraceCorrelationFilter())
+    logging.getLogger().addHandler(otel_handler)
+    _request_logger.addHandler(otel_handler)
+    _otel_log_export_configured = True
 
 
 def configure_observability(app: FastAPI) -> None:
@@ -258,6 +365,7 @@ def configure_observability(app: FastAPI) -> None:
     from app.llm_observability import get_meter_provider
 
     _configure_request_logging()
+    _configure_otel_log_export()
     provider = _ensure_tracer_provider()
     app.add_middleware(RequestLoggingMiddleware)
     FastAPIInstrumentor.instrument_app(

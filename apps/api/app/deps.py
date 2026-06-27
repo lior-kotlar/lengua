@@ -39,6 +39,7 @@ from app.auth import AuthError, CurrentUser, decode_supabase_jwt
 from app.db.rls import bind_request_identity
 from app.db.session import UsageSession, get_sessionmaker
 from app.db.session import get_db as _get_session
+from app.request_context import set_current_user_id
 from app.services.account import AccountDeletionService
 from app.settings import Settings, get_settings
 from lengua_core.llm import LLMProvider, get_provider
@@ -79,13 +80,20 @@ async def get_current_user(
 
     Returns ``401`` (never 403) when the ``Authorization: Bearer`` header is missing/malformed or
     the token fails verification (bad signature, expired, wrong audience, ``alg: none``, …).
+
+    On a successful verification the user id is recorded on the request context
+    (:func:`app.request_context.set_current_user_id`) so log records emitted inside the request
+    carry ``user_id`` for trace↔log correlation (task 5.3.2). This is additive — it does not change
+    which tokens are accepted/rejected.
     """
     if credentials is None or not credentials.credentials:
         raise _unauthorized("Missing bearer token")
     try:
-        return decode_supabase_jwt(credentials.credentials, settings=settings)
+        user = decode_supabase_jwt(credentials.credentials, settings=settings)
     except AuthError as exc:
         raise _unauthorized("Invalid authentication token") from exc
+    set_current_user_id(user.id)
+    return user
 
 
 async def current_user(user: Annotated[CurrentUser, Depends(get_current_user)]) -> uuid.UUID:
