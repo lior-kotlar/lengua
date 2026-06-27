@@ -42,11 +42,14 @@ from fastapi.responses import JSONResponse
 from opentelemetry.trace import Span
 
 from app.llm_observability import (
+    ATTR_LLM_INPUT_SIZE,
     ATTR_LLM_LATENCY_MS,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
+    ATTR_LLM_RETRY_COUNT,
     ATTR_LLM_TOKENS_IN,
     ATTR_LLM_TOKENS_OUT,
+    record_tokens,
 )
 from app.settings import get_settings
 from lengua_core.llm import LLMProvider, LLMTransientError
@@ -123,32 +126,42 @@ def _provider_identity(provider: LLMProvider) -> tuple[str, str]:
     return name, model
 
 
-async def run_provider[**P, R](
+async def run_provider[R](
     limiter: LLMConcurrencyLimiter,
     provider: LLMProvider,
     span: Span | None,
-    fn: Callable[P, R],
-    *args: P.args,
-    **kwargs: P.kwargs,
+    call: Callable[[], R],
+    *,
+    input_size: int | None = None,
+    kind: str | None = None,
 ) -> R:
-    """The provider-call boundary (task 3.8.1): run ``fn`` under the cap, timing + capturing usage.
+    """Run the provider ``call`` under the concurrency cap, instrumented (tasks 3.8.1/5.2.1/5.2.4).
 
-    Wraps :meth:`LLMConcurrencyLimiter.run` so it stays the single place each blocking provider call
-    passes through, and — when a ``span`` is supplied (the per-call ``llm.call`` span the cost guard
-    started) — stamps the ``llm.*`` attributes on it: ``llm.provider`` / ``llm.model`` up front,
-    ``llm.latency_ms`` always (even if the call raises), and ``llm.tokens_in`` / ``llm.tokens_out``
-    from the vendor usage the provider reported (via :func:`lengua_core.llm.usage.capture_usage`).
-    With no span (a provider call outside a gated request, e.g. a service unit test) it is a thin
-    pass-through to the limiter. Any exception from ``fn`` propagates unchanged.
+    ``call`` is the blocking provider invocation pre-bound to its arguments (a zero-arg callable,
+    e.g. ``lambda: provider.generate_cards(words, language, …)``). Wrapping it here keeps this the
+    single place each provider call passes through. When a ``span`` is supplied (the per-call
+    ``llm.call`` span the cost guard started) it stamps the ``llm.*`` attributes: ``llm.provider`` /
+    ``llm.model`` and ``llm.input_size`` (the per-kind request size) up front, ``llm.latency_ms``
+    always (even when the call raises), and ``llm.tokens_in`` / ``llm.tokens_out`` / ``retry_count``
+    from the telemetry the provider + retry helper reported (via
+    :func:`lengua_core.llm.usage.capture_usage`).
+
+    On a successful call, when ``kind`` is supplied it also adds the consumed tokens to
+    ``llm_tokens_total{kind, direction}`` (task 5.2.4) — counted here at the provider boundary
+    because that is where the tokens were actually spent. With no span (a provider call outside a
+    gated request, e.g. a service unit test) it is a thin pass-through to the limiter. Any exception
+    from ``call`` propagates unchanged.
     """
     if span is not None:
         name, model = _provider_identity(provider)
         span.set_attribute(ATTR_LLM_PROVIDER, name)
         span.set_attribute(ATTR_LLM_MODEL, model)
+        if input_size is not None:
+            span.set_attribute(ATTR_LLM_INPUT_SIZE, input_size)
     start = time.perf_counter()
     with capture_usage() as usage:
         try:
-            result = await limiter.run(fn, *args, **kwargs)
+            result = await limiter.run(call)
         finally:
             if span is not None:
                 latency_ms = round((time.perf_counter() - start) * 1000, 3)
@@ -156,6 +169,11 @@ async def run_provider[**P, R](
     if span is not None:
         span.set_attribute(ATTR_LLM_TOKENS_IN, usage.tokens_in)
         span.set_attribute(ATTR_LLM_TOKENS_OUT, usage.tokens_out)
+        span.set_attribute(ATTR_LLM_RETRY_COUNT, usage.retry_count)
+    # Reached only on success (an exception propagates out of the ``with`` above): the tokens were
+    # genuinely consumed, so count them against the budget-side metric.
+    if kind is not None:
+        record_tokens(kind, usage.tokens_in, usage.tokens_out)
     return result
 
 

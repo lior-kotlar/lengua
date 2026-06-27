@@ -24,9 +24,11 @@ from datetime import datetime
 from typing import Any
 
 from fsrs import Rating
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
+from app.product_metrics import record_review
 from app.repositories.cards import CardsRepository
 from app.repositories.proficiency import ProficiencyRepository
 from app.repositories.reviews import ReviewsRepository
@@ -34,6 +36,15 @@ from app.services.errors import NotFoundError, ValidationError
 from lengua_core import config, proficiency, scheduler
 
 _VALID_RATINGS = frozenset({1, 2, 3, 4})  # 1=Again 2=Hard 3=Good 4=Easy
+
+_tracer = trace.get_tracer("lengua.review")
+
+#: ``review.grade`` span (task 5.2.2) name + attribute keys — one constant each so the service and
+#: its observability test reference the same strings.
+REVIEW_GRADE_SPAN_NAME = "review.grade"
+ATTR_REVIEW_RATING = "review.rating"
+ATTR_REVIEW_NEXT_DUE = "review.next_due"
+ATTR_REVIEW_PROFICIENCY_DELTA = "review.proficiency_delta"
 
 #: ``user_settings`` keys holding the per-user review-batch limits (each a stringified positive
 #: int). They are read by the ``GET /review/due`` router and passed into
@@ -154,34 +165,44 @@ class ReviewService:
 
         Raises :class:`NotFoundError` if the card is not the user's and :class:`ValidationError`
         for an out-of-range rating or a card that has no FSRS state (not in the deck).
+
+        Wrapped in a ``review.grade`` span (task 5.2.2) — current during the body, so the DB
+        statements nest under it — carrying ``review.rating``, the FSRS reschedule result
+        (``review.next_due``), and the ``review.proficiency_delta`` (new score − previous). On
+        success it also bumps the ``reviews_total`` product counter (task 5.2.5).
         """
-        if rating not in _VALID_RATINGS:
-            raise ValidationError(f"Rating must be one of 1..4, got {rating}.")
-        card = await self._cards.get(user_id, card_id)
-        if card is None:
-            raise NotFoundError(f"Card {card_id} not found.")
-        if card.fsrs_state is None:
-            raise ValidationError(f"Card {card_id} has no FSRS state to grade.")
+        with _tracer.start_as_current_span(REVIEW_GRADE_SPAN_NAME) as span:
+            span.set_attribute(ATTR_REVIEW_RATING, rating)
+            if rating not in _VALID_RATINGS:
+                raise ValidationError(f"Rating must be one of 1..4, got {rating}.")
+            card = await self._cards.get(user_id, card_id)
+            if card is None:
+                raise NotFoundError(f"Card {card_id} not found.")
+            if card.fsrs_state is None:
+                raise ValidationError(f"Card {card_id} has no FSRS state to grade.")
 
-        rescheduled: tuple[str, str] = scheduler.apply_rating(
-            json.dumps(card.fsrs_state), Rating(rating)
-        )
-        fsrs_json, due_iso = rescheduled
-        new_state: dict[str, Any] = json.loads(fsrs_json)
-        new_due = datetime.fromisoformat(due_iso)
-        await self._cards.update_schedule(card, fsrs_state=new_state, due=new_due)
-        await self._reviews.add(user_id, card_id, rating)
+            rescheduled: tuple[str, str] = scheduler.apply_rating(
+                json.dumps(card.fsrs_state), Rating(rating)
+            )
+            fsrs_json, due_iso = rescheduled
+            new_state: dict[str, Any] = json.loads(fsrs_json)
+            new_due = datetime.fromisoformat(due_iso)
+            await self._cards.update_schedule(card, fsrs_state=new_state, due=new_due)
+            await self._reviews.add(user_id, card_id, rating)
 
-        current = await self._proficiency.get_score(user_id, card.language_id)
-        new_score: float = proficiency.register_review(
-            current, rating, card.direction, card.gen_level
-        )
-        changed = new_score != current
-        if changed:
-            await self._proficiency.upsert(user_id, card.language_id, new_score)
+            current = await self._proficiency.get_score(user_id, card.language_id)
+            new_score: float = proficiency.register_review(
+                current, rating, card.direction, card.gen_level
+            )
+            changed = new_score != current
+            if changed:
+                await self._proficiency.upsert(user_id, card.language_id, new_score)
 
-        await self._session.commit()
-        return GradeResult(card_id=card_id, due=new_due, score=new_score, score_changed=changed)
+            await self._session.commit()
+            span.set_attribute(ATTR_REVIEW_NEXT_DUE, new_due.isoformat())
+            span.set_attribute(ATTR_REVIEW_PROFICIENCY_DELTA, new_score - current)
+            record_review(user_id)
+            return GradeResult(card_id=card_id, due=new_due, score=new_score, score_changed=changed)
 
     @staticmethod
     def _scheduler_view(card: Card) -> dict[str, Any]:

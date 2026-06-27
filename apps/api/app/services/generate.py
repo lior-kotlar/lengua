@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Card
 from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter, run_provider
+from app.product_metrics import record_cards_created
 from app.repositories.cards import CardsRepository, NewCard
 from app.repositories.languages import LanguagesRepository
 from app.repositories.proficiency import ProficiencyRepository
@@ -92,17 +93,19 @@ class GenerateService:
         # Run the blocking provider call under the global concurrency cap (task 3.5.1): offloaded to
         # a thread so the event loop stays responsive, and bounded so we never overwhelm the free
         # tier. A persistent provider 429/5xx surfaces here as ``LLMTransientError`` → friendly 503.
-        # ``run_provider`` also stamps the ``llm.*`` attributes (provider/model/latency/tokens) on
-        # the guard's span (task 3.8.1).
+        # ``run_provider`` also stamps the ``llm.*`` attributes (provider/model/latency/tokens/
+        # input_size/retry_count) on the guard's span (tasks 3.8.1 / 5.2.1) and counts the consumed
+        # tokens against ``llm_tokens_total`` (5.2.4). ``input_size`` for generate is the number of
+        # vocabulary words sent to the model.
         generated = await run_provider(
             self._limiter,
             provider,
             guard.span if guard is not None else None,
-            provider.generate_cards,
-            cleaned,
-            language.name,
-            vowelized=language.vowelized,
-            level_band=band,
+            lambda: provider.generate_cards(
+                cleaned, language.name, vowelized=language.vowelized, level_band=band
+            ),
+            input_size=len(cleaned),
+            kind=guard.kind if guard is not None else None,
         )
         built: list[BuiltCard] = []
         for card in generated:
@@ -142,4 +145,5 @@ class GenerateService:
 
         saved = await self._cards.save_cards(user_id, language_id, rows)
         await self._session.commit()
+        record_cards_created(user_id, len(saved))  # product counter (task 5.2.5)
         return saved

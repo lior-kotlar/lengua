@@ -18,6 +18,7 @@ from lengua_core.llm.retry import (
     call_with_retry,
     cap_words,
 )
+from lengua_core.llm.usage import capture_usage
 
 pytestmark = pytest.mark.disable_socket
 
@@ -131,6 +132,46 @@ def test_jitter_scales_backoff_by_rng() -> None:
             always_busy, is_transient=_is_transient, sleep=sleeps.append, rng=lambda: 0.5
         )
     assert sleeps == [0.5, 1.0]  # 0.5 * [1.0, 2.0]
+
+
+def test_reports_retry_count_on_success_after_retries() -> None:
+    """task 5.2.1: the retries taken before success are reported through the usage seam."""
+    attempts = 0
+
+    def flaky() -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise _Transient("503")
+        return "ok"
+
+    with capture_usage() as usage:
+        result = call_with_retry(
+            flaky, is_transient=_is_transient, sleep=lambda _: None, rng=lambda: _NO_JITTER
+        )
+    assert result == "ok"
+    assert usage.retry_count == 2  # two retries before the third attempt succeeded
+
+
+def test_reports_zero_retries_on_first_try() -> None:
+    with capture_usage() as usage:
+        call_with_retry(lambda: 1, is_transient=_is_transient, sleep=lambda _: None)
+    assert usage.retry_count == 0
+
+
+def test_reports_exhausted_retry_count() -> None:
+    def always_busy() -> str:
+        raise _Transient("503")
+
+    with capture_usage() as usage, pytest.raises(LLMTransientError):
+        call_with_retry(
+            always_busy,
+            is_transient=_is_transient,
+            max_attempts=4,
+            sleep=lambda _: None,
+            rng=lambda: _NO_JITTER,
+        )
+    assert usage.retry_count == 3  # max_attempts - 1 (all attempts retried-and-failed)
 
 
 def test_cap_words_strips_and_truncates() -> None:

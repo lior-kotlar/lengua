@@ -19,7 +19,12 @@ boundary):
 the tracer):
 
 * ``llm_calls_total{kind, result}`` — counter; ``result`` ∈ ``success`` / ``blocked`` / ``error``;
-* ``llm_cap_hits_total{gate}`` — counter, incremented when a gate blocks a call;
+* ``llm_cap_hits_total{gate}`` — counter, incremented when a gate blocks a call. **This is the
+  plan's ``quota_blocks_total{reason}`` counter** — ``gate`` (``email`` / ``rate`` / ``daily_cap`` /
+  ``global_budget``) *is* the block reason; the shipped provider-agnostic name is canonical and no
+  duplicate is added (see ``planning/outstanding-work.md`` §11);
+* ``llm_tokens_total{kind, direction}`` — counter (task 5.2.4); ``direction`` ∈ ``in`` / ``out``,
+  bumped by the prompt / completion token counts on each successful call;
 * ``llm_budget_remaining`` — an observable gauge reporting the latest
   ``GLOBAL_DAILY_BUDGET - llm_budget[today]``.
 
@@ -28,7 +33,10 @@ built lazily: with no ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or the generic ``
 set it has *no* metric readers, so measurements are dropped — prod/CI stay no-op with zero network.
 It carries the **same** resource (``service.name`` + ``deployment.environment``) as the tracer via
 :func:`app.observability.build_resource`, so metrics and traces are attributed consistently per
-environment (task 5.1.1). Tests swap in an in-memory reader via :func:`install_test_meter_provider`.
+environment (task 5.1.1). It is the **single app-wide meter provider**: the product metrics
+(:mod:`app.product_metrics`) and the FastAPI RED histogram (task 5.2.6) build their instruments from
+the same provider via :func:`get_meter_provider`, so every signal shares one resource + reader set.
+Tests swap in an in-memory reader via :func:`install_test_meter_provider`.
 """
 
 from __future__ import annotations
@@ -54,11 +62,22 @@ from app.observability import build_resource
 #    and the tests all reference the same string) ────────────────────────────────────────────────
 LLM_SPAN_NAME = "llm.call"
 
+#: The dedicated gate-evaluation span (task 5.2.3), a sibling of ``llm.call`` under the request,
+#: emitted on every gated call (admit and block) carrying the cost-guard's cap + budget state.
+QUOTA_CHECK_SPAN_NAME = "quota.check"
+#: ``quota.check`` attribute: the caller's remaining per-user daily cap for this kind (cap - count).
+ATTR_USER_CAP_REMAINING = "user.cap_remaining"
+
 ATTR_LLM_PROVIDER = "llm.provider"
 ATTR_LLM_MODEL = "llm.model"
 ATTR_LLM_LATENCY_MS = "llm.latency_ms"
 ATTR_LLM_TOKENS_IN = "llm.tokens_in"
 ATTR_LLM_TOKENS_OUT = "llm.tokens_out"
+#: Per-kind input size on the ``llm.call`` span (task 5.2.1): the number of vocabulary words for
+#: ``generate``, the requested word count for ``discover``, and ``1`` for a single-word ``explain``.
+ATTR_LLM_INPUT_SIZE = "llm.input_size"
+#: Backoff retries the provider call took before succeeding (task 5.2.1); ``0`` on a first-try hit.
+ATTR_LLM_RETRY_COUNT = "llm.retry_count"
 ATTR_QUOTA_KIND = "quota.kind"
 ATTR_QUOTA_CAP_HIT = "quota.cap_hit"
 ATTR_BUDGET_REMAINING = "budget.remaining"
@@ -71,6 +90,10 @@ RESULT_SUCCESS = "success"
 RESULT_BLOCKED = "blocked"
 RESULT_ERROR = "error"
 
+#: ``llm_tokens_total{direction}`` label values — prompt (``in``) vs completion (``out``) tokens.
+DIRECTION_IN = "in"
+DIRECTION_OUT = "out"
+
 _tracer = trace.get_tracer("lengua.llm")
 
 
@@ -81,6 +104,18 @@ def start_llm_span(kind: str) -> Span:
     in the request trace. The caller owns the span's lifecycle (attributes + ``end()``).
     """
     span = _tracer.start_span(LLM_SPAN_NAME)
+    span.set_attribute(ATTR_QUOTA_KIND, kind)
+    return span
+
+
+def start_quota_check_span(kind: str) -> Span:
+    """Start (but do not make current) the ``quota.check`` gate span, stamped with ``quota.kind``.
+
+    A sibling of the ``llm.call`` span (both parented under the request's server span), representing
+    the cost-guard gate evaluation (task 5.2.3). The caller owns its lifecycle and stamps
+    ``user.cap_remaining`` / ``budget.remaining`` before ending it.
+    """
+    span = _tracer.start_span(QUOTA_CHECK_SPAN_NAME)
     span.set_attribute(ATTR_QUOTA_KIND, kind)
     return span
 
@@ -119,6 +154,7 @@ class _Instruments:
 
     calls_total: Counter
     cap_hits_total: Counter
+    tokens_total: Counter
 
 
 # The latest ``GLOBAL_DAILY_BUDGET - llm_budget[today]``, surfaced by the observable gauge. ``None``
@@ -135,13 +171,25 @@ def _observe_budget_remaining(options: CallbackOptions) -> Iterable[Observation]
         yield Observation(_budget_remaining)
 
 
+def get_meter_provider() -> MeterProvider:
+    """The single app-wide :class:`MeterProvider`, built lazily on first use.
+
+    Shared by the cost-guard metrics here, the product metrics (:mod:`app.product_metrics`), and the
+    FastAPI RED histogram (task 5.2.6) so every metric carries one resource + reader set. With no
+    OTLP metrics endpoint configured it has no readers (zero egress); tests swap it via
+    :func:`install_test_meter_provider`.
+    """
+    global _meter_provider
+    if _meter_provider is None:
+        _meter_provider = _build_meter_provider()
+    return _meter_provider
+
+
 def _get_instruments() -> _Instruments:
     """Return the metric instruments, building the meter provider + instruments on first use."""
-    global _meter_provider, _instruments
+    global _instruments
     if _instruments is None:
-        if _meter_provider is None:
-            _meter_provider = _build_meter_provider()
-        meter = _meter_provider.get_meter("lengua.llm")
+        meter = get_meter_provider().get_meter("lengua.llm")
         meter.create_observable_gauge(
             "llm_budget_remaining",
             callbacks=[_observe_budget_remaining],
@@ -154,7 +202,11 @@ def _get_instruments() -> _Instruments:
             ),
             cap_hits_total=meter.create_counter(
                 "llm_cap_hits_total",
-                description="LLM calls blocked by a cost-guard gate, by which gate.",
+                description="LLM calls blocked by a cost-guard gate, by which gate (== reason).",
+            ),
+            tokens_total=meter.create_counter(
+                "llm_tokens_total",
+                description="LLM tokens consumed on successful calls, by kind and direction.",
             ),
         )
     return _instruments
@@ -166,8 +218,21 @@ def record_call(kind: str, result: str) -> None:
 
 
 def record_cap_hit(gate: str) -> None:
-    """Increment ``llm_cap_hits_total{gate}`` — one gate blocked one call."""
+    """Increment ``llm_cap_hits_total{gate}`` — one gate blocked one call (gate == block reason)."""
     _get_instruments().cap_hits_total.add(1, {"gate": gate})
+
+
+def record_tokens(kind: str, tokens_in: int, tokens_out: int) -> None:
+    """Add a successful call's prompt/completion tokens to ``llm_tokens_total{kind, direction}``.
+
+    Bumps the ``in`` series by ``tokens_in`` and the ``out`` series by ``tokens_out`` (task 5.2.4).
+    A zero count adds nothing (counters only go up), so a provider that reports no usage is a no-op.
+    """
+    instruments = _get_instruments()
+    if tokens_in:
+        instruments.tokens_total.add(tokens_in, {"kind": kind, "direction": DIRECTION_IN})
+    if tokens_out:
+        instruments.tokens_total.add(tokens_out, {"kind": kind, "direction": DIRECTION_OUT})
 
 
 def set_budget_remaining(value: int) -> None:
