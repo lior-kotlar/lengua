@@ -52,18 +52,19 @@ test.describe('generate screen (ephemeral stack)', () => {
     // 4.5.1 — the Generate button is disabled until words are entered, then enables.
     const generateButton = page.getByRole('button', { name: 'Generate' });
     await expect(generateButton).toBeDisabled();
-    await page.getByLabel('Words').fill(`${wordA}\n${wordB}`);
+    // `exact` so the textarea isn't confused with the "Parsed entries" chip list.
+    await page.getByLabel('Words', { exact: true }).fill(`${wordA}\n${wordB}`);
     await expect(generateButton).toBeEnabled();
 
-    // Capture the bearer token + language id from the real generate call (used for the review check).
+    // Capture the bearer token from the real generate call (the review check below reuses it). We
+    // read the token from the request header rather than the body: the API client passes a Request
+    // object to fetch, whose post body Playwright cannot always introspect.
     const genRequestPromise = page.waitForRequest(
       (req) => req.url().endsWith('/generate') && req.method() === 'POST',
     );
     await generateButton.click();
     const genRequest = await genRequestPromise;
     const authHeader = genRequest.headers()['authorization'];
-    const languageId = (genRequest.postDataJSON() as { language_id: number })
-      .language_id;
     expect(authHeader).toMatch(/^Bearer /);
 
     // 4.5.2 — the deterministic FakeLLM sentences render with translations + used-word chips.
@@ -89,7 +90,15 @@ test.describe('generate screen (ephemeral stack)', () => {
 
     // The saved cards are now reviewable: the active language's due queue contains the first
     // sentence's word and NOT the deselected one. Hitting the API directly with the captured token
-    // proves persistence + due scheduling without depending on the (separate) Review screen.
+    // proves persistence + due scheduling without depending on the (separate) Review screen. The
+    // active language id comes from GET /languages (the demo account has the one seeded language).
+    const langsResponse = await request.get(`${API_BASE}/languages`, {
+      headers: { Authorization: authHeader },
+    });
+    expect(langsResponse.ok()).toBeTruthy();
+    const languages = (await langsResponse.json()) as { id: number }[];
+    const languageId = languages[0].id;
+
     const due = await request.get(
       `${API_BASE}/review/due?language_id=${languageId}`,
       { headers: { Authorization: authHeader } },
@@ -126,12 +135,14 @@ test.describe('generate screen (ephemeral stack)', () => {
       });
     });
 
-    await page.getByLabel('Words').fill('casa\nperro');
+    await page.getByLabel('Words', { exact: true }).fill('casa\nperro');
     await page.getByRole('button', { name: 'Generate' }).click();
 
     // 4.5.4 — the dedicated daily-limit panel (not a generic error), and the words are preserved.
     await expect(page.getByTestId('daily-limit-panel')).toBeVisible();
     await expect(page.getByText('Daily limit reached')).toBeVisible();
-    await expect(page.getByLabel('Words')).toHaveValue('casa\nperro');
+    await expect(page.getByLabel('Words', { exact: true })).toHaveValue(
+      'casa\nperro',
+    );
   });
 });

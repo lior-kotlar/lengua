@@ -248,7 +248,10 @@ function WordForm({
             </div>
 
             {words.length > 0 && (
-              <ul className="flex flex-wrap gap-1.5" aria-label="Parsed words">
+              <ul
+                className="flex flex-wrap gap-1.5"
+                aria-label="Parsed entries"
+              >
                 {words.map((word, index) => (
                   <li
                     key={`${word}-${index}`}
