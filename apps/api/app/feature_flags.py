@@ -55,6 +55,12 @@ logger = logging.getLogger(__name__)
 #: Env strings that mean "on" (case/space-insensitive). Anything else — including unset — is off.
 _TRUTHY = frozenset({"1", "true", "yes", "on", "t", "y"})
 
+#: Floor for the in-process cache TTL. ``GET /feature-flags`` is public/unauthenticated; a TTL of 0
+#: (or negative) would turn it into one ``feature_flags`` DB query *per request* — a
+#: config foot-gun an anonymous caller could amplify into DB load. Any non-positive
+#: ``FEATURE_FLAG_TTL_SECONDS`` is clamped up to this floor, so the table is read at most ~once/sec.
+MIN_TTL_SECONDS = 1.0
+
 
 def parse_bool(value: str | None) -> bool:
     """Parse an env flag value to a bool. Off by default: ``None`` / unrecognised ⇒ ``False``."""
@@ -121,10 +127,11 @@ async def read_flags_from_db() -> dict[str, bool]:
 class FeatureFlags:
     """Resolve known flags from env defaults overlaid by the cached ``feature_flags`` table.
 
-    The table snapshot is fetched through ``reader`` and cached for ``ttl_seconds`` against an
-    injectable ``clock``; ``env`` is the source of the per-flag env defaults (default the process
-    environment). All three are injectable so tests are fully deterministic (fake reader + fake
-    clock + a dict env) and so the production singleton can read the real DB + real env.
+    The table snapshot is fetched through ``reader`` and cached for ``ttl_seconds`` (floored at
+    :data:`MIN_TTL_SECONDS` so the public endpoint can't be turned into a per-request DB query)
+    against an injectable ``clock``; ``env`` is the source of the per-flag env defaults (default the
+    process environment). All three are injectable so tests are fully deterministic (fake reader +
+    fake clock + a dict env) and so the production singleton can read the real DB + real env.
     """
 
     def __init__(
@@ -136,7 +143,9 @@ class FeatureFlags:
         env: Mapping[str, str] | None = None,
     ) -> None:
         self._reader = reader
-        self._ttl = float(ttl_seconds)
+        # Clamp non-positive TTLs up to the floor so the unauthenticated /feature-flags endpoint
+        # can never become a DB-query-per-request (see MIN_TTL_SECONDS).
+        self._ttl = max(float(ttl_seconds), MIN_TTL_SECONDS)
         self._clock = clock
         self._env: Mapping[str, str] = os.environ if env is None else env
         self._overrides: dict[str, bool] | None = None

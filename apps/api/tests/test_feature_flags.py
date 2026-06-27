@@ -26,8 +26,12 @@ from httpx import ASGITransport, AsyncClient
 
 import app.feature_flags as ff
 from app.feature_flags import (
+    KNOWN_FLAGS,
+    MIN_TTL_SECONDS,
+    PUBLIC_FLAGS,
     WORD_OF_THE_DAY,
     FeatureFlags,
+    FlagSpec,
     get_feature_flags,
     parse_bool,
     read_flags_from_db,
@@ -111,6 +115,42 @@ async def test_public_map_exposes_only_public_flags() -> None:
     assert await flags.public_map() == {WORD_OF_THE_DAY.name: True}
 
 
+# ── Public-surface isolation: a server-only flag can NEVER leak publicly ──────────────
+#
+# Guards the one residual risk: future PUBLIC_FLAGS drift exposing a server-only flag to anonymous
+# clients. A KNOWN-but-NOT-public flag, declared only for these tests, must stay absent from the
+# public surface even when it is genuinely enabled (env AND table).
+_SERVER_ONLY_FLAG = FlagSpec(
+    name="server_only_test_flag",
+    env_var="FEATURE_SERVER_ONLY_TEST",
+    description="A server-only flag (never in PUBLIC_FLAGS) — proves the public map can't leak it.",
+)
+
+
+def test_every_public_flag_is_a_known_flag() -> None:
+    """Every PUBLIC flag is registered in KNOWN_FLAGS (a public name must always resolve)."""
+    assert {f.name for f in PUBLIC_FLAGS} <= {f.name for f in KNOWN_FLAGS}
+
+
+@pytest.mark.asyncio
+async def test_public_map_never_leaks_a_non_public_flag() -> None:
+    """An enabled server-only flag (env AND table) is ABSENT from ``public_map``.
+
+    ``public_map`` iterates PUBLIC_FLAGS only, so a flag outside that set can never appear — even if
+    it is genuinely on. This is the structural lock against a server-only flag leaking to clients.
+    """
+    flags = make_flags(
+        table={_SERVER_ONLY_FLAG.name: True, WORD_OF_THE_DAY.name: True},
+        env={_SERVER_ONLY_FLAG.env_var: "true"},
+    )
+    # The server-only flag is genuinely ENABLED for server-side resolution...
+    assert await flags.is_enabled(_SERVER_ONLY_FLAG) is True
+    # ...yet the public map exposes ONLY the public flag names — never the server-only one.
+    public = await flags.public_map()
+    assert _SERVER_ONLY_FLAG.name not in public
+    assert set(public) == {f.name for f in PUBLIC_FLAGS}
+
+
 # ── TTL cache + the toggle-without-redeploy refresh (6.9.3) ──────────────
 
 
@@ -148,16 +188,28 @@ async def test_table_snapshot_is_cached_within_the_ttl_then_refreshes() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ttl_zero_reads_every_resolution() -> None:
-    """``FEATURE_FLAG_TTL_SECONDS=0`` disables caching — every resolution re-reads the table."""
+async def test_non_positive_ttl_is_floored_against_db_hammering() -> None:
+    """``FEATURE_FLAG_TTL_SECONDS<=0`` is clamped to a floor so the public endpoint isn't a hammer.
+
+    Without the floor, a TTL of 0 would re-read ``feature_flags`` on every unauthenticated request.
+    Clamped, a second resolution inside the floor window reuses the cache; only past the floor does
+    it refresh — so an anonymous caller can't turn config into one DB query per request.
+    """
     reads = {"n": 0}
+    now = {"t": 0.0}
 
     async def reader() -> dict[str, bool]:
         reads["n"] += 1
         return {}
 
-    flags = FeatureFlags(reader=reader, ttl_seconds=0.0, clock=lambda: 0.0, env={})
+    flags = FeatureFlags(reader=reader, ttl_seconds=0.0, clock=lambda: now["t"], env={})
     await flags.is_enabled(WORD_OF_THE_DAY)
+    # Within the floor window: served from cache, no second DB read.
+    now["t"] = MIN_TTL_SECONDS / 2
+    await flags.is_enabled(WORD_OF_THE_DAY)
+    assert reads["n"] == 1
+    # Past the floor: refreshes exactly once.
+    now["t"] = MIN_TTL_SECONDS + 0.001
     await flags.is_enabled(WORD_OF_THE_DAY)
     assert reads["n"] == 2
 
@@ -290,6 +342,25 @@ async def test_feature_flags_endpoint_reflects_table(
     response = await client.get("/feature-flags")
     assert response.status_code == 200
     assert response.json() == {WORD_OF_THE_DAY.name: True}
+
+
+@pytest.mark.asyncio
+async def test_feature_flags_endpoint_never_leaks_a_non_public_flag(
+    public_client: tuple[AsyncClient, dict[str, bool]],
+) -> None:
+    """Even with a server-only override in the table, ``GET /feature-flags`` returns only PUBLIC.
+
+    The end-to-end guard for the anonymous public surface: a server-only flag enabled in the table
+    is never serialized to the unauthenticated client.
+    """
+    client, table = public_client
+    table[_SERVER_ONLY_FLAG.name] = True  # a server-only override, must not surface
+    table[WORD_OF_THE_DAY.name] = True
+    response = await client.get("/feature-flags")
+    assert response.status_code == 200
+    body = response.json()
+    assert _SERVER_ONLY_FLAG.name not in body
+    assert set(body) == {f.name for f in PUBLIC_FLAGS}
 
 
 @pytest_asyncio.fixture
