@@ -11,6 +11,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { schemaLimits, type components } from 'api-types';
 
+import { trackGenerate } from '@/lib/analytics-events';
 import { getApiClient, unwrap } from '@/lib/api-client';
 
 /** One built (unsaved) flashcard direction returned by `POST /generate`. */
@@ -118,6 +119,8 @@ export function useGenerate() {
           body: { language_id: input.languageId, words: input.words },
         }),
       ),
+    // Activation-funnel event (5.9.2): consent-gated, only the word count (no words/PII).
+    onSuccess: (_cards, input) => trackGenerate(input.words.length),
   });
 }
 

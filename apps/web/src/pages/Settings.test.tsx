@@ -12,6 +12,7 @@ vi.mock('@/lib/api-client', async (importOriginal) => {
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }));
 vi.mock('@/components/ui/use-toast', () => ({ toast }));
 
+import { AnalyticsConsentProvider } from '@/components/analytics-consent-provider';
 import Settings from '@/pages/Settings';
 
 interface ApiResult {
@@ -45,7 +46,9 @@ function renderSettings() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <Settings />
+      <AnalyticsConsentProvider>
+        <Settings />
+      </AnalyticsConsentProvider>
     </QueryClientProvider>,
   );
 }
@@ -63,6 +66,10 @@ describe('Settings — load states', () => {
     get.mockReturnValue(new Promise<ApiResult>(() => {}));
     renderSettings();
     expect(screen.getByText(/loading your settings/i)).toBeInTheDocument();
+    // The analytics consent toggle (5.9.1) is independent of the settings load.
+    expect(
+      screen.getByRole('switch', { name: 'Share anonymous usage analytics' }),
+    ).toBeInTheDocument();
   });
 
   it('shows a retryable error state when the load fails', async () => {

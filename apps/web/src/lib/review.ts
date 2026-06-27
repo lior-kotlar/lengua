@@ -12,6 +12,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { components } from 'api-types';
 
+import { trackReview } from '@/lib/analytics-events';
 import { getApiClient, unwrap } from '@/lib/api-client';
 
 /** A persisted flashcard row returned by `GET /review/due`. */
@@ -190,6 +191,8 @@ export function useGradeCard() {
           body: { rating: input.rating },
         }),
       ),
+    // Activation-funnel event (5.9.2): consent-gated, only the 1..4 rating (no PII).
+    onSuccess: (_data, input) => trackReview(input.rating),
   });
 }
 
