@@ -38,10 +38,10 @@ _Context: two hosted EU-region Supabase projects; schema is owned by Alembic, RL
 - [ ] **6.2.3** Apply the Alembic history to the prod DB (gated/manual the first time) and confirm head.
       verify: `alembic -x env=prod current` equals `alembic heads` after the run; `psql "$PROD_DATABASE_URL" -c '\dt'` lists the expected tables.
       depends: 6.2.2
-- [ ] **6.2.4** Move RLS policies + Supabase-specific SQL into `infra/supabase/` and apply via the Supabase CLI to both projects.
+- [ ] **6.2.4** Move RLS policies + Supabase-specific SQL into `infra/supabase/` and apply via the Supabase CLI to both projects. <!-- RECONCILED, NOT relocated: the canonical RLS/trigger/kill-switch SQL stays at repo-root supabase/migrations/ (the CLI-native location the local stack + CI apply; moving it would break `supabase db …`). infra/supabase/README.md documents that location, the Alembic-DDL relationship, and the per-project apply path. Box left UNticked: the verify needs a LIVE staging DB (supabase db push / alembic apply + pytest tests/test_rls.py against staging) — owner-deferred, see outstanding-work §12. -->
       verify: `supabase db push` (or migration apply) runs clean against each project; `pytest apps/api/tests/test_rls.py` run against the staging DB proves two users cannot read each other's rows.
       depends: 6.2.2
-- [ ] **6.2.5** Write idempotent seed scripts: a demo/reviewer account and minimal fixtures, runnable per environment.
+- [ ] **6.2.5** Write idempotent seed scripts: a demo/reviewer account and minimal fixtures, runnable per environment. <!-- as-code done: the idempotent scripts (apps/api/scripts/seed_e2e.py + seed_dev_user.py) already exist and select the env via DATABASE_URL (+ SUPABASE_URL/SERVICE_ROLE_KEY); infra/supabase/README.md "Seeding per environment" documents the per-env invocation + idempotency guarantee. Box left UNticked: the verify is a LIVE staging run (reviewer created first run, no duplicate second run, reviewer logs in) — owner-deferred, see outstanding-work §12. -->
       verify: running the seed script against staging creates the reviewer account; running it a second time makes no duplicate (row counts unchanged) and the reviewer can log in.
       depends: 6.2.4
 - [ ] **6.2.6** Configure custom SMTP (Resend/Brevo) on the staging + prod Supabase Auth with SPF/DKIM on the sending domain.
@@ -70,7 +70,7 @@ _Context: secrets live per platform — Secret Manager (Cloud Run), Vercel env, 
       verify: `vercel env ls` shows only `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL`, web `SENTRY_DSN` for each environment — no service-role or LLM key present.
 - [ ] **6.4.3** Add GitHub Actions repo/environment secrets for deploy credentials (GCP deployer SA / Workload Identity, Vercel token, Supabase access token) scoped to the right environments.
       verify: a workflow run reads the secrets and authenticates to GCP, Vercel, and Supabase (each auth step exits 0) without any secret value appearing in logs (masked).
-- [ ] **6.4.4** Document and script a secret-rotation procedure (rotate the Groq key, Supabase JWT secret, and a deploy credential) in `docs/runbook.md`.
+- [ ] **6.4.4** Document and script a secret-rotation procedure (rotate the Groq key, Supabase JWT secret, and a deploy credential) in `docs/runbook.md`. <!-- as-code done: docs/runbook.md "Rotate a secret" has exact add-version→redeploy(:latest)→verify→revoke steps for the Groq key, Supabase JWT secret (+ zero-downtime JWKS alternative), and deploy credential (GCP_SA_JSON + WIF). The "script" = the concrete command sequence (no bash-script convention in-repo). Box left UNticked: the verify is entirely LIVE (rotate the staging Groq key + redeploy picks up the new key) — owner-deferred, see outstanding-work §12. -->
       verify: following the runbook, rotate the staging Groq key in Secret Manager and redeploy; the service picks up the new key (a generate call still succeeds) and the old key no longer works.
 
 ## 6.5 — CI: the per-PR gate workflow  ·  M
@@ -140,7 +140,7 @@ _Context: keep the previous Cloud Run revision so rollback is one click; documen
 - [ ] **6.8.2** Document + script a **one-click rollback** that shifts 100% traffic back to the previous revision and prove it.
       verify: run the rollback script against staging; `gcloud run services describe lengua-api-staging` shows 100% traffic on the prior revision and `/health` returns `200` from the rolled-back code (a deliberately broken deploy recovers in one command).
       depends: 6.8.1
-- [ ] **6.8.3** Write the runbook sections in `docs/runbook.md`: deploy, rollback, run a migration, rotate a secret, respond to a budget-exhausted alert, restore from backup, and the store-release checklist.
+- [x] **6.8.3** Write the runbook sections in `docs/runbook.md`: deploy, rollback, run a migration, rotate a secret, respond to a budget-exhausted alert, restore from backup, and the store-release checklist. <!-- All named sections written with concrete, self-contained commands (real lengua-prod / lengua-api-{staging,prod} / $SUPABASE_*_DATABASE_URL identifiers, `<placeholder>` for owner values). The live half — a reviewer following the rollback section end-to-end ON STAGING — needs the deployed Cloud Run service (owner; go-live §F5), see outstanding-work §12. -->
       verify: `docs/runbook.md` contains each named section with concrete commands; a reviewer follows the rollback section end-to-end on staging without needing outside context.
 - [ ] **6.8.4** Document a Supabase backup/restore drill (PITR / `pg_dump`) for prod and run it once against a throwaway DB.
       verify: a `pg_dump` of prod restores into a scratch DB and `psql -c 'select count(*) from cards'` returns the expected row count; the steps are captured in the runbook.
