@@ -106,17 +106,17 @@ _Context: this is the blocking gate from [09]; it must be green before merge and
 
 _Context: merging to `main` is the staging-deploy trigger — build+push image, deploy Cloud Run staging, run Alembic migrations as a discrete logged step, deploy web to Vercel staging. Locked: migrations are a separate gated step; keep prior revision for rollback._
 
-- [ ] **6.6.1** Add the `main`-push workflow step that builds the API image and pushes it to Artifact Registry tagged with the commit SHA.
+- [ ] **6.6.1** Add the `main`-push workflow step that builds the API image and pushes it to Artifact Registry tagged with the commit SHA. <!-- as-code done: `.github/workflows/deploy-staging.yml` job `build-push` builds apps/api/Dockerfile and pushes `…/lengua/lengua-api:<sha>` + `:staging` to Artifact Registry; gated on DEPLOY_ENABLED (skips → main stays green). Live verify (a real merge pushes the SHA-tagged image) owner-deferred §12. -->
       verify: merging a trivial PR to `main` pushes a new image whose tag equals the merge commit SHA (visible in Artifact Registry).
-- [ ] **6.6.2** Add the step that deploys the freshly pushed image to `lengua-api-staging` as a new revision.
+- [ ] **6.6.2** Add the step that deploys the freshly pushed image to `lengua-api-staging` as a new revision. <!-- as-code done: job `deploy-api-staging` (composite `.github/actions/cloud-run-deploy`) deploys the SHA image with staging runtime env (LLM_PROVIDER=groq + staging DB/Supabase/OTEL/Sentry), scale-to-zero, max-instances=1 (in-process cost guard), startup+liveness probes → /health; gated on DEPLOY_ENABLED. Live verify (new revision serving 100%, staging /health 200) owner-deferred §12. -->
       verify: after a merge, `gcloud run revisions list --service lengua-api-staging --region <eu-region>` shows a new revision serving 100% traffic and `/health` on staging returns `200`.
       depends: 6.6.1
-- [ ] **6.6.3** Add a **discrete, logged** Alembic migration step that runs against the staging DB before/with the deploy (job-level, not in the request path).
+- [x] **6.6.3** Add a **discrete, logged** Alembic migration step that runs against the staging DB before/with the deploy (job-level, not in the request path). <!-- CI-VERIFIABLE MECHANISM DONE + TICKED (per the precedent of 6.1.2): the `alembic -x env=staging|prod|local` resolver (`app/db/migration_url.py`, mapping STAGING_DATABASE_URL / PROD_DATABASE_URL / DATABASE_URL; `-x db_url=` still wins) + its precedence unit test (`tests/db/test_migration_url.py`, 100% line+branch) are green in CI, and the discrete `migrate-staging` job (a distinct, logged `alembic -x env=staging upgrade head` job) is committed in `.github/workflows/deploy-staging.yml`, gated on DEPLOY_ENABLED. The LIVE half — that job running `upgrade head` against hosted staging on a real merge so `alembic -x env=staging current` == `heads` — is owner-deferred §12. -->
       verify: a merge that includes a new migration shows a distinct "migrate staging" job in the run logs that runs `alembic upgrade head`; afterward `alembic -x env=staging current` equals `alembic heads`.
       depends: 6.2.2
-- [ ] **6.6.4** Add the step that deploys `apps/web` to Vercel **staging** on merge to `main`.
+- [ ] **6.6.4** Add the step that deploys `apps/web` to Vercel **staging** on merge to `main`. <!-- as-code done: job `deploy-web-staging` (vercel pull/build/deploy --prebuilt) ships only client-safe VITE_* (anon key + public URLs + the staging Cloud Run URL), gated on DEPLOY_ENABLED. Live verify (Vercel staging serves the new SHA) owner-deferred §12 (also needs the owner-linked Vercel project, 6.3.1). -->
       verify: after a merge, the Vercel staging deployment updates to the new commit (dashboard shows the SHA) and the staging web URL serves the new build.
-- [ ] **6.6.5** Smoke-check the staging deploy at the end of the workflow (probe `/health` + `/ready` + a web `200`) and fail the run if any probe fails.
+- [ ] **6.6.5** Smoke-check the staging deploy at the end of the workflow (probe `/health` + `/ready` + a web `200`) and fail the run if any probe fails. <!-- as-code done: job `smoke-staging` (composite `.github/actions/cloud-run-smoke`) probes /health + /ready + web 200 and fails the run on any non-2xx; gated on DEPLOY_ENABLED. Live verify owner-deferred §12. -->
       verify: a merge that breaks startup turns the deploy job **red** at the smoke step; a healthy merge ends green with all probes `200`.
       depends: 6.6.2, 6.6.4
 
@@ -124,18 +124,18 @@ _Context: merging to `main` is the staging-deploy trigger — build+push image, 
 
 _Context: prod is a separate, manually approved promotion (release tag or "promote" environment approval) reusing the staged image; prod migrations are gated. Locked: prod gated by an approval; previous revision retained._
 
-- [ ] **6.7.1** Create a GitHub **`production` environment** with a required reviewer/approval and restrict the prod deploy workflow to it.
+- [ ] **6.7.1** Create a GitHub **`production` environment** with a required reviewer/approval and restrict the prod deploy workflow to it. <!-- as-code done: `.github/workflows/deploy-prod.yml` job `approval` carries `environment: production` (a single approval gate every downstream job needs); workflow gated on DEPLOY_ENABLED. OWNER ACTION (live): create the `production` environment + add a required reviewer (Settings → Environments) — §12 / go-live §F3. -->
       verify: triggering the prod workflow pauses on a "waiting for approval" gate; it proceeds only after an authorized reviewer approves (shown in the run's deployment timeline).
-- [ ] **6.7.2** Make prod deploy reuse the **exact image already validated on staging** (promote by SHA/digest, no rebuild) to `lengua-api-prod`.
+- [ ] **6.7.2** Make prod deploy reuse the **exact image already validated on staging** (promote by SHA/digest, no rebuild) to `lengua-api-prod`. <!-- as-code done: job `resolve-image` reads the staging-serving revision's `status.imageDigest` (or a workflow_dispatch `image` input) and `deploy-api-prod` promotes that exact DIGEST — no rebuild; gated on DEPLOY_ENABLED. Live verify (prod digest == staging digest, revision serving) owner-deferred §12. -->
       verify: the prod revision's image digest equals the staging revision's digest for the same release; `gcloud run revisions list --service lengua-api-prod` shows the promoted revision serving traffic.
       depends: 6.6.2
-- [ ] **6.7.3** Add the **gated** prod Alembic migration step (separate approval-protected job, logged) run before prod traffic shifts.
+- [ ] **6.7.3** Add the **gated** prod Alembic migration step (separate approval-protected job, logged) run before prod traffic shifts. <!-- as-code done: job `migrate-prod` (needs `approval`) runs a distinct logged `alembic -x env=prod upgrade head` against PROD_DATABASE_URL before `deploy-api-prod`; gated on DEPLOY_ENABLED. Live verify (`alembic -x env=prod current` == heads after approval) owner-deferred §12. -->
       verify: the prod promotion shows a distinct "migrate prod" job that runs only after approval; afterward `alembic -x env=prod current` equals `alembic heads`.
       depends: 6.2.3, 6.7.1
-- [ ] **6.7.4** Add the prod Vercel deploy step (web production) as part of the gated promotion.
+- [ ] **6.7.4** Add the prod Vercel deploy step (web production) as part of the gated promotion. <!-- as-code done: job `deploy-web-prod` (vercel pull/build/deploy --prebuilt --prod, client-safe VITE_* only) runs after the prod API promotion; gated on DEPLOY_ENABLED. Live verify owner-deferred §12. -->
       verify: after approval, the Vercel production deployment updates to the released SHA and the prod web URL serves it; pre-approval the prod URL is unchanged.
       depends: 6.7.1
-- [ ] **6.7.5** Smoke-check the prod deploy (probe prod `/health`, `/ready`, web `200`) and fail/alert the promotion on any failed probe.
+- [ ] **6.7.5** Smoke-check the prod deploy (probe prod `/health`, `/ready`, web `200`) and fail/alert the promotion on any failed probe. <!-- as-code done: job `smoke-prod` (composite `.github/actions/cloud-run-smoke`) probes prod /health + /ready + web 200 and fails the promotion on any non-2xx; gated on DEPLOY_ENABLED. Live verify owner-deferred §12. -->
       verify: a promotion whose image fails startup turns the prod job **red** at the smoke step and does not leave a broken revision serving 100%; a healthy promotion ends green.
       depends: 6.7.2, 6.7.4
 
@@ -143,9 +143,9 @@ _Context: prod is a separate, manually approved promotion (release tag or "promo
 
 _Context: keep the previous Cloud Run revision so rollback is one click; document deploy/rollback/migrate/secret-rotate/budget-alert/restore in `docs/runbook.md`. Locked: one-click rollback to previous revision._
 
-- [ ] **6.8.1** Configure Cloud Run revision retention + traffic tags so the previous good revision is always kept and addressable.
+- [ ] **6.8.1** Configure Cloud Run revision retention + traffic tags so the previous good revision is always kept and addressable. <!-- as-code done: Cloud Run retains prior revisions by default (the deploy jobs never delete them), so the previous good revision is always addressable by name for rollback; `infra/deploy/README.md` + the runbook document optionally tagging a revision (`--set-tags prev=<rev>`) for a stable preview URL. Live verify (≥2 retained revisions after two deploys; previous reachable) owner-deferred §12. -->
       verify: after two deploys, `gcloud run revisions list --service lengua-api-prod` shows ≥2 retained revisions and the previous one is reachable via its traffic tag URL.
-- [ ] **6.8.2** Document + script a **one-click rollback** that shifts 100% traffic back to the previous revision and prove it.
+- [ ] **6.8.2** Document + script a **one-click rollback** that shifts 100% traffic back to the previous revision and prove it. <!-- as-code done: `infra/deploy/rollback.sh <service> [revision]` shifts 100% traffic to the previous good revision (auto-selected or explicit) and re-verifies /health; shellcheck-clean + `bash -n` OK; documented in `infra/deploy/README.md` + the runbook "Rollback". Box left [ ] — the verify (run it against a LIVE staging service, a deliberately-broken deploy recovers in one command) needs the deployed Cloud Run service: owner-deferred §12 / go-live §F5. -->
       verify: run the rollback script against staging; `gcloud run services describe lengua-api-staging` shows 100% traffic on the prior revision and `/health` returns `200` from the rolled-back code (a deliberately broken deploy recovers in one command).
       depends: 6.8.1
 - [x] **6.8.3** Write the runbook sections in `docs/runbook.md`: deploy, rollback, run a migration, rotate a secret, respond to a budget-exhausted alert, restore from backup, and the store-release checklist. <!-- All named sections written with concrete, self-contained commands (real lengua-prod / lengua-api-{staging,prod} / $SUPABASE_*_DATABASE_URL identifiers, `<placeholder>` for owner values). The live half — a reviewer following the rollback section end-to-end ON STAGING — needs the deployed Cloud Run service (owner; go-live §F5), see outstanding-work §12. -->

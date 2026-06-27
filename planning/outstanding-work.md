@@ -790,3 +790,53 @@ recorded here as as-code-done/live-later, NOT ticked. Glyphs: 🔒 owner-blocked
 | ◐ | **6.9.3 live "toggle in prod without a redeploy" confirmation — owner-deferred (mechanism + deterministic refresh test ARE the as-code proof).** AS-CODE DONE + 6.9.1/6.9.2/6.9.3 ticked: feature flags resolve env-default-overlaid-by-`feature_flags`-table, cached for `FEATURE_FLAG_TTL_SECONDS` behind an injected clock; `test_table_snapshot_is_cached_within_the_ttl_then_refreshes` writes the row, proves it is invisible within the TTL, then (clock advanced past the TTL) the accessor + `GET /feature-flags` report the new value with no process restart. The remaining LIVE clause — flip a row on the hosted staging/prod DB and confirm the deployed API's `/feature-flags` changes within the refresh window **with NO new Cloud Run revision** — needs the deployed Cloud Run service + hosted Supabase (owner; go-live track). Do this during the go-live deploy: toggle `word_of_the_day` in the prod `feature_flags` table, re-`curl /feature-flags`, confirm `gcloud run revisions list` shows no new revision. | apps/api/app/feature_flags.py; apps/api/app/routers/{feature_flags,experimental}.py; apps/api/tests/test_feature_flags.py; supabase/migrations/20260628000000_feature_flags.sql | as-code done + ticked; live prod no-redeploy confirmation owner-deferred (go-live) | 2026-06-28 |
 | ◐ | **6.9 LOW follow-up (PR #66 review) — dark `/experimental/*` is advertised in the PUBLIC OpenAPI/docs while its flag is off.** Runtime is correctly dark (the route 404s until `word_of_the_day` is on; no payload leaks), but the path + `WordOfTheDayOut` schema still appear in the committed `openapi.json` / `/docs`, so the experimental surface is *discoverable* (not invokable) while off. Non-blocking. Later pass: exclude `/experimental/*` from the canonical public schema (e.g. `include_in_schema=False`, or strip the prefix in `scripts/dump_openapi.py` / `create_app(include_test_routes=False)`) so a dark route isn't documented until it ships — then regen `openapi.json` + `packages/api-types`. | apps/api/app/routers/experimental.py; apps/api/scripts/dump_openapi.py; apps/api/openapi.json | low / follow-up (runtime already dark; hide from public schema later) | 2026-06-28 |
 | ✅ | **6.9 LOW follow-up (PR #66 review) — TTL=0 DB-hammer foot-gun: RESOLVED.** `FEATURE_FLAG_TTL_SECONDS<=0` would have made the unauthenticated `GET /feature-flags` one `feature_flags` DB query per request. Fixed by clamping the cache TTL up to `MIN_TTL_SECONDS` (1s) in `FeatureFlags.__init__`, with a regression test (`test_non_positive_ttl_is_floored_against_db_hammering`) and an `.env.example` note. No open work. | apps/api/app/feature_flags.py; apps/api/tests/test_feature_flags.py; .env.example | resolved (clamped + tested) | 2026-06-28 |
+| ◐ | **6.6 CD merge→staging — COMMITTED AS-CODE + GATED; live deploys owner-deferred.** `.github/workflows/deploy-staging.yml` (on `push: main`) builds+pushes the API image (`build-push`, 6.6.1), runs a discrete logged `migrate-staging` job (`alembic -x env=staging upgrade head`, 6.6.3), deploys to Cloud Run `lengua-api-staging` with the staging runtime env + scale-to-zero + max-instances=1 + startup/liveness probes→/health (`deploy-api-staging`, 6.6.2, also the live half of 6.1.2), deploys Vercel staging (`deploy-web-staging`, 6.6.4), and smoke-checks /health+/ready+web 200 (`smoke-staging`, 6.6.5). 6.6.3's `-x env=` resolver + unit test are CI-green and **TICKED**; 6.6.1/6.6.2/6.6.4/6.6.5 left `[ ]`. LIVE verifies (real merge pushes SHA image → migrate → revision serving 100% → /health 200 → Vercel SHA → green smoke) owner-deferred — gated on `DEPLOY_ENABLED=true` + the owner-provisioned Cloud Run/Vercel. | .github/workflows/deploy-staging.yml; .github/actions/cloud-run-deploy; .github/actions/cloud-run-smoke; apps/api/app/db/migration_url.py | as-code done + gated; live staging deploy owner-deferred (go-live §B/§C/§E) | 2026-06-28 |
+| ◐ | **6.7 CD gated prod promotion — COMMITTED AS-CODE + GATED; live promotion owner-deferred.** `.github/workflows/deploy-prod.yml` (on `workflow_dispatch` / `release: published`): a single `approval` job carrying `environment: production` gates everything downstream (6.7.1); `resolve-image` reads the staging-serving revision's `status.imageDigest` (or a `workflow_dispatch image` input) and `deploy-api-prod` promotes that exact DIGEST — no rebuild (6.7.2); `migrate-prod` runs the gated logged `alembic -x env=prod upgrade head` before traffic (6.7.3); `deploy-web-prod` ships Vercel production (6.7.4); `smoke-prod` probes prod (6.7.5). All boxes left `[ ]`. **OWNER ACTION:** create the GitHub `production` environment + add a required reviewer (else the gate passes through). LIVE verifies owner-deferred (gated on `DEPLOY_ENABLED=true` + the environment reviewer + provisioned prod resources). | .github/workflows/deploy-prod.yml; .github/actions/cloud-run-deploy; .github/actions/cloud-run-smoke | as-code done + gated; live prod promotion owner-deferred (go-live §F) | 2026-06-28 |
+| ◐ | **6.8.1 / 6.8.2 rollback — COMMITTED AS-CODE; live rollback drill owner-deferred.** Cloud Run retains prior revisions by default (the deploy jobs never delete them) so the previous good revision is always addressable by name (6.8.1); `infra/deploy/rollback.sh <service> [revision]` shifts 100% traffic back to the previous good revision and re-verifies `/health` — shellcheck-clean + `bash -n` OK, documented in `infra/deploy/README.md` + `docs/runbook.md` "Rollback" (6.8.2). Both boxes left `[ ]`. LIVE verify (≥2 retained revisions; a deliberately-broken deploy recovers in one command on staging) owner-deferred. | infra/deploy/rollback.sh; infra/deploy/README.md; docs/runbook.md | as-code done; live rollback drill owner-deferred (go-live §F5) | 2026-06-28 |
+
+### OWNER ACTIVATION NOTE — turning the Phase-6 CD pipeline live
+
+The CD workflows are **committed and correct but inert** until the owner flips one repo variable.
+Cross-reference: [`go-live-activation.md`](go-live-activation.md) §E/§F (the step-by-step owner runbook).
+
+1. **Flip the gate (the one switch that turns CD on):** set the repo **variable** (not a secret)
+   `DEPLOY_ENABLED=true` → `gh variable set DEPLOY_ENABLED -b true`. Every deploy job is gated
+   `if: ${{ vars.DEPLOY_ENABLED == 'true' }}`; while it is **unset** every job SKIPS, so each push to
+   `main` is a green no-op and the prod approval is never requested. (To pause CD again later:
+   `gh variable delete DEPLOY_ENABLED`.)
+2. **Add the prod approval reviewer (one owner action left for prod):** create the GitHub
+   **`production` environment** (repo Settings → Environments → New environment → `production`) and add
+   a **required reviewer**. `deploy-prod.yml`'s `approval` job targets that environment, so prod pauses
+   for approval; without the reviewer the gate passes straight through. **`deploy-prod.yml` is
+   MANUAL-ONLY by design** (`workflow_dispatch`, no `release: published` trigger) precisely because the
+   reviewer is not yet configured — so a published release can't auto-promote to prod with no human
+   approval. **Once the required reviewer is added**, you may optionally re-add
+   `release: { types: [published] }` to `deploy-prod.yml`'s `on:` to promote on a release tag.
+3. **Secrets/variables the workflows consume (all already provisioned as GitHub Actions secrets unless
+   noted):**
+   - GCP: `GCP_SA_JSON` (deployer SA key → `google-github-actions/auth`), `GCP_PROJECT_ID`
+     (`lengua-prod`), `GCP_REGION` (`europe-west1`). Image ref:
+     `${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/lengua/lengua-api:<sha>` (Artifact Registry repo
+     `lengua` already exists).
+   - Cloud Run runtime env (staging / prod): `GROQ_API_KEY`; `SUPABASE_STAGING_DATABASE_URL` /
+     `_URL` / `_SERVICE_ROLE_KEY` / `_JWT_SECRET` and the `SUPABASE_PROD_*` equivalents;
+     `SENTRY_DSN_API`; `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS`. (`LLM_PROVIDER=groq`,
+     `ENV`/`DEPLOYMENT_ENVIRONMENT` are set literally by the workflow.)
+   - Alembic migrate jobs: the staging job sets `STAGING_DATABASE_URL` = `SUPABASE_STAGING_DATABASE_URL`
+     and runs `-x env=staging`; the prod job sets `PROD_DATABASE_URL` = `SUPABASE_PROD_DATABASE_URL` and
+     runs `-x env=prod`.
+   - Vercel: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`; client-safe build env
+     `VITE_SUPABASE_{STAGING,PROD}_URL` / `_ANON_KEY` (from the `SUPABASE_*_URL` / `_ANON_KEY` secrets),
+     `SENTRY_DSN_WEB`, and `VITE_API_BASE_URL` = the just-deployed Cloud Run URL.
+   - **Optional repo variables** for CORS (set once the web origins are known, no wildcard):
+     `STAGING_WEB_ORIGIN`, `PROD_WEB_ORIGIN` → become `CORS_ALLOW_ORIGINS`. Unset → the API's
+     wildcard-free default applies.
+4. **Owner pre-reqs before the first real deploy** (go-live §A–§C): the hosted Supabase staging/prod
+   schemas applied (Alembic), the Vercel project linked (6.3.1), and — for an end-to-end staging loop —
+   `STAGING_WEB_ORIGIN` set so the browser's cross-origin API calls pass CORS.
+5. **CONFIRM (conscious choice, no action needed): prod runs `LLM_PROVIDER=groq`.** The deploy
+   workflows set Groq in **every** environment — the locked "Groq in every env for now; flip to Gemini
+   later with no code change" decision (`05-infra-deploy.md`), and the cost-guard budgets
+   (`GLOBAL_DAILY_BUDGET` etc.) are sized for Groq's free RPD. To move prod to Gemini later: set
+   `LLM_PROVIDER=gemini` + `GEMINI_API_KEY` in `deploy-prod.yml`'s prod runtime env and re-confirm the
+   budget ceilings against Gemini's limits.

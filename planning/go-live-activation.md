@@ -29,7 +29,7 @@
 2. **No Cloud Run service** — `lengua-api-staging/prod` absent in every EU region (registry+SA+project ready, just nothing deployed).
 3. **No Vercel project** linked/deployed — `vercel projects ls` empty, no `.vercel/project.json` (token/org/project secrets exist).
 4. **No `apps/web/.env`** — only `.env.example`; the web app has no local config.
-5. **CD pipeline as-code** — in progress (Phase 6 workflow, group G6) + `DEPLOY_ENABLED` repo variable not set.
+5. **CD pipeline as-code** — **COMMITTED + GATED** (`.github/workflows/deploy-staging.yml` + `deploy-prod.yml`, group G6); every job is gated `if: vars.DEPLOY_ENABLED == 'true'` and the `DEPLOY_ENABLED` repo variable is **not set yet** (§E1 flips it) → the workflows are inert/green no-ops until then. The `production` environment reviewer (§F3) is also not yet added.
 6. Minor: `pnpm` not installed locally (repo uses `corepack pnpm`).
 
 ---

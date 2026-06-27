@@ -267,6 +267,27 @@ python scripts/verify.py
 `pnpm` is invoked via `corepack pnpm` when `pnpm` isn't on your `PATH` (corepack ships with
 Node and honors the `packageManager` pin in `apps/web/package.json`).
 
+### Deployment (CI/CD)
+
+Two pipelines, both as code under `.github/workflows/`:
+
+- **CI gate** (`ci.yml`, on every PR) — the blocking lint/type/test/build/E2E/security gate.
+- **CD** — merging to `main` ships **staging** (`deploy-staging.yml`: build + push the API image to
+  Artifact Registry, run a discrete `alembic upgrade head` against staging, deploy Cloud Run
+  `lengua-api-staging`, deploy Vercel staging, smoke-check). **Prod** is a separate, gated
+  promotion (`deploy-prod.yml`: a `production`-environment approval → promote the exact
+  staging-validated image digest to `lengua-api-prod`, gated prod migration, Vercel production,
+  smoke-check). A bad release rolls back in one command with
+  [`infra/deploy/rollback.sh`](infra/deploy/rollback.sh).
+
+> **CD is gated off by default.** Every deploy job is `if: ${{ vars.DEPLOY_ENABLED == 'true' }}`, so
+> with the repo variable unset the workflows are green no-ops (nothing deploys). The owner turns CD
+> on with `gh variable set DEPLOY_ENABLED -b true` — see
+> [`planning/go-live-activation.md`](planning/go-live-activation.md). Alembic's migration target is
+> chosen with `alembic -x env=staging|prod|local` (→ `STAGING_DATABASE_URL` / `PROD_DATABASE_URL` /
+> `DATABASE_URL`; a one-off `-x db_url=<dsn>` still overrides). Deploy/rollback/migration runbook:
+> [`docs/runbook.md`](docs/runbook.md).
+
 ### Legacy Streamlit app — deprecated (retained for reference)
 
 The React web app (`apps/web`) now has **full feature parity** with the original Streamlit app — see

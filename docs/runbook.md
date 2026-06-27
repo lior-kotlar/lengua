@@ -169,9 +169,15 @@ smoke probes (6.7.5). The previous revision is retained for one-click rollback (
 ## Rollback
 
 Cloud Run keeps the previous revision, so a bad release is reverted by **shifting 100% traffic back
-to the last good revision** — no rebuild, no redeploy. Group 6.8.2 adds a one-command wrapper
-(`infra/deploy/rollback.sh <service>`); until it lands, run these directly (swap `-staging` for
-`-prod` to roll back prod):
+to the last good revision** — no rebuild, no redeploy. The one-command wrapper
+[`infra/deploy/rollback.sh <service> [revision]`](../infra/deploy/rollback.sh) does exactly this
+(auto-selects the previous good revision, or takes an explicit one, then verifies `/health`):
+
+```bash
+GCP_PROJECT_ID=lengua-prod GCP_REGION="$GCP_REGION" infra/deploy/rollback.sh lengua-api-staging
+```
+
+Equivalently, run the steps directly (swap `-staging` for `-prod` to roll back prod):
 
 ```bash
 # 1. List revisions newest-first and see which serves traffic + which image each runs:
@@ -199,21 +205,26 @@ Alembic owns the schema and is applied as a **discrete, logged job** (CD groups 
 6.7.3 gated prod) — separate from the image deploy, **never in the request path**. Run from
 `apps/api`.
 
-**Environment selection:** the Alembic env (`migrations/env.py`) resolves the target DB from
-`-x db_url=<dsn>` (preferred for a one-off op) **or** `$DATABASE_URL` — there is **no `-x env=`
-switch**. Point it at the env's connection string (the `SUPABASE_{STAGING,PROD}_DATABASE_URL`
-secrets):
+**Environment selection:** the Alembic env (`migrations/env.py`) resolves the target DB in
+precedence order (see `app/db/migration_url.py`): **`-x db_url=<dsn>`** (an explicit one-off
+override) → **`-x env=staging|prod|local`** (maps to `STAGING_DATABASE_URL` / `PROD_DATABASE_URL` /
+`DATABASE_URL`) → **`$DATABASE_URL`**. The CD migrate jobs (6.6.3 / 6.7.3) use `-x env=` with the
+per-env connection string exported from the `SUPABASE_{STAGING,PROD}_DATABASE_URL` secret; for a
+manual op either form works:
 
 ```bash
 # Inspect first — current applied revision vs the latest defined head:
-uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" current
+STAGING_DATABASE_URL="$SUPABASE_STAGING_DATABASE_URL" uv run alembic -x env=staging current
 uv run alembic heads          # the target; `current` must equal this after the upgrade
 
-# Apply to staging:
+# Apply to staging (CD form — STAGING_DATABASE_URL set from the secret):
+STAGING_DATABASE_URL="$SUPABASE_STAGING_DATABASE_URL" uv run alembic -x env=staging upgrade head
+
+# …or the equivalent explicit one-off override:
 uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" upgrade head
 
 # Apply to prod (gated — only from the approval-protected prod-migrate job, or manually with care):
-uv run alembic -x db_url="$SUPABASE_PROD_DATABASE_URL" upgrade head
+PROD_DATABASE_URL="$SUPABASE_PROD_DATABASE_URL" uv run alembic -x env=prod upgrade head
 ```
 
 After a hosted-Supabase upgrade, `\dt` lists the 8 app tables (+ `llm_usage` / `llm_budget`) and the

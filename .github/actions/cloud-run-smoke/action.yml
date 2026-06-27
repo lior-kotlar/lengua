@@ -1,0 +1,60 @@
+# Reusable composite: smoke-check a deployed environment (Phase 6 tasks 6.6.5 / 6.7.5).
+# Probes the API liveness (/health) + readiness (/ready) and the web root, and FAILS (non-zero)
+# on any non-2xx — so a deploy that breaks startup turns the run red at this step. No secrets:
+# it takes only the public URLs the deploy jobs emit.
+#
+# Cloud Run has startup + liveness probes but NO separate readiness probe, so /ready is verified
+# here (and by the external uptime monitor) rather than wired as a Cloud Run probe.
+name: Smoke-check a deployed environment
+description: Probe the API /health + /ready and the web root; fail on any non-2xx.
+
+inputs:
+  api_url:
+    description: Base URL of the deployed Cloud Run API (no trailing slash).
+    required: true
+  web_url:
+    description: Base URL of the deployed web app. Optional — skipped when empty.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Probe API + web
+      shell: bash
+      env:
+        API_URL: ${{ inputs.api_url }}
+        WEB_URL: ${{ inputs.web_url }}
+      run: |
+        set -euo pipefail
+        echo "Probing API liveness: ${API_URL}/health"
+        ok=""
+        for _ in $(seq 1 30); do
+          if curl -fsS "${API_URL}/health" >/dev/null; then echo "  /health OK"; ok=1; break; fi
+          sleep 2
+        done
+        if [ -z "$ok" ]; then echo "::error::API /health never returned 2xx at ${API_URL}"; exit 1; fi
+
+        echo "Probing API readiness: ${API_URL}/ready"
+        # Retry like /health: a cold DB/connection-pool warm-up shouldn't fail an otherwise-healthy
+        # deploy. /ready returns 503 (not 500) until the DB is reachable, so we poll up to ~60s.
+        ready=""
+        for _ in $(seq 1 30); do
+          if curl -fsS "${API_URL}/ready" >/dev/null; then echo "  /ready OK"; ready=1; break; fi
+          sleep 2
+        done
+        if [ -z "$ready" ]; then
+          echo "::error::API /ready never returned 2xx (DB unreachable?) at ${API_URL}"
+          exit 1
+        fi
+
+        if [ -n "${WEB_URL}" ]; then
+          echo "Probing web: ${WEB_URL}"
+          code="$(curl -s -o /dev/null -w '%{http_code}' "${WEB_URL}")"
+          if [ "$code" != "200" ]; then
+            echo "::error::web did not return 200 (got ${code}) at ${WEB_URL}"
+            exit 1
+          fi
+          echo "  web 200 OK"
+        fi
+        echo "Smoke check passed."

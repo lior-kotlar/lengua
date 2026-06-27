@@ -1,0 +1,100 @@
+# Reusable composite: authenticate to GCP and deploy an image to a Cloud Run service (Phase 6
+# groups 6.6 / 6.7). Shared by deploy-staging.yml (deploys the freshly-built image) and
+# deploy-prod.yml (promotes the exact staging-validated digest — no rebuild).
+#
+# GATING NOTE: this action contains live `gcloud` calls, so every CALLER job that uses it is
+# gated `if: ${{ vars.DEPLOY_ENABLED == 'true' }}`. With that repo variable unset the caller job
+# is skipped and this action never executes — nothing here runs on its own.
+#
+# AUTH: uses the deployer service-account key in the GCP_SA_JSON secret via
+# google-github-actions/auth. FUTURE HARDENING: migrate to keyless Workload Identity Federation
+# (no SA JSON to store/rotate) — see docs/runbook.md "Rotate a secret"; GCP_SA_JSON is what the
+# owner has provisioned today, so we do not require re-doing auth.
+name: Deploy to Cloud Run
+description: Authenticate to GCP and deploy an image to a Cloud Run service; output the service URL.
+
+inputs:
+  service:
+    description: Cloud Run service name (e.g. lengua-api-staging).
+    required: true
+  region:
+    description: GCP region (e.g. europe-west1).
+    required: true
+  project:
+    description: GCP project id (e.g. lengua-prod).
+    required: true
+  image:
+    description: Fully-qualified image reference (tag or @sha256 digest) to deploy.
+    required: true
+  credentials_json:
+    description: GCP deployer service-account key JSON (the GCP_SA_JSON secret).
+    required: true
+  env_vars:
+    description: >-
+      Runtime environment for the service, one KEY=VALUE per line. Passed via --set-env-vars with
+      a custom '@@' delimiter so values containing commas (e.g. OTEL headers) survive intact.
+      Blank lines are skipped. This REPLACES the service's env on each deploy.
+    required: false
+    default: ''
+  extra_flags:
+    description: >-
+      Extra `gcloud run deploy` flags as a single space-separated string (no spaces WITHIN a
+      flag) — scaling, probes, auth, etc.
+    required: false
+    default: ''
+
+outputs:
+  url:
+    description: The deployed service's HTTPS URL.
+    value: ${{ steps.deploy.outputs.url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Authenticate to GCP (deployer SA key)
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ inputs.credentials_json }}
+
+    - name: Set up gcloud
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Deploy to Cloud Run
+      id: deploy
+      shell: bash
+      env:
+        SERVICE: ${{ inputs.service }}
+        REGION: ${{ inputs.region }}
+        PROJECT: ${{ inputs.project }}
+        IMAGE: ${{ inputs.image }}
+        ENV_VARS: ${{ inputs.env_vars }}
+        EXTRA_FLAGS: ${{ inputs.extra_flags }}
+      run: |
+        set -euo pipefail
+        deploy_args=()
+        # Join the KEY=VALUE lines with a '@@' delimiter and pass them via gcloud's custom-delimiter
+        # form (--set-env-vars=^@@^...) so a value containing commas (e.g. multi-pair OTEL headers)
+        # is not split. --set-env-vars is declarative — it REPLACES the service env on each deploy.
+        if [ -n "$(printf '%s' "${ENV_VARS}" | tr -d '[:space:]')" ]; then
+          joined=""
+          while IFS= read -r line; do
+            [ -z "${line//[[:space:]]/}" ] && continue
+            if [ -z "$joined" ]; then joined="$line"; else joined="${joined}@@${line}"; fi
+          done <<< "${ENV_VARS}"
+          deploy_args+=( "--set-env-vars=^@@^${joined}" )
+        fi
+        # EXTRA_FLAGS is intentionally unquoted: it is a trusted, space-separated list of flags we
+        # control (no flag contains an embedded space).
+        # shellcheck disable=SC2086
+        gcloud run deploy "$SERVICE" \
+          --image="$IMAGE" \
+          --region="$REGION" \
+          --project="$PROJECT" \
+          --platform=managed \
+          --quiet \
+          $EXTRA_FLAGS \
+          ${deploy_args[@]+"${deploy_args[@]}"}
+        url="$(gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT" \
+          --format='value(status.url)')"
+        echo "Deployed $SERVICE -> $url"
+        echo "url=$url" >> "$GITHUB_OUTPUT"
