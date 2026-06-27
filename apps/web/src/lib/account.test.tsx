@@ -145,23 +145,28 @@ describe('downloadJson', () => {
     click.mockRestore();
   });
 
-  it('serializes the data and clicks a hidden download anchor, then revokes the URL', async () => {
+  it('serializes the data, clicks a hidden anchor, and revokes the URL on the NEXT tick', async () => {
     downloadJson('lengua-export.json', EXPORT_BUNDLE);
 
-    // A JSON blob was created…
+    // A JSON blob was created and offered via a download anchor pointing at the object URL…
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     const blob = createObjectURL.mock.calls[0][0] as unknown as Blob;
     expect(blob.type).toBe('application/json');
-    expect(JSON.parse(await readBlobText(blob))).toEqual(EXPORT_BUNDLE);
-
-    // …and offered via a download anchor pointing at the object URL.
     expect(click).toHaveBeenCalledTimes(1);
     expect(captured).not.toBeNull();
     expect(captured?.download).toBe('lengua-export.json');
     expect(captured?.href).toBe('blob:fake');
 
-    // The anchor is cleaned up and the object URL revoked (no leak).
+    // The anchor is cleaned up immediately, but the URL is NOT revoked synchronously — revoking in
+    // the same tick can abort the download in async-download browsers (Safari/Firefox).
     expect(document.querySelector('a[download]')).toBeNull();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    // The blob carries the exact export payload.
+    expect(JSON.parse(await readBlobText(blob))).toEqual(EXPORT_BUNDLE);
+
+    // …and the object URL is revoked on the next macrotask (no leak).
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake');
   });
 });

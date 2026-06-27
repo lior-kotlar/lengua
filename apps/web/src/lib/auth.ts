@@ -174,6 +174,20 @@ export async function signOut(): Promise<AuthResult> {
   return error ? mapAuthError(error) : { error: null };
 }
 
+/**
+ * Sign out LOCALLY only — removes the persisted session from this client (fires SIGNED_OUT) WITHOUT
+ * a network logout to GoTrue.
+ *
+ * Used right after account deletion: the user no longer exists server-side, so a global/network
+ * logout would fail and could leave the local session intact (which `RedirectIfAuthed` would then
+ * bounce back into the app). Local scope removes the stored session with no network call, so the
+ * post-delete teardown can't be stranded by a failed logout.
+ */
+export async function signOutLocal(): Promise<AuthResult> {
+  const { error } = await getSupabaseClient().auth.signOut({ scope: 'local' });
+  return error ? mapAuthError(error) : { error: null };
+}
+
 /** Read the current session (used by the auth context bootstrap). */
 export async function getCurrentSession(): Promise<Session | null> {
   const { data } = await getSupabaseClient().auth.getSession();

@@ -16,8 +16,8 @@ vi.mock('@/lib/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api-client')>();
   return { ...actual, getApiClient: () => ({ DELETE: del }) };
 });
-const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
-vi.mock('@/lib/auth', () => ({ signOut }));
+const { signOutLocal } = vi.hoisted(() => ({ signOutLocal: vi.fn() }));
+vi.mock('@/lib/auth', () => ({ signOutLocal }));
 
 import { DeleteAccountDialog } from '@/components/delete-account-dialog';
 
@@ -70,7 +70,7 @@ async function openDialog(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  signOut.mockResolvedValue({ error: null });
+  signOutLocal.mockResolvedValue({ error: null });
 });
 
 afterEach(() => {
@@ -128,7 +128,25 @@ describe('DeleteAccountDialog — confirmed deletion', () => {
     expect(await screen.findByText('LOGIN ROUTE')).toBeInTheDocument();
     expect(del).toHaveBeenCalledTimes(1);
     expect(del).toHaveBeenCalledWith('/account');
-    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOutLocal).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(['languages'])).toBeUndefined();
+  });
+
+  it('still clears the cache and redirects even if the local sign-out fails', async () => {
+    // The account is already gone server-side; a failed local sign-out must not strand the user
+    // logged-in. Teardown (cache clear + redirect) must run regardless.
+    const user = userEvent.setup();
+    del.mockReturnValue(ok(undefined, 204));
+    signOutLocal.mockRejectedValue(new Error('signout boom'));
+    const { queryClient } = renderDialog();
+    queryClient.setQueryData(['languages'], [{ id: 1 }]);
+
+    const { confirm, input } = await openDialog(user);
+    await user.type(input, CONFIRM_PHRASE);
+    await user.click(confirm);
+
+    expect(await screen.findByText('LOGIN ROUTE')).toBeInTheDocument();
+    expect(del).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(['languages'])).toBeUndefined();
   });
 
@@ -145,7 +163,7 @@ describe('DeleteAccountDialog — confirmed deletion', () => {
 
     expect(await screen.findByText(/no data was removed/i)).toBeInTheDocument();
     expect(del).toHaveBeenCalledTimes(1);
-    expect(signOut).not.toHaveBeenCalled();
+    expect(signOutLocal).not.toHaveBeenCalled();
     expect(screen.queryByText('LOGIN ROUTE')).not.toBeInTheDocument();
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
@@ -168,6 +186,26 @@ describe('DeleteAccountDialog — confirmed deletion', () => {
 
     // A second submit while pending must not fire a second DELETE.
     fireEvent.submit(dialog.querySelector('form')!);
+    expect(del).toHaveBeenCalledTimes(1);
+  });
+
+  it('cannot be dismissed via Escape while a delete is in flight', async () => {
+    const user = userEvent.setup();
+    del.mockReturnValue(new Promise(() => {})); // never resolves → stays pending
+    renderDialog();
+
+    const { dialog, input } = await openDialog(user);
+    await user.type(input, CONFIRM_PHRASE);
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Delete account' }),
+    );
+    expect(
+      within(dialog).getByRole('button', { name: /deleting/i }),
+    ).toBeDisabled();
+
+    // Escape must be ignored while the irreversible call is on the wire (no reset, no dropped 502).
+    await user.keyboard('{Escape}');
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(del).toHaveBeenCalledTimes(1);
   });
 

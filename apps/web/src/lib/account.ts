@@ -76,15 +76,15 @@ export function downloadJson(filename: string, data: unknown): void {
     type: 'application/json',
   });
   const url = URL.createObjectURL(blob);
-  try {
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.rel = 'noopener';
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Revoke on the NEXT tick, not synchronously: some browsers (Safari, historically Firefox) read
+  // the blob URL asynchronously after click() returns, so revoking in the same tick can abort the
+  // download. Deferring keeps the URL alive long enough for the save to start, then frees it.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

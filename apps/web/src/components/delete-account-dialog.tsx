@@ -15,7 +15,7 @@
  * Closing the dialog resets the typed phrase and any error, so a stale confirmation can never linger.
  * The session token is never logged.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +34,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { apiErrorMessage } from '@/lib/api-client';
 import { DELETE_CONFIRM_PHRASE, useDeleteAccount } from '@/lib/account';
-import { signOut } from '@/lib/auth';
+import { signOutLocal } from '@/lib/auth';
 
 export function DeleteAccountDialog() {
   const [open, setOpen] = useState(false);
@@ -42,6 +42,9 @@ export function DeleteAccountDialog() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const deleteAccount = useDeleteAccount();
+  // Synchronous in-flight latch: makes exactly-once independent of React render timing, so two
+  // submit events in the SAME tick (synthetic/automation) can't both fire the irreversible DELETE.
+  const inFlight = useRef(false);
 
   // Exact match (after trimming surrounding whitespace) — the single gate on firing deletion.
   const confirmed = phrase.trim() === DELETE_CONFIRM_PHRASE;
@@ -58,16 +61,25 @@ export function DeleteAccountDialog() {
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     // Defense in depth: never delete unless the phrase matches and no delete is already in flight,
-    // even if a submit somehow fires while the button is disabled.
-    if (!confirmed || deleteAccount.isPending) {
+    // even if a submit somehow fires while the button is disabled. `inFlight` guards the same-tick
+    // case that `isPending` (render-time) can't.
+    if (!confirmed || deleteAccount.isPending || inFlight.current) {
       return;
     }
+    inFlight.current = true;
     deleteAccount.mutate(undefined, {
       onSuccess: async () => {
-        // The irreversible step succeeded. Tear down the local session + cached data, then redirect.
-        await signOut();
+        // The irreversible step succeeded — the account is now gone server-side. Tear down the LOCAL
+        // session (no network logout: it would fail on the deleted user and could leave the session
+        // intact, which RedirectIfAuthed would bounce back into the app). A failed local sign-out
+        // must NOT block teardown, so swallow it and always clear the cache + redirect.
+        await signOutLocal().catch(() => undefined);
         queryClient.clear();
         navigate('/login', { replace: true });
+      },
+      onSettled: () => {
+        // Release the latch so a failed (502) delete can be retried; harmless on success (unmounted).
+        inFlight.current = false;
       },
     });
   }
@@ -75,7 +87,17 @@ export function DeleteAccountDialog() {
   const error = deleteAccount.isError ? deleteAccount.error : null;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // Don't let an Escape/overlay dismissal interrupt an in-flight delete: the irreversible call
+        // is already on the wire, and closing would reset the mutation and silently drop a 502.
+        if (deleteAccount.isPending) {
+          return;
+        }
+        handleOpenChange(next);
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="destructive">
           <Trash2 className="h-4 w-4" aria-hidden="true" />
