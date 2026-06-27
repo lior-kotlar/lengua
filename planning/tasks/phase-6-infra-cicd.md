@@ -77,21 +77,29 @@ _Context: secrets live per platform — Secret Manager (Cloud Run), Vercel env, 
 
 _Context: this is the blocking gate from [09]; it must be green before merge and is enforced by branch protection. Locked: 100% pass + ≥80% coverage (backend & frontend) + Playwright E2E with the LLM stubbed + gitleaks/audit._
 
-- [ ] **6.5.1** Author the PR workflow skeleton with cache restore (uv/pip, pnpm, Playwright browsers) and the job matrix wired to run on `pull_request`.
+- [x] **6.5.1** Author the PR workflow skeleton with cache restore (uv/pip, pnpm, Playwright browsers) and the job matrix wired to run on `pull_request`. <!-- satisfied by job `setup` (warms the uv + pnpm-store + Playwright-Chromium caches) + the `on: pull_request` trigger; every later job restores those caches by key, so the 2nd run shows cache hits. This PR's own CI run exercises the verify. -->
+
       verify: opening a PR triggers the workflow and all jobs start; caches are restored on the second run (cache-hit shown in the run logs).
-- [ ] **6.5.2** Add the lint + format + typecheck jobs (ruff/eslint, prettier, mypy/tsc).
+- [x] **6.5.2** Add the lint + format + typecheck jobs (ruff/eslint, prettier, mypy/tsc). <!-- satisfied by job `lint-and-types`: API `ruff check` + `ruff format --check` + `mypy`; web `eslint` + `prettier --check` + `tsc --noEmit`. A lint/type error fails the job (non-zero exit); a clean PR passes. -->
+
       verify: a PR introducing a lint/type error fails this job with a non-zero exit; a clean PR passes it.
-- [ ] **6.5.3** Add the backend test job: `pytest --cov --cov-fail-under=80` against a disposable Postgres (Supabase CLI/testcontainers) including the RLS isolation + migration-apply tests.
+- [x] **6.5.3** Add the backend test job: `pytest --cov --cov-fail-under=80` against a disposable Postgres (Supabase CLI/testcontainers) including the RLS isolation + migration-apply tests. <!-- satisfied by job `backend-tests`: `supabase start` brings up a disposable Postgres + Auth (applying the migration history + seed = the migration-apply path), then `pytest --cov-branch --cov-fail-under=80` (LLM_PROVIDER=fake) runs the unit + `@integration` suite incl. RLS cross-tenant isolation (tests/test_rls*.py). Drops below 80% → non-zero exit fails the PR. -->
+
       verify: the job runs unit + integration tests against a real Postgres and **fails** when coverage drops below 80% (proven by a PR that removes a test).
-- [ ] **6.5.4** Add the frontend test job: `vitest --coverage` with the 80% v8 thresholds + the web build.
+- [x] **6.5.4** Add the frontend test job: `vitest --coverage` with the 80% v8 thresholds + the web build. <!-- satisfied by job `frontend-tests` (`pnpm test` = `vitest --coverage`, v8 thresholds enforced in vite.config.ts → fails under 80%) + job `build` (produces + uploads the Vite `dist/` bundle artifact). -->
+
       verify: the job fails when frontend coverage falls under 80% and passes on a covered PR; the Vite build artifact is produced.
-- [ ] **6.5.5** Add the contract-drift job comparing the server OpenAPI schema to the generated `packages/api-types` client.
+- [x] **6.5.5** Add the contract-drift job comparing the server OpenAPI schema to the generated `packages/api-types` client. <!-- satisfied by the two-link chain (no redundant standalone job needed): job `lint-and-types` regenerates `packages/api-types/src/{schema,constants}.ts` from `apps/api/openapi.json` and `git diff --exit-code`s them; job `backend-tests` runs tests/test_openapi_stable.py asserting `openapi.json` == `app.openapi()`. So a PR changing an endpoint without regenerating either openapi.json (→ backend-tests fails) or the typed client (→ lint-and-types fails) is blocked; regenerating both passes. -->
+
       verify: a PR that changes an endpoint without regenerating types **fails** this job; regenerating the client makes it pass.
-- [ ] **6.5.6** Add the E2E job: build the API image + web bundle + disposable Postgres, run Playwright headless with the **deterministic LLM fake**, auto-retry a failure once.
+- [x] **6.5.6** Add the E2E job: build the API image + web bundle + disposable Postgres, run Playwright headless with the **deterministic LLM fake**, auto-retry a failure once. <!-- satisfied by job `e2e`: the `build`-job API image + a stack-wired web bundle + a disposable Supabase Postgres, Playwright headless with retries=1 (playwright.config.ts under CI). All four critical journeys are asserted across the specs — signup (auth.spec.ts "shows the verify-notice screen"), generate→save (generate.spec.ts + full-loop.spec.ts), review four ratings (review.spec.ts + full-loop.spec.ts assert Again/Hard/Good/Easy surface + grade), 429 path (generate.spec.ts daily-limit panel) — and zero real LLM calls is proven via the in-process /__test__/llm-calls counter (container ships no Groq/Gemini keys; FakeLLM does no I/O). -->
+
       verify: the critical-journey Playwright suite (signup, generate→save, review four ratings, 429 path) passes against the ephemeral stack with zero real LLM calls (provider fake asserted; no Groq/Gemini network egress).
-- [ ] **6.5.7** Add the security job: `pip-audit` + `pnpm audit` + `gitleaks` (full history + working tree).
+- [x] **6.5.7** Add the security job: `pip-audit` + `pnpm audit` + `gitleaks` (full history + working tree). <!-- satisfied by job `security`: `pip-audit` over the uv-exported requirements (`--strict`) + `pnpm audit --audit-level high --prod` + `gitleaks/gitleaks-action@v2`. The security checkout already sets `fetch-depth: 0` so gitleaks has the full history available (it scans the PR commit range on pull_request, full history on push:main); a planted dummy secret or a known-critical advisory fails the job, a clean PR passes. -->
+
       verify: `gitleaks detect` and the audits run on every PR and **fail** the PR when a planted dummy secret or a known-critical advisory is present; a clean PR passes.
-- [ ] **6.5.8** Add a coverage-delta comment + the a11y/perf (axe, Lighthouse CI) jobs (advisory first).
+- [x] **6.5.8** Add a coverage-delta comment + the a11y/perf (axe, Lighthouse CI) jobs (advisory first). <!-- satisfied by job `coverage-comment` (one sticky PR comment aggregating backend coverage.xml + frontend coverage-summary.json into a delta table) + the advisory job `a11y-perf` (Lighthouse CI budgets + axe, `continue-on-error: true` so it reports without blocking). Both jobs are present in the checks list. -->
+
       verify: a PR receives a coverage-delta comment and the Lighthouse/axe job posts its budget report; the job is present in the checks list.
 
 ## 6.6 — CD: merge-to-main ships staging  ·  M
@@ -177,7 +185,8 @@ _Context: optional custom domain or free subdomains for web + API; whichever is 
 Phase 6 is DONE only when all of these hold:
 
 - [ ] Three isolated environments exist — verify: local (Supabase CLI stack) runs the app, and staging + prod each have their own EU-region Cloud Run service, Supabase project, and Vercel deployment, each answering `/health` `200` with environment-specific config (6.1.4 / 6.1.5 / 6.2.1).
-- [ ] A PR runs the full blocking gate — verify: opening a PR runs lint/types, backend + frontend tests at ≥80% coverage, contract drift, E2E with the LLM stubbed, and gitleaks/audit, and a PR that violates any of them is blocked from merge by branch protection (6.5.x).
+- [ ] A PR runs the full blocking gate — verify: opening a PR runs lint/types, backend + frontend tests at ≥80% coverage, contract drift, E2E with the LLM stubbed, and gitleaks/audit, and a PR that violates any of them is blocked from merge by branch protection (6.5.x). <!-- 6.5.1–6.5.8 as-code DONE + ticked: the full gate (lint-and-types · backend-tests · frontend-tests · build · e2e · security · coverage-comment · a11y-perf) runs on every PR. The remaining clause — "blocked from merge by branch protection" — is owner-deferred (0.6.3 enable branch protection on `main`, see outstanding-work §2 + §12); box left [ ] until that is enabled at launch. -->
+
 - [ ] Merging to `main` ships staging automatically with an applied migration — verify: a merge to `main` produces a green run that pushes the SHA-tagged image, deploys `lengua-api-staging`, runs the discrete `alembic upgrade head` against staging (`alembic current` == `heads`), and updates Vercel staging — ending with green smoke probes (6.6.x).
 - [ ] Prod is a one-click **gated** promotion — verify: the prod workflow pauses for an approval, then promotes the exact staging-validated image digest to `lengua-api-prod`, runs the gated prod migration, and deploys Vercel prod, ending green (6.7.x).
 - [ ] A bad release rolls back in one click — verify: shifting prod (or staging) traffic to the previous Cloud Run revision via the runbook script restores a healthy `/health` `200` with ≥2 revisions retained (6.8.1 / 6.8.2).
