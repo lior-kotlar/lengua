@@ -3,13 +3,14 @@
  * navigation, and a content region that renders the active route via `<Outlet />`.
  *
  * This is the layout every signed-in screen (Generate / Review / Discover / Languages / Settings /
- * Account) renders inside. Route gating (redirect-to-login) lands in a later group (4.3); for now
- * the shell renders unconditionally so the structure + routing can be built and tested.
+ * Account) renders inside. It is mounted behind `RequireAuth` (group 4.3), so it only ever renders
+ * for an authenticated user; the header carries the theme toggle and the account / sign-out menu.
  */
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { NAV_ITEMS } from '@/components/nav-items';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { UserMenu } from '@/components/user-menu';
 import { cn } from '@/lib/utils';
 
 export function AppLayout() {
@@ -21,6 +22,7 @@ export function AppLayout() {
         </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          <UserMenu />
         </div>
       </header>
 

@@ -5,9 +5,33 @@ react-router, TanStack Query. Talks to `apps/api` over HTTP (via the typed clien
 Supabase only for auth.
 
 Phase-4 group 4.1 built the production **app shell** on top of the Phase-0 scaffold: theming,
-routing, server-state, the Supabase client, and the shadcn primitives every screen builds on. The
-authenticated screens (Generate / Review / Discover / Languages / Settings / Account) are currently
-lightweight stubs that later Phase-4 groups fill in.
+routing, server-state, the Supabase client, and the shadcn primitives every screen builds on. Group
+4.3 added **auth & session handling** (below). The authenticated screens (Generate / Review /
+Discover / Languages / Settings / Account) are currently lightweight stubs that later Phase-4 groups
+fill in.
+
+## Auth & sessions (group 4.3)
+
+Signup is required — there is no guest mode. Auth uses `supabase-js` (sessions/tokens/OAuth only);
+all application data goes through the typed API client.
+
+- **Routes:** `/login`, `/signup`, `/forgot-password` (public, redirect into the app if already
+  signed in), `/reset-password` + `/auth/callback` (consume a transient recovery / verification
+  session, so they are _not_ redirect-guarded). All authenticated routes sit behind `RequireAuth`,
+  which redirects signed-out users to `/login` (remembering where they were heading).
+- **Auth context:** `AuthProvider` (`components/auth-provider.tsx`) reads the existing session on
+  load and subscribes to auth changes; `useAuth()` exposes `{ user, session, loading }`. On
+  sign-out it resets the TanStack Query cache so no previous user's data lingers.
+- **Auth seam:** `lib/auth.ts` wraps every supabase-js call (sign-up / log-in / OAuth / password
+  reset / sign-out / resend), builds the redirect URLs from the current origin, and maps raw GoTrue
+  errors to friendly, code-tagged messages (so the UI can, e.g., offer a resend CTA for an
+  unverified email).
+- **Token refresh + 401 retry:** the API client (`lib/api-client.ts`) refreshes the session once on
+  a 401 and retries the request (single-flight, at most one retry); if the refresh fails it signs
+  out, which clears the cache and redirects to `/login`.
+- **OAuth:** Google + Apple buttons appear on both auth screens. Live credentials are owner-only, so
+  they degrade gracefully (a friendly error on click, or a disabled "(soon)" button when narrowed
+  via `VITE_OAUTH_PROVIDERS`).
 
 ## Toolchain
 
@@ -26,7 +50,8 @@ lightweight stubs that later Phase-4 groups fill in.
 - **Unit tests:** Vitest + Testing Library + jsdom (`*.test.tsx` under `src/`), v8 coverage with an
   80% threshold (lines/branches/functions/statements) over product code (`main.tsx`,
   `components/ui/**`, and test files are excluded).
-- **E2E:** Playwright (`e2e/*.spec.ts`), a headless app-shell smoke against the production build.
+- **E2E:** Playwright (`e2e/*.spec.ts`) — a route-gating smoke against the env-less build, plus
+  authenticated auth flows against the ephemeral stack (see "E2E harness" below).
 
 ## Environment
 
@@ -36,16 +61,18 @@ Vite build-time vars (inlined into the bundle). Copy the example and fill in rea
 cp apps/web/.env.example apps/web/.env
 ```
 
-| Var                      | Purpose                                                   |
-| ------------------------ | --------------------------------------------------------- |
-| `VITE_API_BASE_URL`      | Base URL of the Lengua FastAPI backend                    |
-| `VITE_SUPABASE_URL`      | Supabase project URL (auth only)                          |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key (auth only; safe in the browser) |
+| Var                      | Purpose                                                               |
+| ------------------------ | --------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | Base URL of the Lengua FastAPI backend                                |
+| `VITE_SUPABASE_URL`      | Supabase project URL (auth only)                                      |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key (auth only; safe in the browser)             |
+| `VITE_OAUTH_PROVIDERS`   | _optional_ — comma-separated OAuth providers to enable (default both) |
 
 These are validated by `readEnv()` (`src/lib/env.ts`), which **fails fast with a clear error naming
-any missing var** the moment the env / Supabase client is loaded. Public pages render without env so
-the env-less CI build + home smoke work; any auth-touching screen surfaces a misconfiguration
-immediately. Never put a service-role key here.
+any missing var** the moment the env / Supabase client is loaded. The app still renders without env
+(the env-less CI build + route-gating smoke work — `AuthProvider` degrades to signed-out, so `/`
+redirects to `/login`); any auth-touching action surfaces a misconfiguration. Never put a
+service-role key here.
 
 ## Common commands
 
@@ -66,11 +93,45 @@ pnpm test                    # vitest run with v8 coverage (fails under 80%)
 pnpm verify                  # lint + format-check + types + unit(coverage) + build
 ```
 
-E2E (requires the Chromium browser once):
+## E2E harness
+
+Playwright specs live in `e2e/` and run in two tiers:
+
+- **Route-gating smoke** (`a logged-out visit to / redirects to the login screen`) runs anywhere.
+  Even the env-less local preview renders, because `AuthProvider` degrades to signed-out when the
+  Supabase env is absent — so `/` redirects to `/login`. This is what `pnpm exec playwright test`
+  runs locally (it builds + previews the env-less bundle itself).
+- **Authenticated flows** (sign-up → verify-notice; demo log-in → home; sign-out re-gates) need the
+  real **ephemeral stack** — Supabase (CLI) + the API container with `LLM_PROVIDER=fake` and **no
+  LLM keys** — and the web bundle **built against that stack**. They are gated on `E2E_STACK=1` and
+  use the seeded demo account (`apps/api/scripts/seed_e2e.py`).
+
+The CI `e2e` job wires this up (`.github/workflows/ci.yml`): start Supabase → run the API container
+(FakeLLM, `SUPABASE_JWT_SECRET` from the stack so it verifies real tokens) → seed the demo account →
+assert zero real LLM calls → **build the web bundle with `VITE_API_BASE_URL` / `VITE_SUPABASE_URL` /
+`VITE_SUPABASE_ANON_KEY` pointing at the stack** (not the env-less `build`-job artifact, which stays
+for a11y/perf) → `vite preview` + `playwright test` with `E2E_STACK=1`. The zero-real-LLM guarantee
+is preserved (the container has no Groq/Gemini keys; the FakeLLM call counter is asserted).
+
+The 401 → refresh-once → retry path (task 4.3.7) is verified exhaustively in vitest
+(`src/lib/api-client.test.ts`) rather than E2E (a mid-session 401 against a healthy API is not
+reliably reproducible).
+
+Run it locally (Chromium installed once):
 
 ```bash
 pnpm exec playwright install --with-deps chromium
-pnpm exec playwright test    # builds, serves preview, runs the app-shell smoke headless
+pnpm exec playwright test            # env-less route-gating smoke (stack flows auto-skip)
+
+# Full auth flows against a running stack (from repo root):
+supabase start
+eval "$(supabase status -o env | sed 's/^/export /')"
+( cd apps/api && DATABASE_URL="$DB_URL" SUPABASE_URL="$API_URL" \
+    SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" uv run python scripts/seed_e2e.py )
+VITE_API_BASE_URL=http://127.0.0.1:8000 VITE_SUPABASE_URL="$API_URL" \
+  VITE_SUPABASE_ANON_KEY="$ANON_KEY" pnpm build
+pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort &
+E2E_STACK=1 PLAYWRIGHT_TEST_BASE_URL=http://127.0.0.1:4173 pnpm exec playwright test
 ```
 
 ## Layout
@@ -85,24 +146,34 @@ apps/web/
   playwright.config.ts    Playwright config (webServer = build + preview)
   src/
     main.tsx              app bootstrap (ThemeProvider → QueryClientProvider → BrowserRouter)
-    App.tsx               route tree (AuthLayout routes vs AppLayout routes + 404)
+    App.tsx               route tree (auth routes + guards vs AppLayout routes + 404)
     index.css             Tailwind layers + shadcn design tokens
     lib/
       utils.ts            cn() class-merge helper
       env.ts              readEnv() — validate + type VITE_* env (fail-fast)
       supabase.ts         lazy auth-only supabase-js client
+      api-client.ts       typed API client (bearer inject + 401 refresh/retry + typed errors)
+      auth.ts             auth seam over supabase-js (signup/login/oauth/reset/signout + error map)
+      auth-validation.ts  client-side email/password validation (mirrors the server policy)
       query-client.ts     createQueryClient() — TanStack Query defaults
     components/
-      app-layout.tsx      authenticated shell (header / sidebar / content)
-      auth-layout.tsx     unauthenticated shell (login / signup)
+      app-layout.tsx      authenticated shell (header / sidebar / content / account menu)
+      auth-layout.tsx     unauthenticated shell (login / signup / reset)
+      auth-context.ts     AuthContext + useAuth() hook
+      auth-provider.tsx   session bootstrap + auth-state subscription + cache reset on sign-out
+      auth-card.tsx       titled card scaffold for the auth screens
+      form-field.tsx      labeled input + inline validation message
+      route-guards.tsx    RequireAuth / RedirectIfAuthed / RouteLoader
+      oauth-buttons.tsx   Google + Apple OAuth buttons (graceful degradation)
+      user-menu.tsx       header account email + sign-out
       nav-items.ts        primary navigation config
       theme-provider.tsx  light/dark/system theming (persisted)
       theme-toggle.tsx    header theme toggle
       use-theme.ts        theme context + useTheme() hook
       placeholder-screen.tsx  stub used by the not-yet-built screens
       ui/                 shadcn-generated primitives (button/card/input/dialog/toast…) — coverage-excluded
-    pages/                one component per route (Dashboard/Generate/Review/Discover/
-                          Languages/Settings/Account/Login/Signup/NotFound)
+    pages/                one component per route (Dashboard/Generate/Review/Discover/Languages/
+                          Settings/Account + Login/Signup/ForgotPassword/ResetPassword/AuthCallback/NotFound)
     *.test.tsx            Vitest tests (co-located)
-  e2e/home.spec.ts        Playwright app-shell smoke
+  e2e/auth.spec.ts        Playwright auth + route-gating E2E (env-less smoke + stack flows)
 ```

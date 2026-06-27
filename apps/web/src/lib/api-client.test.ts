@@ -1,19 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Hoisted mock fns (vi.mock factories are hoisted above imports — see supabase.test.ts pattern).
-const { getSession, readEnvMock } = vi.hoisted(() => ({
+const { getSession, refreshSession, signOut, readEnvMock } = vi.hoisted(() => ({
   getSession: vi.fn(),
+  refreshSession: vi.fn(),
+  signOut: vi.fn(),
   readEnvMock: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase', () => ({
-  getSupabaseClient: () => ({ auth: { getSession } }),
+  getSupabaseClient: () => ({ auth: { getSession, refreshSession, signOut } }),
 }));
 vi.mock('@/lib/env', () => ({ readEnv: readEnvMock }));
 
 import {
   ApiError,
   createAuthedApiClient,
+  createRefreshRetryFetch,
   getApiClient,
   isApiError,
   resetApiClient,
@@ -58,6 +61,13 @@ beforeEach(() => {
     data: { session: { access_token: 'jwt-123' } },
     error: null,
   });
+  refreshSession.mockReset();
+  refreshSession.mockResolvedValue({
+    data: { session: { access_token: 'jwt-refreshed' } },
+    error: null,
+  });
+  signOut.mockReset();
+  signOut.mockResolvedValue({ error: null });
   readEnvMock.mockReset();
   readEnvMock.mockReturnValue({
     apiBaseUrl: 'http://api.test',
@@ -275,5 +285,156 @@ describe('getApiClient', () => {
     const third = getApiClient();
     expect(third).not.toBe(first);
     expect(readEnvMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('createRefreshRetryFetch (4.3.7)', () => {
+  it('refreshes once and retries with the new token on a 401', async () => {
+    const seen: Request[] = [];
+    const responses = [
+      new Response(null, { status: 401 }),
+      jsonResponse({ ok: true }, 200),
+    ];
+    const baseFetch = vi.fn(async (request: Request) => {
+      seen.push(request);
+      return responses[seen.length - 1];
+    });
+    const refresh = vi.fn(async () => 'new-token');
+    const onAuthFailure = vi.fn();
+    const wrapped = createRefreshRetryFetch(baseFetch, refresh, onAuthFailure);
+
+    const response = await wrapped(
+      new Request('http://api.test/me', {
+        headers: { Authorization: 'Bearer old' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(baseFetch).toHaveBeenCalledTimes(2);
+    expect(seen[0].headers.get('Authorization')).toBe('Bearer old');
+    expect(seen[1].headers.get('Authorization')).toBe('Bearer new-token');
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(onAuthFailure).not.toHaveBeenCalled();
+  });
+
+  it('signs out and surfaces the original 401 when refresh fails', async () => {
+    const baseFetch = vi.fn(async () => new Response(null, { status: 401 }));
+    const refresh = vi.fn(async () => null);
+    const onAuthFailure = vi.fn();
+    const wrapped = createRefreshRetryFetch(baseFetch, refresh, onAuthFailure);
+
+    const response = await wrapped(new Request('http://api.test/me'));
+
+    expect(response.status).toBe(401);
+    expect(baseFetch).toHaveBeenCalledTimes(1);
+    expect(onAuthFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes through a non-401 without refreshing', async () => {
+    const baseFetch = vi.fn(async () => new Response(null, { status: 200 }));
+    const refresh = vi.fn();
+    const wrapped = createRefreshRetryFetch(baseFetch, refresh, vi.fn());
+
+    const response = await wrapped(new Request('http://api.test/me'));
+
+    expect(response.status).toBe(200);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(baseFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries at most once (no loop) when the retry also 401s', async () => {
+    const baseFetch = vi.fn(async () => new Response(null, { status: 401 }));
+    const refresh = vi.fn(async () => 'new-token');
+    const onAuthFailure = vi.fn();
+    const wrapped = createRefreshRetryFetch(baseFetch, refresh, onAuthFailure);
+
+    const response = await wrapped(new Request('http://api.test/me'));
+
+    expect(response.status).toBe(401);
+    expect(baseFetch).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(onAuthFailure).not.toHaveBeenCalled();
+  });
+});
+
+describe('401 refresh + retry through the client', () => {
+  it('retries with the refreshed token (default supabase refresh)', async () => {
+    const seen: Request[] = [];
+    let calls = 0;
+    const fetch = vi.fn(async (request: Request) => {
+      seen.push(request);
+      calls += 1;
+      return calls === 1
+        ? jsonResponse({ code: 'x' }, 401)
+        : jsonResponse({ status: 'ok' }, 200);
+    });
+    const client = createAuthedApiClient({ baseUrl: 'http://api.test', fetch });
+
+    const me = await unwrap(client.GET('/me'));
+
+    expect(me).toEqual({ status: 'ok' });
+    expect(seen[0].headers.get('Authorization')).toBe('Bearer jwt-123');
+    expect(seen[1].headers.get('Authorization')).toBe('Bearer jwt-refreshed');
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('signs out (default handler) when the refresh itself fails', async () => {
+    refreshSession.mockResolvedValue({
+      data: { session: null },
+      error: { message: 'refresh failed' },
+    });
+    const fetch = vi.fn(async () => jsonResponse({ code: 'x' }, 401));
+    const client = createAuthedApiClient({ baseUrl: 'http://api.test', fetch });
+
+    const error = await rejection(unwrap(client.GET('/me')));
+
+    if (!isApiError(error)) throw new Error('expected ApiError');
+    expect(error.status).toBe(401);
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs out when the refresh call throws', async () => {
+    refreshSession.mockRejectedValue(new Error('network down'));
+    const fetch = vi.fn(async () => jsonResponse({ code: 'x' }, 401));
+    const client = createAuthedApiClient({ baseUrl: 'http://api.test', fetch });
+
+    const error = await rejection(unwrap(client.GET('/me')));
+
+    if (!isApiError(error)) throw new Error('expected ApiError');
+    expect(error.status).toBe(401);
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the global fetch when none is injected', async () => {
+    const globalFetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({ status: 'ok' }, 200));
+    try {
+      const client = createAuthedApiClient({ baseUrl: 'http://api.test' });
+      const me = await unwrap(client.GET('/me'));
+      expect(me).toEqual({ status: 'ok' });
+      expect(globalFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      globalFetch.mockRestore();
+    }
+  });
+
+  it('coalesces concurrent 401s into a single refresh (single-flight)', async () => {
+    const fetch = vi.fn(async (request: Request) =>
+      request.headers.get('Authorization') === 'Bearer jwt-refreshed'
+        ? jsonResponse({ ok: true }, 200)
+        : jsonResponse({ code: 'x' }, 401),
+    );
+    const client = createAuthedApiClient({ baseUrl: 'http://api.test', fetch });
+
+    const [a, b] = await Promise.all([
+      unwrap(client.GET('/me')),
+      unwrap(client.GET('/me')),
+    ]);
+
+    expect(a).toEqual({ ok: true });
+    expect(b).toEqual({ ok: true });
+    expect(refreshSession).toHaveBeenCalledTimes(1);
   });
 });

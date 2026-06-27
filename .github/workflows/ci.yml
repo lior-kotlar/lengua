@@ -305,11 +305,14 @@ jobs:
         id: sb
         run: |
           supabase status -o env > supabase.env
-          # Surface the values our seed + container need.
+          # Surface the values our seed + container + web build need. ANON_KEY is the public key the
+          # web bundle ships (auth only); API_URL is the Supabase gateway the web Supabase client uses.
           {
             echo "DB_URL=$(grep '^DB_URL=' supabase.env | cut -d= -f2- | tr -d '\"')"
             echo "API_URL=$(grep '^API_URL=' supabase.env | cut -d= -f2- | tr -d '\"')"
+            echo "ANON_KEY=$(grep '^ANON_KEY=' supabase.env | cut -d= -f2- | tr -d '\"')"
             echo "SERVICE_ROLE_KEY=$(grep '^SERVICE_ROLE_KEY=' supabase.env | cut -d= -f2- | tr -d '\"')"
+            echo "JWT_SECRET=$(grep '^JWT_SECRET=' supabase.env | cut -d= -f2- | tr -d '\"')"
           } >> "$GITHUB_OUTPUT"
 
       # Seed the deterministic demo account + due cards into the disposable DB (Auth Admin API +
@@ -344,13 +347,18 @@ jobs:
           DB_URL: ${{ steps.sb.outputs.DB_URL }}
           API_URL: ${{ steps.sb.outputs.API_URL }}
           SERVICE_ROLE_KEY: ${{ steps.sb.outputs.SERVICE_ROLE_KEY }}
+          JWT_SECRET: ${{ steps.sb.outputs.JWT_SECRET }}
         run: |
+          # SUPABASE_JWT_SECRET lets the API verify the real GoTrue access tokens the web app sends,
+          # so authenticated-screen E2E (4.4+) works against this stack. The token is the local
+          # stack's well-known HS256 secret (ephemeral; not a production credential).
           docker run -d --name lengua-api --network host \
             -e LLM_PROVIDER=fake \
             -e PORT=8000 \
             -e DATABASE_URL="$DB_URL" \
             -e SUPABASE_URL="$API_URL" \
             -e SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            -e SUPABASE_JWT_SECRET="$JWT_SECRET" \
             lengua-api:ci
       - name: Wait for API health
         run: |
@@ -377,9 +385,8 @@ jobs:
           echo "calls after generate: $after"
           test "$after" -gt "$before"
 
-      # Serve the built web bundle and run the Playwright home-page smoke headless against the
-      # ephemeral stack. Playwright is told the server is already up (we preview the artifact),
-      # and retries-once on flake (playwright.config.ts: retries=1 under CI).
+      # Build the web bundle wired to the stack, serve it, and run the Playwright auth E2E headless
+      # against the ephemeral stack (retries-once on flake; playwright.config.ts: retries=1 under CI).
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.0
@@ -391,11 +398,17 @@ jobs:
       - name: web deps
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
-      - name: Download web bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: web-bundle
-          path: apps/web/dist
+      # Rebuild the web bundle HERE wired to the ephemeral stack (Vite statically inlines these
+      # build-time vars), instead of consuming the env-less `build`-job artifact — that generic
+      # bundle stays for the a11y/perf job. This is what makes real authenticated E2E possible: the
+      # bundle's Supabase client points at the local GoTrue and the API client at the local API.
+      - name: Build web bundle wired to the ephemeral stack
+        working-directory: apps/web
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:8000
+          VITE_SUPABASE_URL: ${{ steps.sb.outputs.API_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ steps.sb.outputs.ANON_KEY }}
+        run: pnpm build
       - name: Restore Playwright browsers
         uses: actions/cache@v4
         with:
@@ -405,17 +418,20 @@ jobs:
       - name: Install Playwright browser
         working-directory: apps/web
         run: pnpm exec playwright install --with-deps chromium
-      # Serve the pre-built bundle and run the Playwright home-page smoke headless against the
-      # ephemeral stack — both in ONE step so the preview server lives for the whole test (a
-      # backgrounded server started in an earlier step would be reaped at that step's end). The
-      # preview binds to 127.0.0.1 explicitly (default `localhost` can resolve to IPv6 ::1 on the
-      # runner, which curl/Playwright on IPv4 can't reach). Playwright sees PLAYWRIGHT_TEST_BASE_URL
-      # and skips its own webServer (so it uses our prebuilt artifact, no rebuild) and retries-once
-      # on flake (playwright.config.ts: retries=1 under CI).
-      - name: Serve web bundle + Playwright smoke (headless, retry-once)
+      # Serve the stack-wired bundle and run the Playwright auth specs headless against the ephemeral
+      # stack — both in ONE step so the preview server lives for the whole test (a backgrounded
+      # server started in an earlier step would be reaped at that step's end). The preview binds to
+      # 127.0.0.1 explicitly (default `localhost` can resolve to IPv6 ::1 on the runner, which
+      # curl/Playwright on IPv4 can't reach). Playwright sees PLAYWRIGHT_TEST_BASE_URL and skips its
+      # own webServer (so it serves the bundle we just built) and retries-once on flake
+      # (playwright.config.ts: retries=1 under CI). E2E_STACK=1 enables the stack-dependent auth
+      # flows (signup → verify-notice; demo login → home; sign-out re-gates) on top of the env-less
+      # route-gating smoke; the seeded demo account is the login fixture.
+      - name: Serve web bundle + Playwright auth E2E (headless, retry-once)
         working-directory: apps/web
         env:
           CI: 'true'
+          E2E_STACK: '1'
           PLAYWRIGHT_TEST_BASE_URL: http://127.0.0.1:4173
         run: |
           set -euo pipefail

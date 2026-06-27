@@ -170,6 +170,7 @@ additional_redirect_urls = [
   "http://localhost:5173/**",
   "http://127.0.0.1:5173/**",
   "http://localhost:4173/**",
+  "http://127.0.0.1:4173/**", # Playwright/preview on the loopback IP (CI e2e job)
   "http://localhost:3000/**",
   "http://127.0.0.1:3000/**",
   # ── Staging web (Vercel) — confirm the final staging domain with the owner ──
