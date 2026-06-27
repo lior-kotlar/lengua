@@ -807,7 +807,11 @@ Cross-reference: [`go-live-activation.md`](go-live-activation.md) §E/§F (the s
 2. **Add the prod approval reviewer (one owner action left for prod):** create the GitHub
    **`production` environment** (repo Settings → Environments → New environment → `production`) and add
    a **required reviewer**. `deploy-prod.yml`'s `approval` job targets that environment, so prod pauses
-   for approval; without the reviewer the gate passes straight through.
+   for approval; without the reviewer the gate passes straight through. **`deploy-prod.yml` is
+   MANUAL-ONLY by design** (`workflow_dispatch`, no `release: published` trigger) precisely because the
+   reviewer is not yet configured — so a published release can't auto-promote to prod with no human
+   approval. **Once the required reviewer is added**, you may optionally re-add
+   `release: { types: [published] }` to `deploy-prod.yml`'s `on:` to promote on a release tag.
 3. **Secrets/variables the workflows consume (all already provisioned as GitHub Actions secrets unless
    noted):**
    - GCP: `GCP_SA_JSON` (deployer SA key → `google-github-actions/auth`), `GCP_PROJECT_ID`
@@ -830,3 +834,9 @@ Cross-reference: [`go-live-activation.md`](go-live-activation.md) §E/§F (the s
 4. **Owner pre-reqs before the first real deploy** (go-live §A–§C): the hosted Supabase staging/prod
    schemas applied (Alembic), the Vercel project linked (6.3.1), and — for an end-to-end staging loop —
    `STAGING_WEB_ORIGIN` set so the browser's cross-origin API calls pass CORS.
+5. **CONFIRM (conscious choice, no action needed): prod runs `LLM_PROVIDER=groq`.** The deploy
+   workflows set Groq in **every** environment — the locked "Groq in every env for now; flip to Gemini
+   later with no code change" decision (`05-infra-deploy.md`), and the cost-guard budgets
+   (`GLOBAL_DAILY_BUDGET` etc.) are sized for Groq's free RPD. To move prod to Gemini later: set
+   `LLM_PROVIDER=gemini` + `GEMINI_API_KEY` in `deploy-prod.yml`'s prod runtime env and re-confirm the
+   budget ceilings against Gemini's limits.

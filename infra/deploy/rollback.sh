@@ -40,7 +40,10 @@ current="$(gcloud run services describe "$SERVICE" --region "$REGION" --project 
 
 if [ -z "$TARGET_REV" ]; then
   # Newest READY revision that is NOT the one currently serving traffic = the previous good one.
+  # The --filter keeps only revisions whose Ready condition is True, so we never auto-roll-back onto
+  # a failed-deploy revision (matching the comment above). Pass an explicit revision as $2 to override.
   TARGET_REV="$(gcloud run revisions list --service "$SERVICE" --region "$REGION" --project "$PROJECT" \
+    --filter="status.conditions.type=Ready AND status.conditions.status=True" \
     --sort-by="~metadata.creationTimestamp" --format='value(metadata.name)' \
     | grep -vx "$current" | head -n1)"
 fi

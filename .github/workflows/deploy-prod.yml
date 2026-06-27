@@ -1,22 +1,26 @@
 # CD — gated PROD promotion (Phase 6 group 6.7).
 #
-# Triggered manually (workflow_dispatch) or by publishing a GitHub release. It pauses on a single
-# `production` environment approval, then: resolves the EXACT image digest currently validated on
-# staging (promote by digest — NO rebuild), runs the gated Alembic "migrate prod" job, promotes
-# that digest to Cloud Run `lengua-api-prod`, deploys the web app to Vercel production, and
-# smoke-checks prod.
+# Triggered MANUALLY only (workflow_dispatch). It pauses on a single `production` environment
+# approval, then: resolves the EXACT image digest currently validated on staging (promote by
+# digest — NO rebuild), runs the gated Alembic "migrate prod" job, promotes that digest to Cloud
+# Run `lengua-api-prod`, deploys the web app to Vercel production, and smoke-checks prod.
 #
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # GATING (two independent gates):
 #   1. `if: ${{ vars.DEPLOY_ENABLED == 'true' }}` on EVERY job — with the repo variable unset
-#      (current state) every job SKIPS, so a manual run / release is a green no-op and the
-#      `production` approval is never even requested. (Owner enables CD: `gh variable set
-#      DEPLOY_ENABLED -b true`.)
+#      (current state) every job SKIPS, so a manual run is a green no-op and the `production`
+#      approval is never even requested. (Owner enables CD: `gh variable set DEPLOY_ENABLED -b true`.)
 #   2. `environment: production` on the `approval` gate — a required reviewer must approve before
 #      anything downstream runs (6.7.1). OWNER ACTION: create the GitHub `production` environment
 #      and add a required reviewer (Settings → Environments). Until then the environment exists
 #      with no protection and the gate passes through. This workflow never triggers on
 #      `pull_request`, so it never affects a PR.
+#
+# WHY MANUAL-ONLY (no `release: published` trigger): the `production` required-reviewer gate is a
+# no-op until the owner configures a reviewer (point 2), so an auto-trigger on a published release
+# could promote to prod with NO human approval while DEPLOY_ENABLED=true. Re-add
+# `release: { types: [published] }` ONLY after the `production` environment has a required reviewer
+# (see planning/outstanding-work.md §12). Until then, prod promotes ONLY on an explicit manual run.
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 name: deploy-prod
 
@@ -27,8 +31,6 @@ on:
         description: 'Optional image digest/ref to promote (default: the image currently serving staging).'
         required: false
         default: ''
-  release:
-    types: [published]
 
 concurrency:
   group: deploy-prod
@@ -132,6 +134,10 @@ jobs:
           project: ${{ secrets.GCP_PROJECT_ID }}
           image: ${{ needs.resolve-image.outputs.image }}
           credentials_json: ${{ secrets.GCP_SA_JSON }}
+          # LLM_PROVIDER=groq in PROD is INTENTIONAL — the locked "Groq in every env for now; flip to
+          # Gemini later with no code change" decision (05-infra-deploy.md), and the cost-guard
+          # budgets (GLOBAL_DAILY_BUDGET etc.) are sized for Groq's free RPD. To move prod to Gemini
+          # later: set LLM_PROVIDER=gemini + GEMINI_API_KEY here and re-confirm the budget ceilings.
           # CORS_ALLOW_ORIGINS added only when the owner sets repo var PROD_WEB_ORIGIN (no wildcard).
           env_vars: |
             LLM_PROVIDER=groq
@@ -171,6 +177,7 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -184,19 +191,19 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Pull Vercel env (production)
-        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
       - name: Build web bundle (client-safe VITE_* only)
         env:
           VITE_API_BASE_URL: ${{ needs.deploy-api-prod.outputs.url }}
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PROD_ANON_KEY }}
           VITE_SENTRY_DSN_WEB: ${{ secrets.SENTRY_DSN_WEB }}
-        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        run: vercel build --prod --token="$VERCEL_TOKEN"
       - name: Deploy prebuilt to Vercel (production)
         id: deploy
         run: |
           set -euo pipefail
-          url="$(vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}" | tail -n1)"
+          url="$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tail -n1)"
           echo "Deployed web (production) -> $url"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
