@@ -92,6 +92,15 @@ export function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;
 }
 
+/**
+ * The user-facing message for a caught value: an {@link ApiError}'s `message` (the backend's
+ * detail), or `fallback` for anything else. Handy for mutation `onError` toasts that want to show
+ * the server's message when there is one but never leak a raw non-API error.
+ */
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  return isApiError(error) ? error.message : fallback;
+}
+
 /** Parse the `Retry-After` header (delta-seconds) into a non-negative number, or `undefined`. */
 function parseRetryAfter(response: Response): number | undefined {
   const header = response.headers.get('Retry-After');
