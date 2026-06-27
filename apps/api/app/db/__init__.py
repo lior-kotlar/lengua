@@ -10,6 +10,7 @@ from __future__ import annotations
 from app.db.base import Base
 from app.db.models import (
     Card,
+    FeatureFlag,
     Language,
     LlmBudget,
     LlmUsage,
@@ -29,6 +30,7 @@ from app.db.session import (
 __all__ = [
     "Base",
     "Card",
+    "FeatureFlag",
     "Language",
     "LlmBudget",
     "LlmUsage",

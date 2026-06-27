@@ -103,8 +103,20 @@ flows above keep working.)
 | `GET/PUT /settings` | Read/upsert per-user preferences as a `{key: value}` map: the daily review limits `daily_new_limit` / `daily_total_limit` (which bound the `GET /review/due` batch — each falling back to the server default when unset) and the Discover word count `discover_count`. |
 | `GET /account/export` | Download a JSON bundle of **all** your data (profile, languages, cards, reviews, proficiency, settings), scoped to you — for store/GDPR data export. |
 | `DELETE /account` | **Hard-delete** your account: removes your Supabase auth user via the service-role Admin API, which cascades your profile and all domain data away (no orphans). No body; acts only on the token's user. |
+| `GET /feature-flags` | **Public** (no auth): the resolved PUBLIC feature-flag map (`{name: enabled}`, secrets-free). The web reads it to gate dark UI. |
 
 The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E).
+
+**Feature flags (ship dark, toggle without a redeploy).** Risky/new features hide behind a flag
+that defaults **off**, resolved by [`app/feature_flags.py`](apps/api/app/feature_flags.py) from an
+env default (`FEATURE_*`) overlaid by a row in a small **global** `feature_flags` table, cached
+in-process for `FEATURE_FLAG_TTL_SECONDS` (default 30). Writing the table row flips the flag for
+everyone within one TTL with **no redeploy**; the `feature_flags` table is operator config locked
+down to the server (REVOKE from `authenticated`/`anon` + deny-by-default RLS — a user can never
+enable their own flags), and only the resolved PUBLIC map reaches the browser via
+`GET /feature-flags`. The experimental **word of the day** surface (the JWT-protected, flag-gated
+`GET /experimental/word-of-the-day` route + a Dashboard card) ships dark behind `word_of_the_day`
+(off by default) — `404`/absent until the flag is on.
 
 **Usage & cost limits.** Every LLM request passes a gate chain before the provider is called, in
 order **email-verified → rate-limit → daily-cap → global-budget**; the earliest failure is the one

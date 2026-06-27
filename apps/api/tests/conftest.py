@@ -76,8 +76,9 @@ def _source_supabase_env() -> None:
 
 _source_supabase_env()
 
-# The 8 application tables from the initial migration, child-before-parent so an explicit
-# order would work; CASCADE makes order moot but we keep it tidy. ``llm_budget`` is global.
+# The application tables to reset between test modules, child-before-parent so an explicit order
+# would work; CASCADE makes order moot but we keep it tidy. ``llm_budget`` and ``feature_flags`` are
+# global (non-per-user) config tables, truncated too so a module starts from a known-empty state.
 APP_TABLES = (
     "reviews",
     "cards",
@@ -87,6 +88,7 @@ APP_TABLES = (
     "languages",
     "profiles",
     "llm_budget",
+    "feature_flags",
 )
 
 # Local Supabase CLI default DSN (postgres superuser, port 54322).

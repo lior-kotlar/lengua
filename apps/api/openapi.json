@@ -1012,6 +1012,30 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WordOfTheDayOut": {
+        "description": "The experimental 'word of the day' payload (gated by the ``word_of_the_day`` flag).\n\nA placeholder shape for a not-yet-finished feature: it carries no user data and no secrets, so\nthe route is safe to ship dark. When the flag is off the route 404s (as if absent); flipping the\nflag on exposes this payload.",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "translation": {
+            "title": "Translation",
+            "type": "string"
+          },
+          "word": {
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "translation",
+          "note"
+        ],
+        "title": "WordOfTheDayOut",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1224,6 +1248,33 @@
         ]
       }
     },
+    "/experimental/word-of-the-day": {
+      "get": {
+        "description": "Experimental 'word of the day' — only reachable when the ``word_of_the_day`` flag is on.",
+        "operationId": "word_of_the_day_experimental_word_of_the_day_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordOfTheDayOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Word Of The Day",
+        "tags": [
+          "experimental"
+        ]
+      }
+    },
     "/explain": {
       "post": {
         "description": "Explain a tapped word in a sentence (served from the card's cache when available).\n\nThe ``guard`` is built **unchecked** and handed to ``ExplainService`` so the per-user daily\n``explain`` cap is enforced (and counted) only on a cache miss — a cache hit stays free. On a\nmiss the provider call runs under the global concurrency cap (``limiter``).",
@@ -1268,6 +1319,32 @@
         "summary": "Explain",
         "tags": [
           "explain"
+        ]
+      }
+    },
+    "/feature-flags": {
+      "get": {
+        "description": "Return the resolved PUBLIC feature-flag map (``{name: enabled}``, no secrets).",
+        "operationId": "read_feature_flags_feature_flags_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Read Feature Flags Feature Flags Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Feature Flags",
+        "tags": [
+          "feature-flags"
         ]
       }
     },

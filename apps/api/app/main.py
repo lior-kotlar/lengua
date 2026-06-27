@@ -28,7 +28,9 @@ from app.routers import (
     account,
     cards,
     discover,
+    experimental,
     explain,
+    feature_flags,
     generate,
     languages,
     me,
@@ -116,6 +118,11 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     application.include_router(settings.router)
     # Account lifecycle (export + hard delete), scoped to current_user (task 2.8).
     application.include_router(account.router)
+
+    # Feature flags (Phase 6.9): the public, secret-free flag map (no JWT) + the experimental
+    # flag-gated routes that ship dark (still JWT-protected; 404 until their flag is flipped on).
+    application.include_router(feature_flags.router)
+    application.include_router(experimental.router)
 
     # LLM cost guard (Phase 3): map each gate's exception to its contract response — email gate →
     # 403 {"code":"email_unverified"}, rate-limit → 429 {"code":"rate_limited"} (+ Retry-After),

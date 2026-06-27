@@ -27,7 +27,11 @@ from app.main import create_app
 # FastAPI/Starlette built-ins (docs + schema) are not domain routes and are intentionally public.
 _NON_DOMAIN_PATHS = frozenset({"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"})
 # Unauthenticated infra probes (liveness + readiness) — intentionally public, like the docs routes.
-_PUBLIC_PATHS = frozenset({"/health", "/ready"})
+# ``/feature-flags`` (task 6.9.1) is also intentionally public: it returns only the secret-free
+# PUBLIC flag map (booleans), which the web reads to gate dark UI before/without a session. The
+# flag-gated ``/experimental/*`` routes are deliberately NOT listed here — they still require a JWT
+# (auth is their first dependency), so they are asserted as protected domain routes below.
+_PUBLIC_PATHS = frozenset({"/health", "/ready", "/feature-flags"})
 # Methods Starlette adds automatically; auth is not asserted for them.
 _SKIP_METHODS = frozenset({"HEAD", "OPTIONS"})
 
