@@ -67,6 +67,12 @@ test.describe('generate screen (ephemeral stack)', () => {
     const authHeader = genRequest.headers()['authorization'];
     expect(authHeader).toMatch(/^Bearer /);
 
+    // 5.5.1 — the API client injects a fresh W3C traceparent (version 00, sampled) on every request
+    // so the trace continues from the browser into the API. Match the canonical W3C shape.
+    expect(genRequest.headers()['traceparent']).toMatch(
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/,
+    );
+
     // 4.5.2 — the deterministic FakeLLM sentences render with translations + used-word chips.
     // `exact` because the target sentence (`[Spanish:A1] This is a sentence with …`) contains the
     // translation as a substring — Playwright's getByText defaults to a substring match.

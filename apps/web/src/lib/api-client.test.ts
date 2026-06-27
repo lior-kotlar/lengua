@@ -24,6 +24,7 @@ import {
   toApiError,
   unwrap,
 } from '@/lib/api-client';
+import { TRACEPARENT_REGEX } from '@/lib/trace';
 
 /** A JSON Response with optional extra headers. */
 function jsonResponse(
@@ -116,6 +117,68 @@ describe('auth middleware', () => {
       'Bearer injected-token',
     );
     expect(getSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('trace middleware (5.5.1)', () => {
+  it('injects a fresh W3C traceparent (version 00, sampled) on each request', async () => {
+    const { fetch, requests } = capturingFetch(() => jsonResponse({}, 200));
+    const client = createAuthedApiClient({ baseUrl: 'http://api.test', fetch });
+
+    await client.GET('/me');
+    await client.GET('/me');
+
+    expect(requests).toHaveLength(2);
+    const first = requests[0].headers.get('traceparent');
+    const second = requests[1].headers.get('traceparent');
+    expect(first).toMatch(TRACEPARENT_REGEX);
+    expect(second).toMatch(TRACEPARENT_REGEX);
+    expect(first?.endsWith('-01')).toBe(true); // sampled flag
+    expect(first).not.toBe(second); // a fresh trace per request
+  });
+
+  it('uses an injected traceparent source when provided', async () => {
+    const { fetch, requests } = capturingFetch(() => jsonResponse({}, 200));
+    const client = createAuthedApiClient({
+      baseUrl: 'http://api.test',
+      fetch,
+      makeTraceparent: () =>
+        '00-11111111111111111111111111111111-2222222222222222-01',
+    });
+
+    await client.GET('/me');
+
+    expect(requests[0].headers.get('traceparent')).toBe(
+      '00-11111111111111111111111111111111-2222222222222222-01',
+    );
+  });
+
+  it('preserves the traceparent across the 401 refresh + retry (not regenerated)', async () => {
+    const seen: Request[] = [];
+    let calls = 0;
+    const fetch = vi.fn(async (request: Request) => {
+      seen.push(request);
+      calls += 1;
+      return calls === 1
+        ? jsonResponse({ code: 'x' }, 401)
+        : jsonResponse({ status: 'ok' }, 200);
+    });
+    // Distinct value per call so a regenerated retry would be observably different from the original.
+    let n = 0;
+    const makeTraceparent = vi.fn(() => `tp-${(n += 1)}`);
+    const client = createAuthedApiClient({
+      baseUrl: 'http://api.test',
+      fetch,
+      makeTraceparent,
+    });
+
+    const me = await unwrap(client.GET('/me'));
+
+    expect(me).toEqual({ status: 'ok' });
+    expect(seen).toHaveLength(2);
+    expect(seen[0].headers.get('traceparent')).toBe('tp-1');
+    expect(seen[1].headers.get('traceparent')).toBe('tp-1'); // retry kept the original header
+    expect(makeTraceparent).toHaveBeenCalledTimes(1); // generated once, not per attempt
   });
 });
 
