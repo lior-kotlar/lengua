@@ -18,6 +18,11 @@
  *     (`email_unverified` / `rate_limited` / `daily_cap_reached` / `daily_limit_reached` /
  *     `server_busy`); the raw parsed `body` is kept too (e.g. for `daily_cap_reached`'s `kind`).
  *
+ *  3. **Trace propagation.** A request middleware injects a fresh W3C `traceparent` header (see
+ *     `@/lib/trace`) on every call, so a user action's trace continues from the browser into the
+ *     API — the FastAPI server span and its DB/LLM children share the trace id minted here (task
+ *     5.5.1). The 401 refresh/retry path re-issues the cloned request, which keeps that header.
+ *
  * Screens normally call `unwrap(getApiClient().GET('/me'))`; the raw `getApiClient()` is the escape
  * hatch when a screen needs the `Response` itself (headers, 204s, file downloads).
  */
@@ -30,6 +35,7 @@ import {
 
 import { readEnv } from '@/lib/env';
 import { getSupabaseClient } from '@/lib/supabase';
+import { generateTraceparent } from '@/lib/trace';
 
 export type { ApiClient } from 'api-types';
 
@@ -261,6 +267,23 @@ export function createRefreshRetryFetch(
   };
 }
 
+/**
+ * Middleware that injects a fresh W3C `traceparent` header on every request (task 5.5.1).
+ *
+ * Runs once per API call (openapi-fetch builds the `Request` and runs middleware before handing it
+ * to the wrapped fetch), so each request starts its own client trace that continues into the API.
+ * The 401 refresh/retry path clones the request, which preserves this header, so a retried request
+ * carries the same `traceparent` rather than a fresh one.
+ */
+function traceMiddleware(makeTraceparent: () => string): Middleware {
+  return {
+    onRequest({ request }) {
+      request.headers.set('traceparent', makeTraceparent());
+      return request;
+    },
+  };
+}
+
 /** Middleware that attaches `Authorization: Bearer <token>` when a session token is available. */
 function authMiddleware(
   getAccessToken: () => Promise<string | null>,
@@ -288,6 +311,8 @@ export interface AuthedApiClientOptions {
   refreshAccessToken?: () => Promise<string | null>;
   /** Invoked when a refresh fails (defaults to signing out the Supabase session). */
   onAuthFailure?: () => void | Promise<void>;
+  /** W3C `traceparent` source for the trace middleware (defaults to a fresh random one per call). */
+  makeTraceparent?: () => string;
 }
 
 /**
@@ -304,6 +329,7 @@ export function createAuthedApiClient(
   const getAccessToken = options.getAccessToken ?? sessionAccessToken;
   const refreshAccessToken = options.refreshAccessToken ?? sessionRefreshToken;
   const onAuthFailure = options.onAuthFailure ?? defaultOnAuthFailure;
+  const makeTraceparent = options.makeTraceparent ?? generateTraceparent;
   // Default to the global fetch (wrapped in an arrow so it isn't called detached from `globalThis`).
   const baseFetch: FetchImpl =
     (options.fetch as FetchImpl | undefined) ?? ((request) => fetch(request));
@@ -313,6 +339,7 @@ export function createAuthedApiClient(
     onAuthFailure,
   );
   const client = createApiClient({ baseUrl, fetch: wrappedFetch });
+  client.use(traceMiddleware(makeTraceparent));
   client.use(authMiddleware(getAccessToken));
   return client;
 }
