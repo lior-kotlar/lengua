@@ -146,14 +146,16 @@ jobs:
 
       # packages/api-types (1.6.2) — the generated TS client must stay in sync with the
       # committed contract. The `web deps` step above installs the whole workspace, so api-types'
-      # toolchain is present. Regenerate src/schema.ts from apps/api/openapi.json and fail on any
-      # drift, then typecheck the generated types + the client wrapper. (The backend job
-      # separately asserts openapi.json itself matches app.openapi() via test_openapi_stable.py,
-      # so the chain app routes -> openapi.json -> schema.ts is enforced end to end.)
+      # toolchain is present. Regenerate the generated sources (src/schema.ts + src/constants.ts,
+      # the latter holding runtime numeric constraints the types can't carry) from
+      # apps/api/openapi.json and fail on any drift, then typecheck the generated types + the
+      # client wrapper. (The backend job separately asserts openapi.json itself matches
+      # app.openapi() via test_openapi_stable.py, so the chain app routes -> openapi.json ->
+      # schema.ts/constants.ts is enforced end to end.)
       - name: api-types — regenerate from openapi.json (assert no drift)
         run: |
           pnpm --filter api-types generate
-          git diff --exit-code -- packages/api-types/src/schema.ts
+          git diff --exit-code -- packages/api-types/src/schema.ts packages/api-types/src/constants.ts
       - name: api-types — typecheck (tsc)
         run: pnpm --filter api-types build
 

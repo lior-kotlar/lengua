@@ -77,13 +77,13 @@ _Context: ports the Streamlit sidebar — pick the active language, add/remove l
 
 _Context: paste words → API generates natural sentences → review the list (sentence / translation / used words) → save selected as flashcards. Generation is slow and quota-bounded, so progress and the 429 path are first-class here._
 
-- [ ] **4.5.1** Word-input form (textarea/chips) for the active language with client-side validation (non-empty, word count cap matching the server limit).
+- [x] **4.5.1** Word-input form (textarea/chips) for the active language with client-side validation (non-empty, word count cap matching the server limit).
       verify: vitest asserts the form blocks an empty submit and warns past the per-request word cap; Playwright types words and the Generate button enables.
-- [ ] **4.5.2** Call `POST /generate` via the typed client with an explicit in-progress/streamed state (spinner + "generating…" copy), and render the returned sentences as cards (sentence, translation, used words).
+- [x] **4.5.2** Call `POST /generate` via the typed client with an explicit in-progress/streamed state (spinner + "generating…" copy), and render the returned sentences as cards (sentence, translation, used words).
       verify: Playwright (LLM stubbed to deterministic output) generates and asserts the stubbed sentences render with their translations and used-word chips.
-- [ ] **4.5.3** Select-and-save: per-sentence selection (default all) → save chosen sentences as flashcards via the API, with success toast and a saved/again-to-generate reset.
+- [x] **4.5.3** Select-and-save: per-sentence selection (default all) → save chosen sentences as flashcards via the API, with success toast and a saved/again-to-generate reset.
       verify: Playwright selects a subset, saves, and asserts a success toast + the saved cards become reviewable in Review; vitest asserts the save mutation sends only selected sentences.
-- [ ] **4.5.4** First-class 429 daily-limit state on Generate: catch the friendly quota 429 and render a dedicated "daily limit reached, try again tomorrow" panel (not a generic error), keeping typed words intact.
+- [x] **4.5.4** First-class 429 daily-limit state on Generate: catch the friendly quota 429 and render a dedicated "daily limit reached, try again tomorrow" panel (not a generic error), keeping typed words intact.
       verify: Playwright with the API stubbed to return the quota 429 asserts the daily-limit panel renders and the entered words are preserved; vitest asserts a 429 maps to the quota state, not the generic error state.
 
 ## 4.6 — Review screen  ·  M

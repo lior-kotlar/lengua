@@ -15,6 +15,7 @@ vi.mock('@/lib/env', () => ({ readEnv: readEnvMock }));
 
 import {
   ApiError,
+  apiErrorMessage,
   createAuthedApiClient,
   createRefreshRetryFetch,
   getApiClient,
@@ -271,6 +272,22 @@ describe('isApiError', () => {
     expect(isApiError(new Error('plain'))).toBe(false);
     expect(isApiError({ status: 500 })).toBe(false);
     expect(isApiError(null)).toBe(false);
+  });
+});
+
+describe('apiErrorMessage', () => {
+  it('returns the ApiError message for an ApiError', () => {
+    expect(
+      apiErrorMessage(
+        new ApiError({ status: 422, message: 'Bad input' }),
+        'fb',
+      ),
+    ).toBe('Bad input');
+  });
+
+  it('returns the fallback for a non-ApiError value', () => {
+    expect(apiErrorMessage(new Error('plain'), 'fb')).toBe('fb');
+    expect(apiErrorMessage(null, 'fb')).toBe('fb');
   });
 });
 

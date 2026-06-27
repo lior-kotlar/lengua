@@ -15,6 +15,10 @@ import type { paths } from './schema';
 export type { components, operations, paths } from './schema';
 export type { ClientOptions, Middleware } from 'openapi-fetch';
 
+// Runtime schema constants (numeric OpenAPI constraints the generated types can't carry).
+// Generated alongside `schema.ts` by `pnpm gen:api`; see `./constants`.
+export { schemaLimits } from './constants';
+
 /**
  * A fully typed Lengua API client.
  *

@@ -32,8 +32,8 @@ root, one root `pnpm-lock.yaml`). `apps/api` is a separate uv/Python project.
 | App | Location | How to run | Status |
 | --- | --- | --- | --- |
 | API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
-| Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (app shell + auth: signup/login/reset/OAuth, session gating; active-language picker + add/remove languages + CEFR level panel with manual override; remaining screens are stubs — copy `apps/web/.env.example` to `.env`); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
-| API types | `packages/api-types/` | `pnpm gen:api` (root convenience for `pnpm --filter api-types generate` — re-derive TS types from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
+| Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (app shell + auth: signup/login/reset/OAuth, session gating; active-language picker + add/remove languages + CEFR level panel with manual override; **Generate** — paste words → example sentences → select & save flashcards, with a friendly daily-limit panel on quota; remaining screens are stubs — copy `apps/web/.env.example` to `.env`); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
+| API types | `packages/api-types/` | `pnpm gen:api` (root convenience for `pnpm --filter api-types generate` — re-derive TS types + runtime `schemaLimits` constants from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
 ### API endpoints (Phase 1 — full loop)
@@ -161,14 +161,16 @@ checked in as `apps/api/openapi.json` and kept in lockstep by two CI drift check
 
 ```bash
 python apps/api/scripts/dump_openapi.py   # rewrite apps/api/openapi.json from the live app
-pnpm gen:api                              # re-derive packages/api-types/src/schema.ts from it
+pnpm gen:api                              # re-derive packages/api-types/src/{schema,constants}.ts from it
 ```
 
 Regenerate both whenever the HTTP surface changes (routers/schemas). CI fails the PR if
 `openapi.json` is stale versus `app.openapi()` (`tests/test_openapi_stable.py`) or if the
-generated TS types are stale versus `openapi.json` (a `git diff` check). `packages/api-types`
-exports the generated `paths` / `components` / `operations` types plus a typed `openapi-fetch`
-client via `createApiClient(...)` and the `ApiClient` type.
+generated TS sources are stale versus `openapi.json` (a `git diff` check on `schema.ts` +
+`constants.ts`). `packages/api-types` exports the generated `paths` / `components` / `operations`
+types plus a typed `openapi-fetch` client via `createApiClient(...)` and the `ApiClient` type, and
+`schemaLimits` — runtime numeric constraints (e.g. the `POST /generate` word cap) that the TS types
+cannot carry, extracted from the schema for client-side validation.
 
 The web app calls the backend exclusively through this client. `apps/web/src/lib/api-client.ts`
 wraps it into a lazy authed singleton (`getApiClient()`) whose middleware injects

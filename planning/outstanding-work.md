@@ -100,7 +100,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
 | 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
-| 4 — React web app | 45 | 🛠 in progress — **4.1 app shell + 4.2 typed API client DONE** (8 boxes); remaining: auth screens, generate/review/discover/settings, RTL+diacritics, Streamlit retirement |
+| 4 — React web app | 45 | 🛠 in progress — **4.1 shell + 4.2 typed client + 4.3 auth + 4.4 languages/CEFR + 4.5 Generate DONE** (22 boxes); remaining: review, discover, settings/account, RTL+diacritics, consent, Streamlit retirement |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
 | 7 — Mobile (Capacitor) | 58 | paid store accts, signing, native projects/plugins, OAuth-in-webview, iOS/Android builds, OTA, device validation |
@@ -527,3 +527,22 @@ ephemeral stack (all 4 e2e specs green, zero real LLM calls).
 | ☐ | **E2E harness: authed-API support (no backend code change).** The `e2e` job's API container now gets `SUPABASE_JWKS_URL` (the local stack signs **ES256** tokens → verify via JWKS, NOT the HS256 `SUPABASE_JWT_SECRET`, which 4.3 set but never exercised against the API) and `CORS_ALLOW_ORIGINS=http://127.0.0.1:4173` (the preview origin) so the browser's cross-origin authed calls pass preflight. First group to make authed API calls in E2E. | .github/workflows/ci.yml | done in 4.4 | 2026-06-27 |
 | ◐ | **Backend default CORS lacks the 4173 preview origin (minor).** A developer running the API + a local `vite preview` build against it would need `CORS_ALLOW_ORIGINS` set (defaults cover :5173/:3000 + capacitor). Not changed here (kept the backend untouched); could be added to `app/settings.py` defaults if local preview-against-API becomes common. | apps/api/app/settings.py | note (no action) | 2026-06-27 |
 | ☐ | **Create-time `vowelized` checkbox** is in the add-language form (it's a `LanguageCreate` field, matching the legacy add form); the LIVE vowel-marks toggle + RTL/diacritic rendering is group 4.9. | apps/web/src/components/add-language-form.tsx | expected — 4.9 | 2026-06-27 |
+
+**4.5 — Generate screen · DONE.** Word-input form (textarea + live parsed-word chips + count) →
+`POST /generate` (typed client, explicit in-progress state) → results grouped back into sentences
+(recognition+production re-paired) shown with translation + used-word chips → per-sentence
+select-and-save (default all) → `POST /cards/save` sending ONLY the selected sentences' cards, with a
+success toast + saved confirmation and a "Generate more"/"Start over" reset. First-class friendly
+cost-guard states: the **shared** `DailyLimitPanel` for the quota 429 (`daily_cap_reached` /
+`daily_limit_reached`), plus inline `server_busy` / `rate_limited` / `email_unverified` / generic
+states. New `lib/generate.ts` + `lib/llm-error.ts` + `components/daily-limit-panel.tsx`. Web gate
+green (248 vitest, 100% line / 99.49% branch over product code — new files 100/100);
+`e2e/generate.spec.ts` added (zero real LLM calls).
+
+| | Item | Where | Status / decision | Noticed |
+|---|---|---|---|---|
+| ☑ | **4.5.1–4.5.4** word form + validation, generate + in-progress + sentence rendering, select-and-save (only selected), first-class shared daily-limit 429 panel | apps/web/src/pages/Generate.tsx; lib/{generate,llm-error}.ts; components/daily-limit-panel.tsx; lib/api-client.ts; e2e/generate.spec.ts | merged | 2026-06-27 |
+| ◐ | **Word cap read from the schema, not hardcoded (decision).** `openapi-typescript` drops numeric constraints (`maxItems`), so a new deterministic `pnpm gen:api` step (`packages/api-types/scripts/generate-constants.mjs`) emits `src/constants.ts` `schemaLimits.generateWordsMaxItems` from `GenerateRequest.words.maxItems` (currently 30); the CI drift check now covers `src/constants.ts` too. The form warns + blocks past it (the server still 422s as the backstop). | packages/api-types/{scripts/generate-constants.mjs,src/constants.ts,package.json,src/index.ts}; .github/workflows/ci.yml | decided | 2026-06-27 |
+| ◐ | **"Reviewable in Review" proven at the data layer (decision).** 4.5.3's verify wants saved cards "reviewable in Review", but the Review screen is group 4.6. The E2E proves it by hitting `GET /review/due` with the captured demo token (saved cards are `saved`+due-now → they appear), and the save mutation invalidates the whole `['review', ...]` query space so the 4.6 due query refetches once built. | apps/web/e2e/generate.spec.ts; apps/web/src/lib/generate.ts | decided (no owner action) | 2026-06-27 |
+| ◐ | **Shared 429 panel placement (for 4.7 + 4.10.2).** The dedicated daily-limit panel lives in `components/daily-limit-panel.tsx` (gated on the quota-429 shape via `isDailyLimitError`); Discover (4.7) and the 4.10.2 sharing check import THIS component — no duplicated 429 UI. | apps/web/src/components/daily-limit-panel.tsx; lib/llm-error.ts | decided | 2026-06-27 |
+| ☐ | **Generate words split on newlines/commas only** (not spaces) so multi-word phrases (e.g. "buenos días") stay intact; matches the server's per-entry cleaning. No dedupe (server doesn't dedupe). | apps/web/src/lib/generate.ts | note (no action) | 2026-06-27 |
