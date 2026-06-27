@@ -1,0 +1,214 @@
+# CD — gated PROD promotion (Phase 6 group 6.7).
+#
+# Triggered manually (workflow_dispatch) or by publishing a GitHub release. It pauses on a single
+# `production` environment approval, then: resolves the EXACT image digest currently validated on
+# staging (promote by digest — NO rebuild), runs the gated Alembic "migrate prod" job, promotes
+# that digest to Cloud Run `lengua-api-prod`, deploys the web app to Vercel production, and
+# smoke-checks prod.
+#
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# GATING (two independent gates):
+#   1. `if: ${{ vars.DEPLOY_ENABLED == 'true' }}` on EVERY job — with the repo variable unset
+#      (current state) every job SKIPS, so a manual run / release is a green no-op and the
+#      `production` approval is never even requested. (Owner enables CD: `gh variable set
+#      DEPLOY_ENABLED -b true`.)
+#   2. `environment: production` on the `approval` gate — a required reviewer must approve before
+#      anything downstream runs (6.7.1). OWNER ACTION: create the GitHub `production` environment
+#      and add a required reviewer (Settings → Environments). Until then the environment exists
+#      with no protection and the gate passes through. This workflow never triggers on
+#      `pull_request`, so it never affects a PR.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Optional image digest/ref to promote (default: the image currently serving staging).'
+        required: false
+        default: ''
+  release:
+    types: [published]
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: '0.11.22'
+
+jobs:
+  # ── 6.7.1 — single human approval gate (one approval protects everything downstream) ─────────
+  approval:
+    name: Await production approval
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Production promotion approved — proceeding with migrate + promote + web deploy."
+
+  # ── 6.7.2 — resolve the exact image digest validated on staging (no rebuild) ─────────────────
+  resolve-image:
+    name: Resolve staging-validated image digest
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [approval]
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+    steps:
+      - name: Authenticate to GCP (deployer SA key)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_JSON }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - id: resolve
+        env:
+          REGION: ${{ secrets.GCP_REGION }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          OVERRIDE: ${{ inputs.image }}
+        run: |
+          set -euo pipefail
+          if [ -n "${OVERRIDE:-}" ]; then
+            image="$OVERRIDE"
+          else
+            # The image digest currently serving staging = the validated artifact to promote.
+            rev="$(gcloud run services describe lengua-api-staging --region "$REGION" \
+              --project "$PROJECT" --format='value(status.latestReadyRevisionName)')"
+            if [ -z "$rev" ]; then echo "::error::no ready staging revision to promote"; exit 1; fi
+            image="$(gcloud run revisions describe "$rev" --region "$REGION" --project "$PROJECT" \
+              --format='value(status.imageDigest)')"
+          fi
+          if [ -z "$image" ]; then echo "::error::could not resolve an image digest"; exit 1; fi
+          echo "Promoting image: $image"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+  # ── 6.7.3 — gated, logged Alembic migrate-prod job (runs after approval, before traffic) ─────
+  migrate-prod:
+    name: Migrate prod DB (gated)
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [approval]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: api deps
+        working-directory: apps/api
+        run: uv sync --frozen
+      - name: alembic upgrade head (prod)
+        working-directory: apps/api
+        env:
+          PROD_DATABASE_URL: ${{ secrets.SUPABASE_PROD_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          echo "--- before ---"; uv run alembic -x env=prod current
+          uv run alembic -x env=prod upgrade head
+          echo "--- after (must equal heads) ---"
+          uv run alembic -x env=prod current
+          uv run alembic heads
+
+  # ── 6.7.2 — promote the resolved digest to Cloud Run prod ────────────────────────────────────
+  deploy-api-prod:
+    name: Promote image to Cloud Run (prod)
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [resolve-image, migrate-prod]
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: deploy
+        uses: ./.github/actions/cloud-run-deploy
+        with:
+          service: lengua-api-prod
+          region: ${{ secrets.GCP_REGION }}
+          project: ${{ secrets.GCP_PROJECT_ID }}
+          image: ${{ needs.resolve-image.outputs.image }}
+          credentials_json: ${{ secrets.GCP_SA_JSON }}
+          # CORS_ALLOW_ORIGINS added only when the owner sets repo var PROD_WEB_ORIGIN (no wildcard).
+          env_vars: |
+            LLM_PROVIDER=groq
+            GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
+            DATABASE_URL=${{ secrets.SUPABASE_PROD_DATABASE_URL }}
+            SUPABASE_URL=${{ secrets.SUPABASE_PROD_URL }}
+            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
+            SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_PROD_JWT_SECRET }}
+            ENV=prod
+            DEPLOYMENT_ENVIRONMENT=prod
+            SENTRY_DSN_API=${{ secrets.SENTRY_DSN_API }}
+            OTEL_EXPORTER_OTLP_ENDPOINT=${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+            OTEL_EXPORTER_OTLP_HEADERS=${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+            ${{ vars.PROD_WEB_ORIGIN && format('CORS_ALLOW_ORIGINS={0}', vars.PROD_WEB_ORIGIN) || '' }}
+          # Single instance (in-process cost guard), scale-to-zero; previous revision retained by
+          # Cloud Run for one-click rollback (infra/deploy/rollback.sh). Probes → /health.
+          extra_flags: |
+            --allow-unauthenticated
+            --port=8080
+            --min-instances=0
+            --max-instances=1
+            --concurrency=40
+            --cpu=1
+            --memory=512Mi
+            --timeout=60
+            --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=5,periodSeconds=10,failureThreshold=6,timeoutSeconds=3
+            --liveness-probe=httpGet.path=/health,httpGet.port=8080,periodSeconds=30,failureThreshold=3,timeoutSeconds=3
+
+  # ── 6.7.4 — deploy the web app to Vercel production ──────────────────────────────────────────
+  deploy-web-prod:
+    name: Deploy web to Vercel (production)
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [deploy-api-prod]
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Pull Vercel env (production)
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Build web bundle (client-safe VITE_* only)
+        env:
+          VITE_API_BASE_URL: ${{ needs.deploy-api-prod.outputs.url }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PROD_ANON_KEY }}
+          VITE_SENTRY_DSN_WEB: ${{ secrets.SENTRY_DSN_WEB }}
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Deploy prebuilt to Vercel (production)
+        id: deploy
+        run: |
+          set -euo pipefail
+          url="$(vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}" | tail -n1)"
+          echo "Deployed web (production) -> $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  # ── 6.7.5 — smoke-check the prod deploy (fail the promotion on any failed probe) ─────────────
+  smoke-prod:
+    name: Smoke-check prod
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [deploy-api-prod, deploy-web-prod]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/cloud-run-smoke
+        with:
+          api_url: ${{ needs.deploy-api-prod.outputs.url }}
+          web_url: ${{ needs.deploy-web-prod.outputs.url }}

@@ -1,0 +1,198 @@
+# CD — merge to `main` ships STAGING (Phase 6 group 6.6).
+#
+# On every push to `main`: build + push the API image to Artifact Registry (SHA + `staging`
+# tags), run the discrete Alembic "migrate staging" job, deploy the image to Cloud Run
+# `lengua-api-staging`, deploy the web app to Vercel staging, then smoke-check (/health + /ready
+# + web 200). Prod is a SEPARATE gated promotion (deploy-prod.yml).
+#
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# GATING — why `main` stays GREEN with NO live deploy until the owner opts in:
+#   Every job below is gated `if: ${{ vars.DEPLOY_ENABLED == 'true' }}`. The repo VARIABLE
+#   DEPLOY_ENABLED is currently UNSET, so on each push to main EVERY job is SKIPPED → the run is a
+#   green no-op (a skipped job is not a failure; it does not redden main). This workflow does NOT
+#   trigger on `pull_request`, so it never runs on — or reddens — a PR. To turn CD on, the owner
+#   sets the variable once: `gh variable set DEPLOY_ENABLED -b true` (see
+#   planning/go-live-activation.md §E and planning/outstanding-work.md §12). Nothing here ever
+#   hard-fails on a missing secret/var — unset just means "skip".
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+name: deploy-staging
+
+on:
+  push:
+    branches: [main]
+
+# Never run two staging deploys at once; let an in-flight deploy finish (don't cancel a deploy).
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: '0.11.22'
+
+jobs:
+  # ── 6.6.1 — build + push the API image (SHA + `staging` tags) ────────────────────────────────
+  build-push:
+    name: Build + push API image
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to GCP (deployer SA key)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_JSON }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ secrets.GCP_REGION }}-docker.pkg.dev" --quiet
+      - uses: docker/setup-buildx-action@v3
+      - name: Build + push (SHA + staging tags)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/lengua/lengua-api:${{ github.sha }}
+            ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/lengua/lengua-api:staging
+          cache-from: type=gha,scope=lengua-api
+          cache-to: type=gha,scope=lengua-api,mode=max
+
+  # ── 6.6.3 — discrete, logged Alembic migrate-staging job (runs before the deploy) ────────────
+  # Demonstrates the `-x env=staging` resolver (app/db/migration_url.py): STAGING_DATABASE_URL is
+  # set from the staging secret and `alembic -x env=staging upgrade head` targets it.
+  migrate-staging:
+    name: Migrate staging DB (alembic upgrade head)
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: api deps
+        working-directory: apps/api
+        run: uv sync --frozen
+      - name: alembic upgrade head (staging)
+        working-directory: apps/api
+        env:
+          STAGING_DATABASE_URL: ${{ secrets.SUPABASE_STAGING_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          echo "--- before ---"; uv run alembic -x env=staging current
+          uv run alembic -x env=staging upgrade head
+          echo "--- after (must equal heads) ---"
+          uv run alembic -x env=staging current
+          uv run alembic heads
+
+  # ── 6.6.2 — deploy the freshly-built image to Cloud Run staging ─────────────────────────────
+  # Runtime config is set from the staging secrets (LLM_PROVIDER=groq, Groq key, staging DB +
+  # Supabase, OTEL/Sentry). Scale-to-zero (min 0) and — IMPORTANTLY — max-instances=1: the Phase-3
+  # cost guard's rate limiter + discover cache are in-process, so a single instance keeps them
+  # accurate until the distributed backend lands (outstanding-work §9). Startup + liveness probes
+  # point at /health; /ready is verified by the smoke job (Cloud Run has no readiness probe).
+  deploy-api-staging:
+    name: Deploy API to Cloud Run (staging)
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [build-push, migrate-staging]
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: deploy
+        uses: ./.github/actions/cloud-run-deploy
+        with:
+          service: lengua-api-staging
+          region: ${{ secrets.GCP_REGION }}
+          project: ${{ secrets.GCP_PROJECT_ID }}
+          image: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/lengua/lengua-api:${{ github.sha }}
+          credentials_json: ${{ secrets.GCP_SA_JSON }}
+          # CORS_ALLOW_ORIGINS is added only when the owner sets the repo var STAGING_WEB_ORIGIN to
+          # the staging web origin (task 6.10.1 / 6.4.x). Until then the API's wildcard-free default
+          # applies. Never a wildcard.
+          env_vars: |
+            LLM_PROVIDER=groq
+            GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
+            DATABASE_URL=${{ secrets.SUPABASE_STAGING_DATABASE_URL }}
+            SUPABASE_URL=${{ secrets.SUPABASE_STAGING_URL }}
+            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
+            SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_STAGING_JWT_SECRET }}
+            ENV=staging
+            DEPLOYMENT_ENVIRONMENT=staging
+            SENTRY_DSN_API=${{ secrets.SENTRY_DSN_API }}
+            OTEL_EXPORTER_OTLP_ENDPOINT=${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+            OTEL_EXPORTER_OTLP_HEADERS=${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+            ${{ vars.STAGING_WEB_ORIGIN && format('CORS_ALLOW_ORIGINS={0}', vars.STAGING_WEB_ORIGIN) || '' }}
+          extra_flags: |
+            --allow-unauthenticated
+            --port=8080
+            --min-instances=0
+            --max-instances=1
+            --concurrency=40
+            --cpu=1
+            --memory=512Mi
+            --timeout=60
+            --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=5,periodSeconds=10,failureThreshold=6,timeoutSeconds=3
+            --liveness-probe=httpGet.path=/health,httpGet.port=8080,periodSeconds=30,failureThreshold=3,timeoutSeconds=3
+
+  # ── 6.6.4 — deploy the web app to Vercel staging ─────────────────────────────────────────────
+  # Only client-safe VITE_* are passed (anon key + public URLs); never a service-role/LLM key. The
+  # canonical home for these is the Vercel project env (task 6.4.2, owner); VITE_API_BASE_URL is
+  # wired to the staging Cloud Run URL just deployed above.
+  deploy-web-staging:
+    name: Deploy web to Vercel (staging)
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [deploy-api-staging]
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Pull Vercel env (preview = staging)
+        run: vercel pull --yes --environment=preview --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Build web bundle (client-safe VITE_* only)
+        env:
+          VITE_API_BASE_URL: ${{ needs.deploy-api-staging.outputs.url }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_STAGING_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
+          VITE_SENTRY_DSN_WEB: ${{ secrets.SENTRY_DSN_WEB }}
+        run: vercel build --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Deploy prebuilt to Vercel (staging)
+        id: deploy
+        run: |
+          set -euo pipefail
+          url="$(vercel deploy --prebuilt --token="${{ secrets.VERCEL_TOKEN }}" | tail -n1)"
+          echo "Deployed web (staging) -> $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  # ── 6.6.5 — smoke-check the staging deploy (fail the run on any failed probe) ────────────────
+  smoke-staging:
+    name: Smoke-check staging
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    needs: [deploy-api-staging, deploy-web-staging]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/cloud-run-smoke
+        with:
+          api_url: ${{ needs.deploy-api-staging.outputs.url }}
+          web_url: ${{ needs.deploy-web-staging.outputs.url }}
