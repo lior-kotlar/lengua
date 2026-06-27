@@ -100,7 +100,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
 | 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
-| 4 — React web app | 45 | 🛠 in progress — **4.1 shell + 4.2 typed client + 4.3 auth + 4.4 languages/CEFR + 4.5 Generate + 4.6 Review + 4.7 Discover + 4.8 Settings/Account + 4.8b review-limit parity + 4.9 RTL/diacritics + 4.10 cross-cutting UX states & consent DONE** (41 boxes); remaining: 4.11 Streamlit retirement note |
+| 4 — React web app | 6 | ✅ DONE (M3) — **all 44 task boxes (4.1 shell → 4.10 cross-cutting UX → 4.11 Streamlit retirement note) merged green**; React app at full parity with Streamlit ([`docs/streamlit-parity.md`](../docs/streamlit-parity.md)). The 6 still-open boxes are exit-gate rows confirmed holistically at phase close (each proven by its group's merged E2E + drift checks); the "every legacy screen has a React equivalent" exit box is ticked. |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
 | 7 — Mobile (Capacitor) | 58 | paid store accts, signing, native projects/plugins, OAuth-in-webview, iOS/Android builds, OTA, device validation |
@@ -466,7 +466,13 @@ DISCOVER_REUSE_WINDOW_SECONDS=300     # short in-process /discover preview reuse
 
 ---
 
-## 10. Phase 4 (React web app) — 🛠 in progress
+## 10. Phase 4 (React web app) — ✅ DONE (M3 reached)
+
+All 44 task boxes (4.1–4.11) merged green; the React web app is at full parity with the legacy
+Streamlit app (see [`docs/streamlit-parity.md`](../docs/streamlit-parity.md)). The exit-gate
+"every legacy screen has a React equivalent" box is ticked; the remaining exit-gate boxes
+(full-loop / auth / RTL / 429+consent / typed-client-drift) are each proven by their group's
+already-merged green E2E + drift checks and re-confirmed by the final group's CI gate.
 
 **4.1 — App shell & foundations · DONE (PR for group 4.1).** Vite/React/TS scaffold extended into the
 production shell: shadcn primitives, light/dark/system theming, react-router auth-vs-app route tree +
@@ -691,3 +697,20 @@ product code — all new files 100/100; `e2e/consent.spec.ts` added).
 | ◐ | **PostHog wiring deferred to Phase 5/8 (decision; non-blocking).** 4.10.3 is the consent SEAM only: `lib/analytics.ts`'s default initializer is a documented no-op, so even with consent + a key nothing loads until Phase 5/8 registers the real `posthog-js` loader via `setAnalyticsInitializer`. Conservative default chosen: behind the `VITE_POSTHOG_KEY` env flag, so dev/CI/E2E (no key) ship zero analytics and the E2E proves no analytics request fires. No `posthog-js` dependency added yet. | apps/web/src/lib/analytics.ts | decided (Phase 5/8 registers the real loader) | 2026-06-27 |
 | ◐ | **Consent banner pre-dismissed in app E2E (decision).** The banner is a `fixed` bottom overlay; to keep it from intercepting clicks on bottom-anchored controls, a shared `e2e/fixtures.ts` seeds `analytics-consent=denied` via an init script for the app specs. The dedicated `consent.spec.ts` imports the RAW `@playwright/test` so it still exercises the genuine first-run banner. | apps/web/e2e/fixtures.ts; e2e/*.spec.ts | decided | 2026-06-27 |
 | ◐ | **Vowel-marks/consent are device-local, not synced (note, consistent with 4.9).** The analytics decision (like the theme + vowel-marks pref) lives in localStorage per device; cross-device sync is a possible future nicety (non-blocking). | apps/web/src/lib/analytics.ts | note (no action) | 2026-06-27 |
+
+**4.11 — Legacy Streamlit retirement note · DONE.** [`docs/streamlit-parity.md`](../docs/streamlit-parity.md)
+is the parity checklist: it maps every legacy surface — home (`app.py`), the always-present sidebar
+(`ui.py`: active-language picker, vowel-marks flag, CEFR band + progress + manual override, add/remove
+languages), and each `pages/*` page (Generate, Review incl. tap-a-word + locked red/orange/blue/green
+ratings, Discover, Settings) — to its reachable React screen/route/component, all `pages/*` features ✅.
+The README "Legacy Streamlit" table row + a new prose section are both marked **deprecated — retained
+for reference** (legacy code NOT deleted; stays runnable as a reference/fallback until prod (P6) +
+mobile (P7)); the `docs/` index was updated to list the new doc. No code touched in `apps/api` or
+`apps/web` (doc-only PR; legacy app untouched + still runnable).
+
+| | Item | Where | Status / decision | Noticed |
+|---|---|---|---|---|
+| ☑ | **4.11.1** parity checklist doc + README "deprecated — retained for reference" (legacy code kept) | docs/streamlit-parity.md; README.md; docs/README.md | done | 2026-06-27 |
+| ☐ | **✅\* nuance — flip `vowelized` on an _existing_ language isn't UI-wired.** Legacy could toggle the generation-vocalization flag on the active language anytime; React only sets it at language creation. Backend `PATCH /languages/{id}` already supports it → small UI follow-up (a 4.4/4.9-style control), NOT a missing capability; the separate device-level display vowel-marks toggle IS present. Safe default: documented as a follow-up, not blocking parity (demo languages are seeded with the right flag). | apps/web/src/components/add-language-form.tsx; (backend PATCH exists) | follow-up (non-blocking) | 2026-06-27 |
+| ◐ | **✅\* by design — Discover "accept" routes through Generate.** Legacy previewed+saved in-page; React feeds accepted words into the reused Generate flow (`generate-handoff` → `/generate`) to keep the review-and-select-before-save step (rather than auto-saving via `POST /discover/accept`). End-to-end capability fully present; save UI is the shared Generate one. | apps/web/src/lib/generate-handoff.ts; pages/Discover.tsx | decided (group 4.7 reconciliation) | 2026-06-27 |
+| ♻️ | **Gemini model selector intentionally retired.** The legacy Settings "Gemini model" selectbox has no React counterpart by design — the LLM provider/model is now operator/server config (`LLM_PROVIDER`: Groq for dev/CI, Gemini for prod), not a user-facing setting. Recorded so it isn't mistaken for a parity gap. | apps/api/app/settings.py; legacy pages/4_Settings.py | decided (architecture change) | 2026-06-27 |
