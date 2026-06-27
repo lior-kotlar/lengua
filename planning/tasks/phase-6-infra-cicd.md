@@ -57,7 +57,7 @@ _Context: two Vercel projects (or one project with two environments) from the sa
       verify: a production Vercel deploy succeeds and the prod URL serves the app (HTTP `200`), distinct from the staging URL.
 - [ ] **6.3.3** Confirm PR **preview deploys** are enabled so each PR gets an ephemeral web URL.
       verify: opening a test PR produces a Vercel preview URL (posted as a check/comment) that serves the branch build.
-- [ ] **6.3.4** Audit the built web bundle for leaked secrets — only `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL`, and the web Sentry DSN may appear; no service-role or LLM provider key.
+- [x] **6.3.4** Audit the built web bundle for leaked secrets — only `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL`, and the web Sentry DSN may appear; no service-role or LLM provider key. <!-- Two halves, both CI-enforced: (1) the CI `build` job greps the built `dist/` for forbidden server-only env NAMES (SUPABASE_SERVICE_ROLE_KEY / SUPABASE_JWT_SECRET / GROQ_API_KEY / GEMINI_API_KEY / DATABASE_URL) + provider key VALUE shapes (gsk_…, AIza…, service_role) and fails on any hit — validated zero-false-positive on the clean bundle, catches synthetic leaks, ignores the legitimate anon key (role "anon"). (2) `apps/web/src/lib/bundle-safety.test.ts` (runs under `pnpm test`) scans the web source for any server-only secret name and locks the referenced `VITE_*` surface to the client-safe allow-list (VITE_API_BASE_URL/SUPABASE_URL/SUPABASE_ANON_KEY/SENTRY_DSN_WEB/POSTHOG_KEY/OAUTH_PROVIDERS/ENABLE_DEBUG_TOOLS). -->
       verify: `gitleaks` (or a grep assertion in CI) over the built `dist/` finds no service-role/Groq/Gemini key, and `pnpm test` includes a check that those env names are absent from the bundle.
 
 ## 6.4 — Per-platform secrets  ·  S
@@ -162,7 +162,7 @@ _Context: gate risky/new features so they ship **dark** and can be disabled in p
 
 _Context: optional custom domain or free subdomains for web + API; whichever is used, CORS allow-lists and Supabase redirect URLs must match. Locked: only configure what the chosen domains require._
 
-- [ ] **6.10.1** Set the API CORS allow-list per environment to exactly the web origins (staging/prod Vercel URLs or custom domains) — no wildcard in prod.
+- [x] **6.10.1** Set the API CORS allow-list per environment to exactly the web origins (staging/prod Vercel URLs or custom domains) — no wildcard in prod. <!-- CORS is env-driven (CORS_ALLOW_ORIGINS, NoDecode + field_validator; CORSMiddleware allow_credentials=True). tests/test_cors.py now also asserts: the default + a prod-shaped allowlist contain no `*`; the actually-installed CORSMiddleware pairs credentials with a wildcard-free origin list (guards the insecure+invalid allow_origins=["*"]+credentials regression); and an un-listed origin is rejected under a prod-shaped config. .env.example documents the exact-origins/no-wildcard prod rule. The actual prod origin VALUES are owner-set per env at deploy (Secret Manager / 6.4.x) — see outstanding-work §12. -->
       verify: `pytest apps/api/tests/test_cors.py` asserts a request from an allowed origin gets the CORS headers and a disallowed origin is rejected; prod config contains no `*` origin.
 - [ ] **6.10.2** Configure Supabase Auth redirect/allow-list URLs to match the deployed web origins (and native scheme later) per environment.
       verify: an OAuth/email-confirmation flow on staging redirects back successfully to the staging web origin; an un-allow-listed redirect is refused by Supabase.
