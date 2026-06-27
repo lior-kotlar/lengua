@@ -90,15 +90,15 @@ _Context: paste words → API generates natural sentences → review the list (s
 
 _Context: ports the core FSRS loop — due batch with new vs. due counts, reveal answer, rate Again/Hard/Good/Easy keeping the existing red/orange/blue/green colors, and tap-a-word explanations on production cards._
 
-- [ ] **4.6.1** Load the due batch for the active language (new vs. due counts header) and render the first card front; clean empty state when nothing is due.
+- [x] **4.6.1** Load the due batch for the active language (new vs. due counts header) and render the first card front; clean empty state when nothing is due.
       verify: Playwright opens Review for the demo account and asserts the new/due counts header and first card render; vitest asserts the "all caught up" empty state when the batch is empty.
-- [ ] **4.6.2** Reveal interaction: show answer (recognition + production variants) on reveal, then surface the four rating buttons.
+- [x] **4.6.2** Reveal interaction: show answer (recognition + production variants) on reveal, then surface the four rating buttons.
       verify: vitest asserts the answer is hidden until reveal and the rating buttons appear only after reveal; Playwright reveals a card and sees all four buttons.
-- [ ] **4.6.3** Rate Again/Hard/Good/Easy buttons in the locked **red / orange / blue / green** colors, posting the grade to the review endpoint and advancing to the next card.
+- [x] **4.6.3** Rate Again/Hard/Good/Easy buttons in the locked **red / orange / blue / green** colors, posting the grade to the review endpoint and advancing to the next card.
       verify: vitest asserts each button's resolved color matches the spec (red/orange/blue/green) and submits the correct grade; Playwright grades a card and the next card (or empty state) appears.
-- [ ] **4.6.4** Tap-a-word explanation popover on production cards: tapping/clicking a word fetches its explanation via the API and shows a popover; correct word boundaries on both touch and click.
+- [x] **4.6.4** Tap-a-word explanation popover on production cards: tapping/clicking a word fetches its explanation via the API and shows a popover; correct word boundaries on both touch and click.
       verify: Playwright clicks a word on a production card and asserts the explanation popover opens with stubbed explanation text; vitest asserts the explain query keys by word + language.
-- [ ] **4.6.5** Keyboard shortcuts for review (space/enter to reveal, 1–4 to rate) for fast desktop review.
+- [x] **4.6.5** Keyboard shortcuts for review (space/enter to reveal, 1–4 to rate) for fast desktop review.
       verify: vitest fires keydown events and asserts reveal + each grade map to the right action; Playwright reveals and grades a card using only the keyboard.
 
 ## 4.7 — Discover screen  ·  S
