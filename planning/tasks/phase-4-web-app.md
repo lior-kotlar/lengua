@@ -105,11 +105,12 @@ _Context: ports the core FSRS loop — due batch with new vs. due counts, reveal
 
 _Context: ports Discover — optional topic + count → preview suggested new words → accept or reroll → generate sentences from accepted words. Shares the quota/429 path with Generate._
 
-- [ ] **4.7.1** Discover form (optional topic + count, defaulting to the user's discover-count setting) and a fetch of suggested new words preview.
+- [x] **4.7.1** Discover form (optional topic + count, defaulting to the user's discover-count setting) and a fetch of suggested new words preview.
       verify: Playwright (LLM stubbed) runs Discover and asserts the suggested words preview renders; vitest asserts the default count comes from settings.
-- [ ] **4.7.2** Accept / reroll controls: accept the suggested words (feed into the generate flow) or reroll for a fresh set.
+- [x] **4.7.2** Accept / reroll controls: accept the suggested words (feed into the generate flow) or reroll for a fresh set.
       verify: Playwright rerolls and asserts a new stubbed set replaces the old; accepting routes the words into the Generate flow; vitest asserts reroll refetches and accept hands off the word list.
-- [ ] **4.7.3** Reuse the shared 429 daily-limit + loading/error states on Discover (no generic error for quota).
+      _Reconciliation: "accept" hands the words off into the existing Generate flow (group 4.5) — a one-shot in-memory handoff (`lib/generate-handoff.ts`) + `navigate('/generate')` prefills the Generate word input — rather than calling `POST /discover/accept` (which would auto-save without a review step); the generate UI is reused, not duplicated. Note: against a real backend a reroll with identical `(language, topic, count)` may return the SAME words within the short discover-reuse window (3.6.3) — the screen always refetches + replaces; freshness is a backend property. E2E asserts replacement via browser-boundary stubs._
+- [x] **4.7.3** Reuse the shared 429 daily-limit + loading/error states on Discover (no generic error for quota).
       verify: Playwright with the API stubbed to a quota 429 asserts the daily-limit panel renders on Discover too.
 
 ## 4.8 — Settings & Account screens  ·  S

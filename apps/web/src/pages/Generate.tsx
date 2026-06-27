@@ -14,7 +14,7 @@ import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
-import { DailyLimitPanel } from '@/components/daily-limit-panel';
+import { LlmErrorState } from '@/components/llm-error-state';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -35,11 +35,7 @@ import {
   type GeneratedCard,
   type GeneratedSentence,
 } from '@/lib/generate';
-import {
-  classifyLlmError,
-  describeLlmError,
-  isDailyLimitError,
-} from '@/lib/llm-error';
+import { takeHandedOffWords } from '@/lib/generate-handoff';
 import { cn } from '@/lib/utils';
 
 export default function Generate() {
@@ -90,7 +86,12 @@ export default function Generate() {
 
 /** The generate -> review -> save workflow for a known (non-null) active language. */
 function GenerateWorkspace({ languageId }: { languageId: number }) {
-  const [rawWords, setRawWords] = useState('');
+  // Seed the word input from a Discover → Generate handoff (group 4.7.2), consumed once on mount so a
+  // later language switch or revisit starts blank; normal visits get an empty form.
+  const [rawWords, setRawWords] = useState(() => {
+    const handed = takeHandedOffWords();
+    return handed !== null ? handed.join('\n') : '';
+  });
   const [sentences, setSentences] = useState<GeneratedSentence[] | null>(null);
   const [savedCount, setSavedCount] = useState<number | null>(null);
 
@@ -300,34 +301,13 @@ function WordForm({
         </CardContent>
       </Card>
 
-      {error !== null && <GenerateError error={error} />}
-    </div>
-  );
-}
-
-/** Render the friendly state for a failed generate: the shared daily-limit panel, or an inline note. */
-function GenerateError({ error }: { error: unknown }) {
-  if (isDailyLimitError(error)) {
-    return <DailyLimitPanel error={error} />;
-  }
-  const { title, description } = describeLlmError(error);
-  // rate-limited / server-busy are transient; the form below is ready for an immediate retry.
-  const kind = classifyLlmError(error);
-  const transient = kind === 'rate_limited' || kind === 'server_busy';
-  return (
-    <Card role="alert" className="border-destructive/50">
-      <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      {transient && (
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Your words are kept — press Generate to try again.
-          </p>
-        </CardContent>
+      {error !== null && (
+        <LlmErrorState
+          error={error}
+          transientHint="Your words are kept — press Generate to try again."
+        />
       )}
-    </Card>
+    </div>
   );
 }
 

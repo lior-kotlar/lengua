@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Drive the real generate/save hooks against a mocked transport, and spy on the toast queue.
 const { post } = vi.hoisted(() => ({ post: vi.fn() }));
@@ -17,6 +17,7 @@ import {
   ActiveLanguageContext,
   type ActiveLanguageState,
 } from '@/components/active-language-context';
+import { handOffWords, takeHandedOffWords } from '@/lib/generate-handoff';
 import type { LanguageOut } from '@/lib/languages';
 import Generate from '@/pages/Generate';
 
@@ -127,6 +128,11 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => {
+  // The Discover → Generate handoff is module state; drain it so it never leaks between tests.
+  takeHandedOffWords();
+});
+
 describe('Generate — language gating', () => {
   it('shows a loading state while languages load', () => {
     renderGenerate(
@@ -185,6 +191,15 @@ describe('Generate — word form (4.5.1)', () => {
     renderGenerate();
     fireEvent.submit(screen.getByLabelText('Words').closest('form')!);
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it('prefills the word input from a Discover → Generate handoff (consumed once)', () => {
+    // Discover's "accept" stashes the suggested words; the Generate workspace picks them up on mount.
+    handOffWords(['casa', 'perro']);
+    renderGenerate();
+    expect(screen.getByLabelText('Words')).toHaveValue('casa\nperro');
+    // One-shot: the handoff was consumed, so nothing remains for the next mount.
+    expect(takeHandedOffWords()).toBeNull();
   });
 });
 

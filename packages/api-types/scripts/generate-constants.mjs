@@ -60,6 +60,11 @@ const generateWordsMaxItems = requireNumber(openapi, [
   'maxItems',
 ]);
 
+const discoverCountProp = ['components', 'schemas', 'DiscoverRequest', 'properties', 'count'];
+const discoverCountMin = requireNumber(openapi, [...discoverCountProp, 'minimum']);
+const discoverCountMax = requireNumber(openapi, [...discoverCountProp, 'maximum']);
+const discoverCountDefault = requireNumber(openapi, [...discoverCountProp, 'default']);
+
 const lines = [
   '/**',
   ' * Runtime schema constants extracted from apps/api/openapi.json.',
@@ -77,6 +82,14 @@ const lines = [
   '   * (`GenerateRequest.words.maxItems`). The server rejects more with HTTP 422.',
   '   */',
   `  generateWordsMaxItems: ${generateWordsMaxItems},`,
+  '  /**',
+  '   * Bounds + default for the number of new words `POST /discover` previews in one request',
+  '   * (`DiscoverRequest.count` minimum/maximum/default). The Discover form clamps to these and',
+  '   * falls back to the default when the user has no saved `discover_count` preference.',
+  '   */',
+  `  discoverCountMin: ${discoverCountMin},`,
+  `  discoverCountMax: ${discoverCountMax},`,
+  `  discoverCountDefault: ${discoverCountDefault},`,
   '} as const;',
   '',
 ];
@@ -84,5 +97,6 @@ const lines = [
 writeFileSync(outputPath, lines.join('\n'), 'utf8');
 
 console.log(
-  `Wrote ${outputPath} (generateWordsMaxItems=${generateWordsMaxItems}).`,
+  `Wrote ${outputPath} (generateWordsMaxItems=${generateWordsMaxItems}, ` +
+    `discoverCount=${discoverCountMin}..${discoverCountMax} default ${discoverCountDefault}).`,
 );
