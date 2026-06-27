@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lengua — Setup Status</title>
+  <title>Lengua — Go-Live Status</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -15,31 +15,36 @@
     .header { background:linear-gradient(135deg,#1e3a8a 0%,#4f46e5 60%,#7c3aed 100%); color:#fff; padding:30px 32px 26px; }
     .header h1 { font-size:1.6rem; font-weight:800; margin-bottom:4px; }
     .header .sub { opacity:.85; font-size:.9rem; }
-    .header .stamp { margin-top:10px; font-size:.78rem; opacity:.9; line-height:1.55; }
+    .header .stamp { margin-top:10px; font-size:.78rem; opacity:.92; line-height:1.6; }
+    .header .stamp code { background:rgba(255,255,255,.16); padding:0 4px; border-radius:3px; }
     .sticky-bar { position:sticky; top:0; z-index:100; background:#fff; border-bottom:1px solid #e2e8f0;
       padding:10px 24px; display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
     .prog-item { display:flex; align-items:center; gap:8px; font-size:.8rem; }
     .prog-bar { width:160px; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden; }
     .prog-fill { height:100%; border-radius:4px; width:0%; background:#4f46e5; transition:width .3s; }
     .prog-label { color:#475569; white-space:nowrap; }
-    .container { max-width:880px; margin:0 auto; padding:26px 20px; }
+    .container { max-width:900px; margin:0 auto; padding:26px 20px; }
     .section { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.07); margin-bottom:20px; overflow:hidden; }
     .section-head { padding:15px 22px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:12px; }
     .section-num { width:26px; height:26px; background:#1e293b; color:#fff; border-radius:50%;
-      display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:800; flex-shrink:0; }
+      display:flex; align-items:center; justify-content:center; font-size:.85rem; font-weight:800; flex-shrink:0; }
+    .section-num.red { background:#dc2626; } .section-num.green { background:#059669; } .section-num.amber { background:#d97706; }
     .section-title { font-size:1rem; font-weight:700; color:#0f172a; }
     .section-body { padding:16px 22px; display:flex; flex-direction:column; gap:10px; }
     .item { display:flex; border-radius:8px; padding:10px 12px; align-items:flex-start; gap:10px; border:1px solid transparent; }
     .item[data-owner="kotlar"] { background:var(--kotlar-bg); border-color:var(--kotlar-border); }
     .item[data-owner="ben"] { background:var(--ben-bg); border-color:var(--ben-border); }
+    .item[data-owner="both"] { background:#faf5ff; border-color:#d8b4fe; }
     .item label { display:flex; align-items:flex-start; gap:9px; cursor:pointer; flex:1; }
     .item input[type="checkbox"] { display:none; }
     .cb-box { width:18px; height:18px; border:2px solid #cbd5e1; border-radius:4px; flex-shrink:0; margin-top:2px;
       display:flex; align-items:center; justify-content:center; transition:all .15s; }
     .item[data-owner="kotlar"] .cb-box { border-color:var(--kotlar-border); }
     .item[data-owner="ben"] .cb-box { border-color:var(--ben-border); }
+    .item[data-owner="both"] .cb-box { border-color:#d8b4fe; }
     .item[data-owner="kotlar"] input:checked ~ .cb-box { background:var(--kotlar-check); border-color:var(--kotlar-check); }
     .item[data-owner="ben"] input:checked ~ .cb-box { background:var(--ben-check); border-color:var(--ben-check); }
+    .item[data-owner="both"] input:checked ~ .cb-box { background:#9333ea; border-color:#9333ea; }
     input:checked ~ .cb-box::after { content:''; width:10px; height:6px; border-left:2px solid #fff; border-bottom:2px solid #fff;
       transform:rotate(-45deg) translate(1px,-1px); display:block; }
     input:checked ~ .item-text { color:#94a3b8; text-decoration:line-through; }
@@ -47,24 +52,28 @@
     .item-detail { font-size:.78rem; color:#64748b; margin-top:4px; line-height:1.55; }
     .item-detail code, .item-text code { background:#e2e8f0; padding:0 4px; border-radius:3px;
       font-family:'SF Mono','Fira Code',monospace; font-size:.85em; }
-    .warn { background:#fefce8; border-left:3px solid #eab308; padding:9px 13px; border-radius:0 6px 6px 0; font-size:.8rem; color:#713f12; }
-    .info { background:#f8fafc; border-left:3px solid #94a3b8; padding:9px 13px; border-radius:0 6px 6px 0; font-size:.8rem; color:#475569; }
+    .owner-tag { font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+      padding:3px 8px; border-radius:20px; color:#fff; white-space:nowrap; margin-top:2px; flex-shrink:0; }
+    .tag-ben { background:#059669; } .tag-kotlar { background:#2563eb; } .tag-both { background:#7c3aed; }
+    .warn { background:#fef2f2; border-left:3px solid #ef4444; padding:11px 14px; border-radius:0 6px 6px 0; font-size:.82rem; color:#7f1d1d; margin-bottom:10px; }
+    .warn:last-child { margin-bottom:0; }
+    .warn code { background:#fee2e2; padding:0 4px; border-radius:3px; }
+    .info { background:#f8fafc; border-left:3px solid #94a3b8; padding:10px 14px; border-radius:0 6px 6px 0; font-size:.82rem; color:#475569; }
+    .info code { background:#e2e8f0; padding:0 4px; border-radius:3px; }
     details.done { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.07); padding:14px 22px; margin-bottom:20px; }
     details.done summary { cursor:pointer; font-weight:700; color:#065f46; font-size:.95rem; }
     details.done ul { margin:12px 0 4px 4px; list-style:none; }
     details.done li { font-size:.8rem; color:#475569; padding:3px 0; display:flex; gap:8px; }
-    details.done li::before { content:'✓'; color:#10b981; font-weight:800; }
+    details.done li::before { content:'\2713'; color:#10b981; font-weight:800; }
     code { font-family:'SF Mono','Fira Code',monospace; }
-    /* Validation result rows */
-    .vrow { display:flex; gap:11px; align-items:flex-start; padding:9px 0; border-bottom:1px solid #f1f5f9; }
+    .vrow { display:flex; gap:11px; align-items:flex-start; padding:10px 0; border-bottom:1px solid #f1f5f9; }
     .vrow:last-child { border-bottom:none; }
     .vrow .vtext { flex:1; font-size:.86rem; }
-    .vrow .vtext .vd { font-size:.76rem; color:#64748b; margin-top:3px; line-height:1.5; }
+    .vrow .vtext .vd { font-size:.77rem; color:#64748b; margin-top:3px; line-height:1.5; }
     .vrow .vtext code { background:#e2e8f0; padding:0 4px; border-radius:3px; font-size:.85em; }
     .pill { font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
       padding:3px 8px; border-radius:20px; color:#fff; white-space:nowrap; flex-shrink:0; margin-top:2px; }
-    .pill-pass { background:#10b981; } .pill-wait { background:#f59e0b; } .pill-info { background:#64748b; }
-    /* Vercel explainer */
+    .pill-pass { background:#10b981; } .pill-miss { background:#ef4444; } .pill-wait { background:#f59e0b; } .pill-info { background:#64748b; }
     .vercel-box { border:2px solid #0f172a; border-radius:12px; margin-bottom:20px; background:#fff; overflow:hidden; }
     .vercel-head { padding:14px 20px; background:#0f172a; color:#fff; }
     .vercel-head h2 { font-size:1rem; font-weight:700; margin:0; }
@@ -74,155 +83,198 @@
     .vercel-body code { background:#e2e8f0; padding:0 4px; border-radius:3px; font-size:.85em; }
     .vercel-body .ok { color:#065f46; font-weight:700; }
     .vercel-body .no { color:#9f1239; font-weight:700; }
+    .promptbox { position:relative; background:#0f172a; color:#e2e8f0; border-radius:10px; padding:42px 18px 18px;
+      font-family:'SF Mono','Fira Code',monospace; font-size:.78rem; line-height:1.62; white-space:pre-wrap; overflow:auto; }
+    .copybtn { position:absolute; top:10px; right:10px; background:#4f46e5; color:#fff; border:none; border-radius:6px;
+      padding:6px 13px; font-size:.72rem; font-weight:700; cursor:pointer; }
+    .copybtn:active { transform:scale(.96); }
   </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Lengua — Setup Status</h1>
-  <p class="sub">Kotlar's checklist re-validated against live infra. Blue = Kotlar · Green = Ben.</p>
-  <p class="stamp">Re-validated 2026-06-25 by Ben. <strong>Branch protection ✓</strong>, <strong>GCP_REGION + SENTRY_ORG ✓</strong>
-    (all 31 CI secrets present, incl. 3 Vercel + Resend), <strong>Resend SMTP confirmed by Kotlar</strong>.
-    Grafana + Sentry invites accepted ✓, Supabase CLI linked to staging ✓. Only <strong>Dependabot</strong> remains, and Kotlar has parked it for now. Vercel dashboard access is a non-issue — deploys run via GitHub Actions.
-    LLM provider = <strong>Groq</strong> (<code>llama-3.1-8b-instant</code>); Gemini reserved for prod.</p>
+  <h1>Lengua — Go-Live Status</h1>
+  <p class="sub">Re-validated against LIVE infra. Blue = Kotlar · Green = Ben · Purple = both.</p>
+  <p class="stamp">Re-validated <strong>2026-06-27</strong> by Ben via CLI (<code>gcloud</code>, <code>supabase</code>, <code>vercel</code>, <code>gh</code>, <code>psql</code>, Groq API).
+    <strong>Credentials &amp; accounts are ~all in place.</strong> What remains is to <strong>run the deploy</strong> — the app has never been deployed, so the
+    DB schema, Cloud Run service, and Vercel deployment don't exist yet.
+    <br>Two onboarding-note items were stale: <code>gemma2-9b-it</code> is decommissioned (use <code>llama-3.1-8b-instant</code>), and <strong>branch protection on <code>main</code> is currently OFF</strong> (kept off so the automated build can self-merge).
+    <br>Full validated runbook: <code>planning/go-live-activation.md</code>.</p>
 </div>
 
 <div class="sticky-bar">
   <div class="prog-item">
     <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
-    <span class="prog-label" id="progLabel">0 / 0 remaining items done</span>
+    <span class="prog-label" id="progLabel">0 / 0 go-live steps done</span>
   </div>
 </div>
 
 <div class="container">
 
-  <!-- ════ VALIDATION RESULTS ════ -->
+  <!-- ════ STALE ITEMS ════ -->
   <div class="section">
-    <div class="section-head"><div class="section-num">✓</div><div class="section-title">Validation results — Kotlar's 6 tasks (checked 2026-06-25)</div></div>
-    <div class="section-body" style="gap:0;">
+    <div class="section-head"><div class="section-num amber">!</div><div class="section-title">Two items in the onboarding note are stale — corrected</div></div>
+    <div class="section-body">
+      <div class="warn"><strong>Groq model <code>gemma2-9b-it</code> is decommissioned.</strong> Verified against the live Groq API (<code>GET /v1/models</code>): it is NOT in the model list.
+        The repo already uses <code>llama-3.1-8b-instant</code>, which IS live. Keep that. (Higher quality option also live: <code>llama-3.3-70b-versatile</code>.)</div>
+      <div class="warn"><strong>"Main is protected (requires 1 approval)" is NOT currently active.</strong> Verified: <code>gh api repos/lior-kotlar/lengua/branches/main/protection</code> &rarr; <code>HTTP 404</code>,
+        and PRs still self-merge (PR&nbsp;#60 merged 2026-06-27). It was disabled so the autonomous agent build can land its own PRs. <strong>Leave it off until launch</strong> — re-enabling it now blocks the automated build. At launch, switch the build to "open PR &rarr; Kotlar approves".</div>
+    </div>
+  </div>
 
-      <div class="vrow">
-        <span class="pill pill-pass">Pass</span>
-        <div class="vtext"><strong>Task 1 — Branch protection on <code>main</code></strong>
-          <div class="vd">Verified: <code>gh api repos/lior-kotlar/lengua/branches/main</code> → <code>protected: true</code>.
-            The exact rule (require PR + 1 approval) is readable only to a repo admin, so that detail is taken on Kotlar's word — but protection is definitively active.</div>
-        </div>
+  <!-- ════ GO-LIVE GAPS ════ -->
+  <div class="section">
+    <div class="section-head"><div class="section-num red">&#10007;</div><div class="section-title">What's actually missing — the go-live gaps (verified 2026-06-27)</div></div>
+    <div class="section-body">
+
+      <div class="item" data-owner="ben">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Apply the schema to the STAGING Supabase DB</strong>
+            <div class="item-detail">Verified MISSING: <code>psql</code> &rarr; <code>public_tables=0</code>, no <code>alembic_version</code>. The hosted <code>lengua-staging</code> DB is empty.
+              Fix: from <code>apps/api</code>, <code>uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" upgrade head</code> (adds schema + trigger + RLS + kill-switch), then <code>uv run python scripts/seed_e2e.py</code>.
+              <strong>verify:</strong> <code>\dt</code> lists the app tables; <code>alembic current</code> == <code>heads</code>; demo login returns &ge;1 due card.</div>
+          </span></label><span class="owner-tag tag-ben">Ben</span>
       </div>
 
-      <div class="vrow">
-        <span class="pill pill-pass">Pass</span>
-        <div class="vtext"><strong>Task 3 — CI secrets <code>GCP_REGION</code> + <code>SENTRY_ORG</code></strong>
-          <div class="vd">Verified via <code>gh secret list</code>: both present, set 2026-06-25 08:32. All <strong>31</strong> CI secrets confirmed,
-            including <code>VERCEL_TOKEN</code> / <code>VERCEL_ORG_ID</code> / <code>VERCEL_PROJECT_ID</code> and <code>RESEND_API_KEY</code>;
-            Supabase refs use the correct <code>SUPABASE_*_PROJECT_REF</code> names.</div>
-        </div>
+      <div class="item" data-owner="ben">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Create <code>apps/web/.env</code> (only needed to run the web LOCALLY)</strong>
+            <div class="item-detail">Verified MISSING: only <code>apps/web/.env.example</code> exists. Add <code>VITE_API_BASE_URL=http://localhost:8000</code>, <code>VITE_SUPABASE_URL</code>, <code>VITE_SUPABASE_ANON_KEY</code> (staging values).
+              <strong>verify:</strong> <code>corepack pnpm --filter web build</code> passes the env validator. (Deploys get these from Vercel env instead.)</div>
+          </span></label><span class="owner-tag tag-ben">Ben</span>
       </div>
 
-      <div class="vrow">
-        <span class="pill pill-info">Kotlar-confirmed</span>
-        <div class="vtext"><strong>Task 5 — Resend SMTP on staging + prod</strong>
-          <div class="vd">Kotlar confirmed both. Corroborated by <code>RESEND_API_KEY</code> set today (08:56). Can't be re-tested from Ben's side without Supabase admin — trusting Kotlar's send-test.</div>
-        </div>
+      <div class="item" data-owner="ben">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Deploy the API to Cloud Run — STAGING</strong>
+            <div class="item-detail">Verified MISSING: <code>gcloud run services list --region europe-west1 --project lengua-prod</code> &rarr; empty (no service in any EU region). Registry + deployer SA + project all exist.
+              Fix: build+push the image to <code>europe-west1-docker.pkg.dev/lengua-prod/lengua</code>, deploy <code>lengua-api-staging</code> with the staging secrets mounted.
+              <strong>verify:</strong> <code>curl &lt;url&gt;/health</code> 200 and <code>/ready</code> 200.</div>
+          </span></label><span class="owner-tag tag-ben">Ben</span>
       </div>
 
-      <div class="vrow">
-        <span class="pill pill-pass">Pass</span>
-        <div class="vtext"><strong>Task 6 — Grafana + Sentry invites</strong>
-          <div class="vd">Ben accepted both (2026-06-25): Grafana <code>joyfulmayfly1575.grafana.net</code> and Sentry org <code>kotlar-y7</code>.</div>
-        </div>
+      <div class="item" data-owner="both">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Confirm the Vercel project is linked to the repo + deploy STAGING web</strong>
+            <div class="item-detail">Verified: nothing deployed (<code>vercel projects ls</code> empty for Ben; no <code>.vercel/project.json</code>). The project lives on <strong>Kotlar's</strong> Vercel account (<code>VERCEL_PROJECT_ID</code> secret exists).
+              Kotlar: confirm his <code>lengua</code> Vercel project is connected to <code>lior-kotlar/lengua</code> so the Actions deploy lands on it; set the staging Vercel env (client-safe vars only).
+              <strong>verify:</strong> the staging web URL serves and the full loop works.</div>
+          </span></label><span class="owner-tag tag-both">Both</span>
       </div>
 
-      <div class="vrow">
-        <span class="pill pill-info">Deferred</span>
-        <div class="vtext"><strong>Task 2 — Dependabot alerts + automated security updates</strong>
-          <div class="vd"><strong>Parked by Kotlar for now</strong> — not blocking. Worth turning on later (one-click in <em>Settings → Code security</em>) but no action required to start coding.</div>
-        </div>
+      <div class="item" data-owner="ben">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Land the CD pipeline + flip <code>DEPLOY_ENABLED=true</code></strong>
+            <div class="item-detail">Verified MISSING: <code>.github/workflows/</code> has only <code>ci.yml</code>; <code>gh variable list</code> is empty. The CD-as-code (deploy-staging/prod, gated) is being built now (Phase 6; <code>/ready</code>+Dockerfile already merged as #60).
+              After the CD PR merges: <code>gh variable set DEPLOY_ENABLED -b true</code>.
+              <strong>verify:</strong> a merge to <code>main</code> auto-ships staging with green smoke probes.</div>
+          </span></label><span class="owner-tag tag-ben">Ben</span>
       </div>
 
-      <div class="vrow">
-        <span class="pill pill-info">Resolved</span>
-        <div class="vtext"><strong>Task 4 — Vercel access for Ben</strong>
-          <div class="vd">Dropped by design — can't be done on Vercel's free Hobby plan, and isn't needed. Deploys go through GitHub Actions (CI secrets present). Full explanation below.</div>
-        </div>
+      <div class="item" data-owner="kotlar">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Supabase Auth wiring (staging): redirect URLs + Resend SMTP + CORS</strong>
+            <div class="item-detail">Redirect/allow-list URLs = staging web origin (+ capacitor/deep-link). Resend custom SMTP + SPF/DKIM/DMARC on the sending domain (<code>RESEND_API_KEY</code> ready). API CORS = exact staging origin, no wildcard.
+              <strong>verify:</strong> a staging signup email arrives via Resend (not the built-in sender); confirmation redirect returns to the staging web origin.</div>
+          </span></label><span class="owner-tag tag-kotlar">Kotlar</span>
       </div>
 
+      <div class="item" data-owner="both">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Prod: apply schema, deploy API+web, gated promotion</strong>
+            <div class="item-detail">Apply schema to the PROD Supabase DB (<code>SUPABASE_PROD_DATABASE_URL</code>); promote the exact staging-validated image digest to <code>lengua-api-prod</code> behind the GitHub <code>production</code> approval (Kotlar approves); deploy Vercel prod.
+              <strong>verify:</strong> prod <code>/health</code>+<code>/ready</code> 200; prod web serves; rollback drill restores the previous revision.</div>
+          </span></label><span class="owner-tag tag-both">Both</span>
+      </div>
+
+      <div class="item" data-owner="both">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>Light up observability (closes the deferred Phase 5 live verifies)</strong>
+            <div class="item-detail">Once deployed: trace in Grafana Tempo, logs in Loki, RED/cost-guard/product dashboards render, Sentry issue &rarr; trace, Grafana alerts reach a real channel, external uptime monitor, PostHog funnel events ingest (EU).
+              <strong>verify:</strong> see <code>planning/outstanding-work.md</code> §11 + <code>go-live-activation.md</code> §G.</div>
+          </span></label><span class="owner-tag tag-both">Both</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="info"><strong>Fastest way to watch it today (no deploy needed):</strong> apply the staging schema + seed the demo account, create <code>apps/web/.env</code>, then run <code>uvicorn</code> + <code>corepack pnpm --filter web dev</code> and open <code>http://localhost:5173</code> against the hosted staging Supabase. That's §A of <code>planning/go-live-activation.md</code>.</div>
+
+  <!-- ════ KOTLAR PROMPT ════ -->
+  <div class="section">
+    <div class="section-head"><div class="section-num green">&#9658;</div><div class="section-title">Copy-paste prompt for Kotlar's Claude Code (in the lengua repo)</div></div>
+    <div class="section-body">
+      <p style="font-size:.83rem; color:#475569;">Open Claude Code inside the cloned repo and paste this. It reads the runbook, verifies the live state, then walks you through go-live one validated step at a time.</p>
+      <div class="promptbox" id="kotlarPrompt"><button class="copybtn" onclick="copyPrompt()">Copy</button>You are helping take the Lengua app LIVE so we can open it in a browser and use it. The app code is complete (Phases 1-5) and the CI/CD-as-code is landing now (Phase 6). All cloud accounts and secrets are already provisioned. What is left is to RUN the deploy and VALIDATE each step.
+
+STEP 0 - Orient. Read planning/go-live-activation.md (the validated step-by-step runbook) and planning/owner-setup-checklist.html (current verified state). Then verify the live state yourself, READ-ONLY, before changing anything:
+  - staging DB schema:  psql "$SUPABASE_STAGING_DATABASE_URL" -c '\dt'        (expected: currently EMPTY)
+  - Cloud Run:          gcloud run services list --region europe-west1 --project lengua-prod   (expected: none)
+  - CD switch:          gh variable list                                       (expected: DEPLOY_ENABLED unset)
+Report what is actually missing vs already done.
+
+STEPS 1..N - Guide me through go-live-activation.md IN ORDER, STAGING FIRST, ONE STEP AT A TIME. For each step: give the exact command, run it (or tell me to run it if it needs my account login), then run its verify and DO NOT advance until it passes. Order:
+  (A) apply the staging schema:  cd apps/api && uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" upgrade head ; then seed the demo account ; confirm RLS.
+  (B) deploy the API to Cloud Run STAGING ; confirm /health and /ready return 200.
+  (C) deploy the web to Vercel STAGING ; confirm the URL serves and the full loop (generate to save to review to discover) works.
+  (D) wire Supabase Auth: redirect URLs, Resend SMTP (+ SPF/DKIM/DMARC), CORS allow-list.
+  (E) set DEPLOY_ENABLED=true so merge-to-main auto-ships staging.
+  (F) the GATED prod promotion - PAUSE for my explicit approval before any prod step.
+  (G) the Phase 5 observability live verifies (Tempo, Loki, Sentry, dashboards, alerts, uptime, PostHog).
+
+CONSTRAINTS: LLM is Groq llama-3.1-8b-instant (NOT gemma2-9b-it - it is decommissioned). Never put a service-role or LLM key in the web/Vercel client env (only VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL, VITE_SENTRY_DSN_WEB belong there). Never commit secrets. Work staging fully green before touching prod. Stop and ask me before any prod or destructive step. Do NOT re-enable branch protection on main until launch (it blocks the automated build).
+
+Start now: read the two planning files, verify the current state, and tell me the first concrete step.</div>
     </div>
   </div>
 
   <!-- ════ VERCEL EXPLAINER ════ -->
   <div class="vercel-box">
     <div class="vercel-head">
-      <h2>▲ Vercel — why you can't see the repo, and why that's fine</h2>
-      <p>The "import <code>lior-kotlar/lengua</code> into your own Vercel account" path is a dead end. You don't need it.</p>
+      <h2>&#9650; Vercel — why you can't see the project, and why that's fine</h2>
+      <p>The <code>lengua</code> Vercel project lives on Kotlar's account; deploys run through GitHub Actions, not your dashboard.</p>
     </div>
     <div class="vercel-body">
-      <p>You're logged into <strong>your own</strong> Vercel account (<code>benartzi4-4739</code>); <code>vercel project ls</code> shows no projects.
-        The <code>lengua</code> project lives on <strong>Kotlar's</strong> Vercel account.</p>
-      <p>In <em>Repository access → Select repository</em> you only ever see repos owned by <strong>BenArtzi4</strong>.
-        <code>lior-kotlar/lengua</code> belongs to Kotlar's personal account, and <span class="no">only the repo owner can authorize the Vercel GitHub App on it</span> — a collaborator can't.
-        That's why the repo never appears for you. <strong>Stop trying to import it.</strong></p>
-      <p>On the free <strong>Hobby</strong> plan Kotlar also can't add you as a member, so there's no Vercel invite to wait for.</p>
-      <p class="ok">You don't need any of that. Deploys run through GitHub Actions using <code>VERCEL_TOKEN</code> / <code>VERCEL_ORG_ID</code> / <code>VERCEL_PROJECT_ID</code>
-        — all three are already in CI secrets and point at Kotlar's project. The deploy targets the right place without you ever opening the Vercel dashboard.</p>
-      <p style="margin-bottom:0;"><strong>One thing to confirm with Kotlar (not blocking):</strong> that his <code>lengua</code> Vercel project is linked to the repo so the Actions deploy lands on the correct project.
-        (Optional alternative: he enables Vercel's Git integration on his side so pushes auto-deploy — that also needs zero dashboard access for you.)
-        Note the deploy <em>workflow YAML</em> itself doesn't exist yet (<code>.github/workflows/</code> is empty) — writing it is Phase 6 implementation work, not owner setup.</p>
+      <p>Ben is logged into <strong>his own</strong> Vercel account (<code>benartzi4-4739</code>); <code>vercel projects ls</code> shows none. The <code>lengua</code> project is on <strong>Kotlar's</strong> account — that's expected, not a problem.</p>
+      <p class="ok">Deploys run via GitHub Actions using <code>VERCEL_TOKEN</code> / <code>VERCEL_ORG_ID</code> / <code>VERCEL_PROJECT_ID</code> — all three are already CI secrets and point at Kotlar's project, so the deploy targets the right place with zero dashboard access for Ben.</p>
+      <p style="margin-bottom:0;"><strong>The one thing still open:</strong> nothing has been deployed yet (no CD run), and the deploy <em>workflow YAML</em> is landing now in Phase 6. Kotlar should confirm his <code>lengua</code> Vercel project is connected to <code>lior-kotlar/lengua</code> so the first Actions deploy lands correctly.</p>
     </div>
   </div>
-
-  <!-- DEFERRED -->
-  <div class="section">
-    <div class="section-head"><div class="section-num">⏸</div><div class="section-title">Deferred — not blocking</div></div>
-    <div class="section-body">
-
-      <div class="item" data-owner="kotlar">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>Dependabot alerts &amp; automated security updates</strong> <em>(Task 2)</em>
-            <div class="item-detail">Kotlar has parked this for now. Turn on later in <em>Settings → Code security</em>, or via
-              <code>gh api -X PUT repos/lior-kotlar/lengua/vulnerability-alerts</code> + <code>.../automated-security-fixes</code> (expect <code>HTTP 204</code>). No action needed to start coding.</div>
-          </span></label><span class="badge badge-kotlar">Kotlar</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="info"><strong>Setup is closed.</strong> Both Grafana + Sentry invites accepted, Supabase CLI linked to staging, all infra verified. The only open item (Dependabot) is deferred and doesn't block anything. Implementation of the FastAPI/React code can begin now.</div>
 
   <details class="done">
-    <summary>✓ 53 items verified complete — click to expand</summary>
+    <summary>&#10003; Verified PRESENT on 2026-06-27 (don't redo) — click to expand</summary>
     <ul>
-      <li><strong>Grafana + Sentry:</strong> Ben accepted both invites (Grafana <code>joyfulmayfly1575</code>, Sentry org <code>kotlar-y7</code>)</li>
-      <li><strong>Supabase CLI:</strong> linked to staging (<code>rydclyotzdwcbbeyitcx</code>) on Ben's machine</li>
-      <li><strong>Branch protection on <code>main</code>:</strong> ON (<code>protected: true</code>, verified by Ben 2026-06-25)</li>
-      <li><strong>CI secrets <code>GCP_REGION</code> + <code>SENTRY_ORG</code>:</strong> added 2026-06-25; all 31 Actions secrets confirmed via <code>gh secret list</code></li>
-      <li><strong>Vercel CI deploy wired:</strong> <code>VERCEL_TOKEN</code> / <code>VERCEL_ORG_ID</code> / <code>VERCEL_PROJECT_ID</code> all present (deploy via GitHub Actions, no dashboard access needed)</li>
-      <li><strong>Resend SMTP:</strong> confirmed on staging + prod by Kotlar; <code>RESEND_API_KEY</code> set as CI secret</li>
-      <li><strong>GitHub:</strong> repo live, Ben has access, all Actions secrets present</li>
-      <li><strong>Supabase staging</strong> (<code>rydclyotzdwcbbeyitcx</code>) &amp; <strong>prod</strong> (<code>ptyqlxjykbprfzhnxgla</code>) created; Ben is in the org and sees both; CI access token set</li>
-      <li><strong>Supabase auth:</strong> email + Google providers enabled (staging verified); anon/service-role keys cryptographically verified against the JWT secret</li>
-      <li><strong>GCP:</strong> project <code>lengua-prod</code>, Artifact Registry <code>europe-west1-docker.pkg.dev/lengua-prod/lengua</code>, <code>github-ci</code> service account, Ben has <code>roles/editor</code> (verified via CLI)</li>
-      <li><strong>Google OAuth:</strong> consent screen + client created and wired into Supabase</li>
-      <li><strong>LLM:</strong> Groq key verified working; default model <code>llama-3.1-8b-instant</code> (old <code>gemma2-9b-it</code> was decommissioned); Gemini key held in CI for prod</li>
-      <li><strong>Observability:</strong> Grafana OTLP and Sentry (lengua-api + lengua-web DSNs) all set as CI secrets</li>
-      <li><strong>Ben local:</strong> <code>.env</code> created (staging creds), <code>gcloud</code> logged in (Editor on lengua-prod), Docker Desktop running</li>
+      <li><strong>GCP:</strong> project <code>lengua-prod</code> (Ben = Editor), Artifact Registry repo <code>lengua</code> at <code>europe-west1-docker.pkg.dev/lengua-prod/lengua</code>, deployer SA in <code>GCP_SA_JSON</code></li>
+      <li><strong>Supabase:</strong> staging <code>rydclyotzdwcbbeyitcx</code> (West EU) + prod <code>ptyqlxjykbprfzhnxgla</code> (Central EU) both exist; CLI linked to staging; access token set</li>
+      <li><strong>GitHub Actions secrets (31):</strong> GCP (project/region/SA), Vercel (token/org/project), Supabase staging+prod (url/anon/service-role/jwt/db-url/project-ref), Resend, Google OAuth, OTEL/Grafana OTLP, Sentry (api+web DSN/org/auth), Groq, Gemini</li>
+      <li><strong>Local <code>.env</code>:</strong> Groq key (verified VALID against the live API), staging Supabase creds, both Sentry DSNs</li>
+      <li><strong>Phase 6 in progress:</strong> <code>/ready</code> readiness probe + Dockerfile digest-pin already merged (PR&nbsp;#60)</li>
     </ul>
   </details>
 
 </div>
 
 <script>
-  var KEY='lengua_setup_status_v2';
+  var KEY='lengua_golive_status_v1';
   function update(){
     var all=document.querySelectorAll('input.cb'), done=0;
     all.forEach(function(c){ if(c.checked) done++; });
     var pct=all.length?Math.round(done/all.length*100):0;
     document.getElementById('progFill').style.width=pct+'%';
-    document.getElementById('progLabel').textContent=done+' / '+all.length+' remaining items done';
+    document.getElementById('progLabel').textContent=done+' / '+all.length+' go-live steps done';
   }
   function save(){ var s={}; document.querySelectorAll('input.cb').forEach(function(c,i){s['cb'+i]=c.checked;});
     try{localStorage.setItem(KEY,JSON.stringify(s));}catch(e){} }
   function load(){ var r; try{r=localStorage.getItem(KEY);}catch(e){} if(!r)return; var s=JSON.parse(r);
-    document.querySelectorAll('input.cb').forEach(function(c,i){ if(s['cb'+i]!==undefined) c.checked=s['cb'+i]||c.defaultChecked; }); }
+    document.querySelectorAll('input.cb').forEach(function(c,i){ if(s['cb'+i]!==undefined) c.checked=s['cb'+i]; }); }
   document.querySelectorAll('input.cb').forEach(function(c){ c.addEventListener('change',function(){update();save();}); });
+  function copyPrompt(){
+    var el=document.getElementById('kotlarPrompt');
+    var txt=el.innerText.replace(/^\s*Copy\s*/,'');
+    navigator.clipboard.writeText(txt).then(function(){
+      var b=el.querySelector('.copybtn'); var old=b.textContent; b.textContent='Copied!'; setTimeout(function(){b.textContent=old;},1500);
+    });
+  }
   load(); update();
 </script>
 </body>
