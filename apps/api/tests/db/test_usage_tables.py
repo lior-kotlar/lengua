@@ -4,7 +4,7 @@ These run against a fresh throwaway database (never the live Supabase ``public``
 confirm the Phase-1 cost-guard tables (``llm_usage`` / ``llm_budget``) carry the right columns,
 primary keys, and the ``ON DELETE CASCADE`` FK from ``llm_usage.user_id`` → ``profiles.id``, and
 that the Phase-3 kill-switch migration (0004) creates its ``SECURITY DEFINER`` functions and
-round-trips cleanly (``alembic downgrade -1`` → ``upgrade head``).
+round-trips cleanly (``alembic downgrade 0003`` → ``upgrade head``).
 
 The throwaway DB is built with an ``auth.uid()`` shim so the 0003 RLS migration also applies; the
 0004 role grants/revokes are guarded on ``to_regrole(...)`` and simply no-op there (the throwaway
@@ -78,16 +78,17 @@ def test_llm_budget_is_deny_by_default_rls() -> None:
 
 
 def test_migration_0004_round_trips() -> None:
-    """``upgrade head`` → ``downgrade -1`` (0003) → ``upgrade head`` (0004) is reversible.
+    """``upgrade head`` → ``downgrade 0003`` → ``upgrade head`` is reversible across 0004.
 
-    After the down-step the kill-switch functions are gone; after re-upgrading they exist again,
-    proving 0004 is a clean, reversible head migration.
+    Targets revision ``0003`` explicitly (not a relative ``-1``) so the down-step undoes 0004 even
+    as later revisions extend the head. After it the kill-switch functions are gone; after
+    re-upgrading they exist again, proving 0004 is a clean, reversible migration.
     """
     with throwaway_database_with_auth_uid() as url:
         run_alembic(url, "upgrade", "head")
         assert public_functions(url) >= _KILLSWITCH_FUNCTIONS
 
-        run_alembic(url, "downgrade", "-1")  # 0004 → 0003: functions dropped
+        run_alembic(url, "downgrade", "0003")  # undo 0004 (+ any later revs): functions dropped
         assert public_functions(url).isdisjoint(_KILLSWITCH_FUNCTIONS)
         # The tables themselves survive the down-step (they belong to 0001).
         assert {"llm_usage", "llm_budget"} <= public_tables(url)
