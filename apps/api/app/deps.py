@@ -39,6 +39,7 @@ from app.auth import AuthError, CurrentUser, decode_supabase_jwt
 from app.db.rls import bind_request_identity
 from app.db.session import UsageSession, get_sessionmaker
 from app.db.session import get_db as _get_session
+from app.error_tracking import bind_request_scope
 from app.request_context import set_current_user_id
 from app.services.account import AccountDeletionService
 from app.settings import Settings, get_settings
@@ -83,8 +84,10 @@ async def get_current_user(
 
     On a successful verification the user id is recorded on the request context
     (:func:`app.request_context.set_current_user_id`) so log records emitted inside the request
-    carry ``user_id`` for trace↔log correlation (task 5.3.2). This is additive — it does not change
-    which tokens are accepted/rejected.
+    carry ``user_id`` for trace↔log correlation (task 5.3.2), and bound onto Sentry's per-request
+    isolation scope (:func:`app.error_tracking.bind_request_scope`) so a captured exception carries
+    the ``user_id`` + the active ``trace_id`` (task 5.4.1; a no-op when Sentry is disabled). Both
+    are additive — they do not change which tokens are accepted/rejected.
     """
     if credentials is None or not credentials.credentials:
         raise _unauthorized("Missing bearer token")
@@ -93,6 +96,7 @@ async def get_current_user(
     except AuthError as exc:
         raise _unauthorized("Invalid authentication token") from exc
     set_current_user_id(user.id)
+    bind_request_scope(user.id)
     return user
 
 

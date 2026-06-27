@@ -220,6 +220,16 @@ def _deployment_environment() -> str:
     return os.getenv("DEPLOYMENT_ENVIRONMENT") or os.getenv("ENV") or DEFAULT_DEPLOYMENT_ENVIRONMENT
 
 
+def deployment_environment() -> str:
+    """Public accessor for the ``deployment.environment`` tag (see :func:`_deployment_environment`).
+
+    Shared so other observability wiring (e.g. :func:`app.error_tracking.configure_error_tracking`,
+    which stamps Sentry's ``environment``) tags signals with the SAME environment as the tracer and
+    meter, keeping traces, metrics, and Sentry issues attributed consistently per environment.
+    """
+    return _deployment_environment()
+
+
 def build_resource() -> Resource:
     """The OpenTelemetry :class:`~opentelemetry.sdk.resources.Resource` shared by all signals.
 

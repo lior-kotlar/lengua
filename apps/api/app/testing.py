@@ -15,9 +15,13 @@ The full Phase 1 generate/save/review HTTP API is unrelated to this and replaces
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.auth import CurrentUser
+from app.deps import get_current_user
 from lengua_core.llm import get_provider
 from lengua_core.llm.fake import FakeLLM
 from lengua_core.models import GeneratedCard
@@ -43,6 +47,21 @@ class LlmCallsResponse(BaseModel):
 def llm_calls() -> LlmCallsResponse:
     """Return how many times the (fake) LLM provider has been invoked this process."""
     return LlmCallsResponse(calls=FakeLLM.call_count)
+
+
+@router.get("/debug-error")
+def debug_error(_user: Annotated[CurrentUser, Depends(get_current_user)]) -> None:
+    """Deliberately raise so the Sentry capture path can be verified (task 5.4.1).
+
+    Like the rest of this router it is mounted **only** under ``LLM_PROVIDER=fake`` (see
+    :func:`app.main.create_app`), so it can NEVER be reached in dev/staging/prod. It additionally
+    requires a valid bearer token: an anonymous caller gets ``401`` (the route is unreachable and
+    leaks nothing), and an authenticated caller's id is bound onto Sentry's scope by
+    :func:`app.deps.get_current_user` before this raises — so the captured Sentry event carries the
+    ``user_id`` + the active ``trace_id``. The raised error surfaces as a generic ``500`` with no
+    internal detail in the response body.
+    """
+    raise RuntimeError("Intentional test-only error for Sentry verification.")
 
 
 @router.post("/generate", response_model=list[GeneratedCard])

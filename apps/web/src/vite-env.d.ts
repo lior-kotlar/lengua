@@ -19,6 +19,18 @@ interface ImportMetaEnv {
    * analytics never loads, even with consent. See `lib/analytics.ts`.
    */
   readonly VITE_POSTHOG_KEY?: string;
+  /**
+   * Optional browser Sentry DSN (task 5.4.2). Sentry initialises ONLY when set; unset → nothing
+   * loads, zero egress. Separate from the backend `SENTRY_DSN_API`; renames the old non-prefixed
+   * `SENTRY_DSN_WEB` so it can reach the bundle. See `lib/error-tracking.ts`.
+   */
+  readonly VITE_SENTRY_DSN_WEB?: string;
+  /**
+   * Optional dev/test-only flag (`"1"`/`"true"`). Enables the hidden Sentry debug-error button and
+   * records captures on `window` for the E2E assertion. A production build NEVER sets it, so the
+   * button can never render/trigger in a deployed app. See `components/debug-error-button.tsx`.
+   */
+  readonly VITE_ENABLE_DEBUG_TOOLS?: string;
 }
 
 interface ImportMeta {

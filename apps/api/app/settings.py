@@ -101,6 +101,13 @@ class Settings(BaseSettings):
     # ── App ───────────────────────────────────────────────────────────────────
     env: str = "local"
 
+    # ── Error tracking — Sentry (Phase 5.4.1) ─────────────────────────────────
+    # Backend Sentry DSN. Sentry is initialised ONLY when this is set (``app.error_tracking``),
+    # mirroring the OTLP-exporter discipline: unset → a no-op with zero network egress (the
+    # local/CI/E2E path). The web app uses a SEPARATE, browser-safe DSN (``VITE_SENTRY_DSN_WEB`` in
+    # ``apps/web/.env``). Documented in the repo-root ``.env.example``.
+    sentry_dsn_api: str = ""
+
     # ── Database / Supabase (declared so .env values validate; used in Phase 1+)
     database_url: str = ""
     supabase_url: str = ""

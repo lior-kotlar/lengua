@@ -35,5 +35,9 @@ export default defineConfig({
         url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
+        // Build with the debug tools on so the hidden Sentry debug-error button is present for
+        // sentry.spec.ts. This is a dev/test-only flag a production build never sets; merged over
+        // process.env by Playwright. No VITE_SENTRY_DSN_WEB → Sentry stays inert (zero egress).
+        env: { VITE_ENABLE_DEBUG_TOOLS: '1' },
       },
 });
