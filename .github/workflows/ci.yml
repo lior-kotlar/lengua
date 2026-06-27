@@ -295,6 +295,22 @@ jobs:
       - name: Build web bundle
         working-directory: apps/web
         run: pnpm build
+      # Audit the built bundle for leaked secrets (task 6.3.4): only the client-safe surface
+      # (Supabase anon key + public URLs/DSNs) may ship. Fail on any server-only env NAME or
+      # provider key VALUE shape in dist/. The anon key (role "anon") is legitimate; a service-role
+      # JWT (role "service_role") is not — we match that distinctive claim, not bare JWTs. The font
+      # binaries are skipped (grep -I). The complementary SOURCE scan is the vitest unit test
+      # apps/web/src/lib/bundle-safety.test.ts (vitest can run before any build, so both halves exist).
+      - name: Audit web bundle for leaked secrets (6.3.4)
+        working-directory: apps/web
+        run: |
+          set -euo pipefail
+          patterns='SUPABASE_SERVICE_ROLE_KEY|SUPABASE_JWT_SECRET|GROQ_API_KEY|GEMINI_API_KEY|DATABASE_URL|service_role|gsk_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}'
+          if grep -rIEn "$patterns" dist; then
+            echo "::error::Forbidden secret pattern found in the web bundle (apps/web/dist) — only the client-safe anon key + public URLs/DSNs may ship to the browser."
+            exit 1
+          fi
+          echo "Bundle secret audit OK: no service-role / Groq / Gemini key or server-only env name in dist/."
       - name: Upload web bundle
         uses: actions/upload-artifact@v4
         with:
