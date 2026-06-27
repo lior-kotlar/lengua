@@ -1,0 +1,120 @@
+{
+  "uid": "lengua-infra",
+  "title": "Lengua — Infra (Phase 6 skeleton)",
+  "description": "SKELETON — task 5.6.4 is deferred to Phase 6: it depends ENTIRELY on a deployed Cloud Run service (no Cloud Run / instance metrics exist yet). Panels + datasource placeholders are committed so the dashboard is ready to wire once the staging service is live; the metric expressions below are PLACEHOLDERS (Cloud Run / GCP-managed-Prometheus metric names finalize in Phase 6) and are intentionally NOT cross-referenced against emitted instruments. Tracked in planning/outstanding-work.md §11. Do NOT treat this dashboard as done.",
+  "tags": ["lengua", "infra", "phase6-skeleton"],
+  "editable": true,
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus / Mimir data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1,
+        "hide": 0,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "loki_datasource",
+        "label": "Loki data source",
+        "type": "datasource",
+        "query": "loki",
+        "refresh": 1,
+        "hide": 0,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Phase 6 skeleton — not yet wired",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "**SKELETON (task 5.6.4 — deferred to Phase 6).** These panels depend on a deployed Cloud Run service that does not exist yet. The metric expressions are placeholders (Cloud Run / GCP managed-Prometheus names finalize in Phase 6); the Loki error feed needs logs shipped from the deployed service. Wire the data sources + confirm the metric names when staging is live. See `planning/outstanding-work.md` §11."
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Cloud Run instance count (placeholder)",
+      "description": "Phase 6: number of serving Cloud Run container instances (active + idle). Metric name finalizes in Phase 6.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "max by (state) (run_googleapis_com_container_instance_count)",
+          "legendFormat": "{{state}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Cloud Run cold starts (placeholder)",
+      "description": "Phase 6: container startup latency / cold-start count from Cloud Run startup metrics.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(run_googleapis_com_container_startup_latencies_count[$__rate_interval]))",
+          "legendFormat": "cold starts/s"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "DB query latency p95 (placeholder)",
+      "description": "Phase 6: p95 SQLAlchemy query duration. Needs a DB-latency histogram (e.g. from the SQLAlchemy spans or a DB metric) wired in Phase 6.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "fieldConfig": { "defaults": { "unit": "ms", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(db_client_operation_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "db p95"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "logs",
+      "title": "Error logs feed (Loki, placeholder)",
+      "description": "Phase 6: structured ERROR log lines from the deployed service, filtered by service_name=lengua-api. Needs logs shipped to Loki (5.3.1).",
+      "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "options": { "showTime": true, "wrapLogMessage": true, "dedupStrategy": "none", "sortOrder": "Descending" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+          "expr": "{service_name=\"lengua-api\"} | json | level=\"ERROR\""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "uid": "lengua-product",
+  "title": "Lengua — Product",
+  "description": "Are people learning and coming back? Daily reviews, cards created, signups, and active users from the server-side product metrics (task 5.2.5): reviews_total, cards_created_total, signups_total, active_users. The CEFR-distribution panel is pending a proficiency metric (see note + infra/grafana/README.md). The consent-gated PostHog funnel (5.9) is the authoritative product analytics. Select the Prometheus/Mimir data source via ${datasource}.",
+  "tags": ["lengua", "product"],
+  "editable": true,
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus / Mimir data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1,
+        "hide": 0,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Reviews (24h)",
+      "description": "Flashcards graded in the last 24h (reviews_total).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(increase(reviews_total[1d]))",
+          "legendFormat": "reviews/day"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Cards created (24h)",
+      "description": "Cards saved into decks in the last 24h (cards_created_total).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(increase(cards_created_total[1d]))",
+          "legendFormat": "cards/day"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Signups (24h)",
+      "description": "New users first seen in the last 24h (signups_total — a process-local proxy; PostHog 5.9.2 is authoritative).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(increase(signups_total[1d]))",
+          "legendFormat": "signups/day"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active users (now)",
+      "description": "Distinct users active within the recent rolling window (active_users gauge). max() across instances.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "max(active_users)",
+          "legendFormat": "active users"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Daily reviews & cards created",
+      "description": "Engagement over time: review and card-creation rate.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(reviews_total[$__rate_interval]))",
+          "legendFormat": "reviews/s"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(cards_created_total[$__rate_interval]))",
+          "legendFormat": "cards/s"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Active users & signups over time",
+      "description": "Active-user gauge (max across instances) and the signup rate.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "max(active_users)",
+          "legendFormat": "active users"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(signups_total[$__rate_interval]))",
+          "legendFormat": "signups/s"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "text",
+      "title": "CEFR level distribution — pending a metric",
+      "description": "Documented gap: no per-band CEFR metric is emitted yet.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "options": {
+        "mode": "markdown",
+        "content": "### CEFR level distribution — pending a metric\n\nThe backend does **not** yet emit a CEFR-band metric, so this panel is intentionally a placeholder (no PromQL target) rather than a broken query.\n\n**To light this panel up (Phase 6 follow-up):** add an observable gauge — e.g. `proficiency_cefr_band` labelled by `band` (A1…C2), derived from `lengua_core.proficiency` per active language — to `app/product_metrics.py`, then replace this text panel with a bar gauge / pie over `sum by (band) (proficiency_cefr_band)`.\n\nUntil then, CEFR distribution is observable directly in the database (`proficiency`/`languages`). Tracked in `planning/outstanding-work.md` §11."
+      }
+    }
+  ]
+}

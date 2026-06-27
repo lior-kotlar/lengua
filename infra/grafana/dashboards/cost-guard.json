@@ -1,0 +1,204 @@
+{
+  "uid": "lengua-cost-guard",
+  "title": "Lengua — LLM cost guard",
+  "description": "The most important dashboard for staying free: LLM calls/day vs the GLOBAL_DAILY_BUDGET ceiling, remaining budget, quota blocks by gate, and tokens/day. Metrics are provider-agnostic llm_* names (Phase 3.8 / 5.2): llm_calls_total{kind,result}, llm_budget_remaining, llm_cap_hits_total{gate}, llm_tokens_total{kind,direction}. Select the Prometheus/Mimir data source via ${datasource}.",
+  "tags": ["lengua", "cost-guard", "llm"],
+  "editable": true,
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus / Mimir data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "refresh": 1,
+        "hide": 0,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "LLM budget remaining (today)",
+      "description": "GLOBAL_DAILY_BUDGET minus today's spent LLM calls (llm_budget_remaining observable gauge). When it hits 0 the kill-switch refuses every caller. min() across instances is the conservative (lowest) view.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "green", "value": 200 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "min(llm_budget_remaining)",
+          "legendFormat": "budget remaining"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Successful LLM calls today",
+      "description": "Admitted (billable) provider calls in the last 24h — i.e. calls/day spent against the ceiling.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(increase(llm_calls_total{result=\"success\"}[1d]))",
+          "legendFormat": "calls/day (success)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Quota blocks today",
+      "description": "Calls refused by any cost-guard gate in the last 24h (llm_cap_hits_total — the plan's quota_blocks_total).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(increase(llm_cap_hits_total[1d]))",
+          "legendFormat": "blocks/day"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "LLM budget remaining over time",
+      "description": "Watch budget_remaining fall toward 0 across the day; the slope is the spend rate.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "min(llm_budget_remaining)",
+          "legendFormat": "budget remaining"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "LLM calls by kind & result (rate)",
+      "description": "Per-second call rate split by kind (generate/discover/explain) and result (success/blocked/error).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10, "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum by (kind, result) (rate(llm_calls_total[$__rate_interval]))",
+          "legendFormat": "{{kind}} / {{result}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Quota blocks by gate (rate)",
+      "description": "Which gate is refusing calls: email / rate / daily_cap / global_budget (llm_cap_hits_total{gate}).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10, "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum by (gate) (rate(llm_cap_hits_total[$__rate_interval]))",
+          "legendFormat": "{{gate}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Tokens per day by direction",
+      "description": "Prompt (in) vs completion (out) tokens consumed over 24h (llm_tokens_total{direction}).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "custom": { "drawStyle": "bars", "fillOpacity": 60 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum by (direction) (increase(llm_tokens_total[1d]))",
+          "legendFormat": "tokens {{direction}}"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum by (kind, direction) (increase(llm_tokens_total[1d]))",
+          "legendFormat": "{{kind}} {{direction}}"
+        }
+      ]
+    }
+  ]
+}
