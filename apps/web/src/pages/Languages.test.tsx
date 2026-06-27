@@ -48,6 +48,7 @@ function makeValue(
     setActiveLanguageId: vi.fn(),
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
     ...overrides,
   };
 }

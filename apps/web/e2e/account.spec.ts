@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /**
  * Account screen E2E (groups 4.8.2 + 4.8.3) — runs against the seeded demo account on the ephemeral

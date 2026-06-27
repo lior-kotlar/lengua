@@ -100,7 +100,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
 | 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
-| 4 — React web app | 45 | 🛠 in progress — **4.1 shell + 4.2 typed client + 4.3 auth + 4.4 languages/CEFR + 4.5 Generate + 4.6 Review + 4.7 Discover + 4.8 Settings/Account + 4.8b review-limit parity + 4.9 RTL/diacritics DONE** (38 boxes); remaining: 4.10 cross-cutting UX states + analytics consent, 4.11 Streamlit retirement note |
+| 4 — React web app | 45 | 🛠 in progress — **4.1 shell + 4.2 typed client + 4.3 auth + 4.4 languages/CEFR + 4.5 Generate + 4.6 Review + 4.7 Discover + 4.8 Settings/Account + 4.8b review-limit parity + 4.9 RTL/diacritics + 4.10 cross-cutting UX states & consent DONE** (41 boxes); remaining: 4.11 Streamlit retirement note |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
 | 7 — Mobile (Capacitor) | 58 | paid store accts, signing, native projects/plugins, OAuth-in-webview, iOS/Android builds, OTA, device validation |
@@ -663,3 +663,31 @@ word WITH marks** (so a vowel-stripped display still hits the card's cached note
 all new 4.9 files 100/100), eslint + prettier + tsc clean, `vite build` bundles the fonts. Backend
 seed change is ruff + ruff format + mypy --strict clean. The full Playwright RTL spec + cross-platform
 gate run in GitHub Actions CI.
+
+**4.10 — Cross-cutting UX states & consent · DONE.** Three shared state components consolidate the
+previously-bespoke per-screen affordances: `LoadingState` (a content skeleton over a new
+`ui/skeleton` primitive, with an sr-only label), `EmptyState` (icon + title + action; neutral or
+celebratory `success` tone), and `ErrorState` (a retryable error card). The active-language context
+now exposes `refetch`, so Generate/Review/Discover render the shared skeleton while languages load, a
+retryable error when the languages query fails (previously a languages error fell through to the
+"add a language" empty state — now distinguished), and the shared empty card; Review's due-batch
+loading/empty/error route through the same components, and the "all caught up" state is the `success`
+`EmptyState`. 4.10.2 formalized the single shared 429 `DailyLimitPanel` (already built in 4.5/4.7): a
+source-scan test (`daily-limit-panel.shared.test.ts`) proves the panel UI lives in exactly one file
+and that Generate + Discover both reach it via the shared `LlmErrorState` → `DailyLimitPanel` path
+(no duplicate 429 UI), and the panel test now asserts it's inert for a non-quota 429. 4.10.3 added the
+first-run analytics-consent seam: `lib/analytics.ts` boots analytics at most once and ONLY after an
+explicit opt-in AND with `VITE_POSTHOG_KEY` set, via `AnalyticsConsentProvider` +
+`AnalyticsConsentBanner` (mounted app-global in `main.tsx`), persisted so it never re-prompts. Web
+gate green (`corepack pnpm --filter web verify` exit 0; 477 vitest, 100% line/func, 99.7% branch over
+product code — all new files 100/100; `e2e/consent.spec.ts` added).
+
+| | Item | Where | Status / decision | Noticed |
+|---|---|---|---|---|
+| ☑ | **4.10.1** shared `LoadingState`/`EmptyState`/`ErrorState` (+ `ui/skeleton`) wired into Generate/Review/Discover; context gains `refetch` for the retryable languages-error | apps/web/src/components/{loading-state,empty-state,error-state,ui/skeleton}.tsx; active-language-{context,provider}; pages/{Generate,Review,Discover}.tsx | done | 2026-06-27 |
+| ☑ | **4.10.2** formalized the single shared 429 `DailyLimitPanel` — source-scan proves Generate+Discover both consume it via `LlmErrorState` (no dup); panel inert for non-quota 429 | apps/web/src/components/daily-limit-panel.shared.test.ts; daily-limit-panel.test.tsx | done (no refactor needed — no duplication existed) | 2026-06-27 |
+| ☑ | **4.10.3** first-run analytics-consent — opt-in-gated `initAnalytics` + provider/banner, persisted, app-global | apps/web/src/lib/analytics.ts; components/analytics-consent-{context,provider,banner}.tsx; main.tsx; e2e/consent.spec.ts | done | 2026-06-27 |
+| ☑ | **Fold-in (auth security-review nit):** the `RequireAuth → /login → back` redirect now preserves the FULL target location (pathname **+ search + hash**), not just `from.pathname` — a deep link like `/review?tab=due#card-3` survives the login round-trip | apps/web/src/components/route-guards.tsx (+ test) | done | 2026-06-27 |
+| ◐ | **PostHog wiring deferred to Phase 5/8 (decision; non-blocking).** 4.10.3 is the consent SEAM only: `lib/analytics.ts`'s default initializer is a documented no-op, so even with consent + a key nothing loads until Phase 5/8 registers the real `posthog-js` loader via `setAnalyticsInitializer`. Conservative default chosen: behind the `VITE_POSTHOG_KEY` env flag, so dev/CI/E2E (no key) ship zero analytics and the E2E proves no analytics request fires. No `posthog-js` dependency added yet. | apps/web/src/lib/analytics.ts | decided (Phase 5/8 registers the real loader) | 2026-06-27 |
+| ◐ | **Consent banner pre-dismissed in app E2E (decision).** The banner is a `fixed` bottom overlay; to keep it from intercepting clicks on bottom-anchored controls, a shared `e2e/fixtures.ts` seeds `analytics-consent=denied` via an init script for the app specs. The dedicated `consent.spec.ts` imports the RAW `@playwright/test` so it still exercises the genuine first-run banner. | apps/web/e2e/fixtures.ts; e2e/*.spec.ts | decided | 2026-06-27 |
+| ◐ | **Vowel-marks/consent are device-local, not synced (note, consistent with 4.9).** The analytics decision (like the theme + vowel-marks pref) lives in localStorage per device; cross-device sync is a possible future nicety (non-blocking). | apps/web/src/lib/analytics.ts | note (no action) | 2026-06-27 |

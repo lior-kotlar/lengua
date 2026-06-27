@@ -31,6 +31,7 @@ function renderPanel(overrides: Partial<ActiveLanguageState> = {}) {
     setActiveLanguageId: vi.fn(),
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
     ...overrides,
   };
   render(

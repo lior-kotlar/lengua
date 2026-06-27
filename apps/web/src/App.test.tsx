@@ -81,6 +81,7 @@ beforeEach(() => {
     data: [],
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
   });
   useAddLanguage.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useRemoveLanguage.mockReturnValue({ mutate: vi.fn(), isPending: false });

@@ -25,6 +25,8 @@ export interface ActiveLanguageState {
   isLoading: boolean;
   /** True when the language list failed to load. */
   isError: boolean;
+  /** Re-run the languages query (e.g. from a retryable error state). */
+  refetch: () => void;
 }
 
 export const ActiveLanguageContext = createContext<

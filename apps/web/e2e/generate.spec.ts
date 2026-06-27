@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /**
  * Generate screen E2E (group 4.5) — runs against the seeded demo account on the ephemeral stack

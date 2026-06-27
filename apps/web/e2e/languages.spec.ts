@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /**
  * Language management & CEFR level E2E (group 4.4) — runs against the seeded demo account on the

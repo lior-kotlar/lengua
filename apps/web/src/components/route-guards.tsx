@@ -13,7 +13,13 @@
  * Both guards use `replace` so the guarded URL never pollutes the history stack (no back-button loop).
  */
 import { Loader2 } from 'lucide-react';
-import { Navigate, Outlet, useLocation, type Location } from 'react-router-dom';
+import {
+  Navigate,
+  Outlet,
+  useLocation,
+  type Location,
+  type To,
+} from 'react-router-dom';
 
 import { useAuth } from '@/components/auth-context';
 
@@ -58,7 +64,13 @@ export function RedirectIfAuthed() {
     return <RouteLoader />;
   }
   if (session !== null) {
-    const target = (location.state as FromState | null)?.from?.pathname ?? '/';
+    // Preserve the FULL originally-requested location — pathname AND search + hash — not just the
+    // pathname, so a deep link like `/review?tab=due#card-3` survives the login round-trip.
+    const from = (location.state as FromState | null)?.from;
+    const target: To =
+      from !== undefined
+        ? { pathname: from.pathname, search: from.search, hash: from.hash }
+        : '/';
     return <Navigate to={target} replace />;
   }
   return <Outlet />;

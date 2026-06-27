@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /**
  * RTL, diacritics & complex-scripts E2E (group 4.9) — runs against the seeded demo account on the

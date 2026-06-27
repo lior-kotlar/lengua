@@ -101,6 +101,7 @@ function makeValue(
     setActiveLanguageId: vi.fn(),
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
     ...overrides,
   };
 }
@@ -194,15 +195,36 @@ describe('Review — language gating', () => {
         activeLanguage: null,
       }),
     );
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
     expect(screen.getByText(/loading your languages/i)).toBeInTheDocument();
   });
 
   it('prompts to add a language when the user has none', () => {
     renderReview(makeValue({ activeLanguageId: null, activeLanguage: null }));
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument();
     expect(screen.getByText('Add a language first')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /add a language/i }),
     ).toHaveAttribute('href', '/languages');
+  });
+
+  it('shows a retryable error when the languages query fails', async () => {
+    const user = userEvent.setup();
+    const refetch = vi.fn();
+    renderReview(
+      makeValue({
+        isError: true,
+        activeLanguageId: null,
+        activeLanguage: null,
+        refetch,
+      }),
+    );
+    expect(screen.getByTestId('error-state')).toBeInTheDocument();
+    expect(
+      screen.getByText(/couldn.t load your languages/i),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /try again/i }));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -210,15 +232,15 @@ describe('Review — batch loading states (4.6.1)', () => {
   it('shows a loading state while the due batch loads', () => {
     get.mockReturnValue(new Promise(() => {})); // never resolves
     renderReview();
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
     expect(screen.getByText(/loading your due cards/i)).toBeInTheDocument();
   });
 
   it('shows a retryable error when the batch fails to load', async () => {
     get.mockReturnValue(failResult(500, 'kaboom'));
     renderReview();
-    expect(
-      await screen.findByText(/couldn.t load your cards/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId('error-state')).toBeInTheDocument();
+    expect(screen.getByText(/couldn.t load your cards/i)).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /try again/i }),
     ).toBeInTheDocument();
@@ -227,6 +249,7 @@ describe('Review — batch loading states (4.6.1)', () => {
   it('shows the all-caught-up empty state when nothing is due', async () => {
     get.mockReturnValue(okResult(due([], [])));
     renderReview();
+    expect(await screen.findByTestId('empty-state')).toBeInTheDocument();
     expect(
       await screen.findByText(/you.re all caught up/i),
     ).toBeInTheDocument();

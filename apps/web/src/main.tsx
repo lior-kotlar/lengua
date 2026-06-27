@@ -4,6 +4,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 
 import App from '@/App';
+import { AnalyticsConsentBanner } from '@/components/analytics-consent-banner';
+import { AnalyticsConsentProvider } from '@/components/analytics-consent-provider';
 import { AuthProvider } from '@/components/auth-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
@@ -34,17 +36,22 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </BrowserRouter>
-        <Toaster />
-        {ReactQueryDevtools && (
-          <Suspense fallback={null}>
-            <ReactQueryDevtools initialIsOpen={false} />
-          </Suspense>
-        )}
+        <AnalyticsConsentProvider>
+          <BrowserRouter>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </BrowserRouter>
+          <Toaster />
+          {/* First-run analytics-consent banner (4.10.3): app-global, outside the route tree, so it
+              shows on first load regardless of auth state and never reappears after a decision. */}
+          <AnalyticsConsentBanner />
+          {ReactQueryDevtools && (
+            <Suspense fallback={null}>
+              <ReactQueryDevtools initialIsOpen={false} />
+            </Suspense>
+          )}
+        </AnalyticsConsentProvider>
       </QueryClientProvider>
     </ThemeProvider>
   </StrictMode>,

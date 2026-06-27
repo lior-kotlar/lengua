@@ -9,11 +9,14 @@
  * a clean "all caught up" state shows instead.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
+import { CheckCircle2, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
+import { EmptyState } from '@/components/empty-state';
+import { ErrorState } from '@/components/error-state';
 import { LanguageText } from '@/components/language-text';
+import { LoadingState } from '@/components/loading-state';
 import { TappableSentence } from '@/components/tappable-sentence';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,7 +43,8 @@ import {
 import { cn } from '@/lib/utils';
 
 export default function Review() {
-  const { activeLanguageId, activeLanguage, isLoading } = useActiveLanguage();
+  const { activeLanguageId, activeLanguage, isLoading, isError, refetch } =
+    useActiveLanguage();
   const { showVowels } = useVowelMarks();
 
   return (
@@ -60,27 +64,22 @@ export default function Review() {
       <VowelMarksToggle />
 
       {isLoading ? (
-        <p
-          className="flex items-center gap-2 text-sm text-muted-foreground"
-          aria-busy="true"
-        >
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading your languages…
-        </p>
+        <LoadingState label="Loading your languages…" />
+      ) : isError ? (
+        <ErrorState
+          title="Couldn't load your languages"
+          description="Something went wrong loading your languages."
+          onRetry={refetch}
+        />
       ) : activeLanguageId === null ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Add a language first</CardTitle>
-            <CardDescription>
-              You need a language with some saved cards before you can review.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link to="/languages">Add a language</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="Add a language first"
+          description="You need a language with some saved cards before you can review."
+        >
+          <Button asChild>
+            <Link to="/languages">Add a language</Link>
+          </Button>
+        </EmptyState>
       ) : (
         // Re-mount the session per language so the walk position never leaks across a switch.
         <ReviewSession
@@ -188,35 +187,16 @@ function ReviewSession({ language, showVowels }: ReviewSessionProps) {
   }
 
   if (due.isPending) {
-    return (
-      <p
-        className="flex items-center gap-2 text-sm text-muted-foreground"
-        aria-busy="true"
-      >
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Loading your due cards…
-      </p>
-    );
+    return <LoadingState label="Loading your due cards…" />;
   }
 
   if (due.isError) {
     return (
-      <Card role="alert" className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Couldn&apos;t load your cards
-          </CardTitle>
-          <CardDescription>
-            Something went wrong fetching your due batch.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={() => void due.refetch()}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Try again
-          </Button>
-        </CardContent>
-      </Card>
+      <ErrorState
+        title="Couldn't load your cards"
+        description="Something went wrong fetching your due batch."
+        onRetry={() => void due.refetch()}
+      />
     );
   }
 
@@ -430,27 +410,18 @@ function RatingButtons({ onGrade, disabled }: RatingButtonsProps) {
 /** Empty state: nothing is due for this language right now. */
 function AllCaughtUp({ languageName }: { languageName: string }) {
   return (
-    <Card className="border-green-500/50">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <CheckCircle2
-            className="h-5 w-5 shrink-0 text-green-500"
-            aria-hidden="true"
-          />
-          <CardTitle className="text-lg">You&apos;re all caught up</CardTitle>
-        </div>
-        <CardDescription>
-          No cards are due
-          {languageName !== '' ? ` in ${languageName}` : ''} right now. Generate
-          some sentences to build your deck.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button asChild>
-          <Link to="/generate">Generate sentences</Link>
-        </Button>
-      </CardContent>
-    </Card>
+    <EmptyState
+      tone="success"
+      icon={CheckCircle2}
+      title="You're all caught up"
+      description={`No cards are due${
+        languageName !== '' ? ` in ${languageName}` : ''
+      } right now. Generate some sentences to build your deck.`}
+    >
+      <Button asChild>
+        <Link to="/generate">Generate sentences</Link>
+      </Button>
+    </EmptyState>
   );
 }
 
