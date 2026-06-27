@@ -415,6 +415,10 @@ jobs:
           VITE_API_BASE_URL: http://127.0.0.1:8000
           VITE_SUPABASE_URL: ${{ steps.sb.outputs.API_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ steps.sb.outputs.ANON_KEY }}
+          # Debug tools on so the hidden Sentry debug-error button is present for sentry.spec.ts
+          # (5.4.2). Dev/test-only flag a prod build never sets; no VITE_SENTRY_DSN_WEB is set, so
+          # Sentry stays inert and the spec asserts zero egress.
+          VITE_ENABLE_DEBUG_TOOLS: '1'
         run: pnpm build
       - name: Restore Playwright browsers
         uses: actions/cache@v4

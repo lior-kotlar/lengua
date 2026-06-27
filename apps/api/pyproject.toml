@@ -33,6 +33,10 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.51b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.51b0",
     "opentelemetry-instrumentation-httpx>=0.51b0",
+    # Error tracking (Phase 5.4.1): Sentry SDK + its FastAPI/Starlette integration. Like the OTLP
+    # exporter, sentry_sdk.init() runs ONLY when SENTRY_DSN_API is set (app/error_tracking.py), so
+    # local/CI stay a no-op with zero egress. A PROD dep so the shipped image reports exceptions.
+    "sentry-sdk[fastapi]>=2.20",
     "pyjwt[crypto]>=2.10",
     # HTTP client used at runtime by the account-deletion path (app/services/account.py) to call
     # the Supabase Auth Admin API. A PROD dep (not dev-only) so the `uv sync --no-dev` Docker image

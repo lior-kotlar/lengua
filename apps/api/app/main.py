@@ -19,6 +19,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.error_tracking import configure_error_tracking
 from app.llm_runner import register_llm_handlers
 from app.observability import configure_observability
 from app.quota import register_quota_handlers
@@ -57,6 +58,12 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     # no-op exporter unless OTEL_EXPORTER_OTLP_ENDPOINT is set) + one structured JSON access-log
     # line per request, with a trace_id for correlation.
     configure_observability(application)
+
+    # Error tracking (Phase 5.4.1): initialise Sentry ONLY when SENTRY_DSN_API is set (a no-op with
+    # zero egress otherwise, like the OTLP exporters). When enabled, the FastAPI integration
+    # captures unhandled exceptions, each tagged with the OTel trace_id + the request user_id (bound
+    # per request in app.deps.get_current_user) so a Sentry issue links to its Grafana Tempo trace.
+    configure_error_tracking(get_settings())
 
     # CORS allowlist (Phase 2.3.4): only the configured browser/app origins may make cross-origin
     # requests; an unlisted origin gets no Access-Control-Allow-Origin. Added last so it is the

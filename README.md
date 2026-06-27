@@ -223,6 +223,16 @@ are provider-agnostic (`llm.*` / `llm_*`, never `gemini.*`). Metrics export via 
 endpoint is set (the generic `OTEL_EXPORTER_OTLP_ENDPOINT` or the metrics-specific
 `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`), so they too are no-op with zero egress by default.
 
+**Error tracking (Sentry, Phase 5.4).** The backend (`app/error_tracking.py`) and the web app
+(`apps/web/src/lib/error-tracking.ts`) report exceptions to **Sentry**, each with its **own** DSN —
+and, like the OTLP exporters, Sentry initialises **only** when its DSN is set, so local/CI/E2E load
+nothing with zero egress. Set `SENTRY_DSN_API` (backend; `.env`) and the browser-safe,
+`VITE_`-prefixed `VITE_SENTRY_DSN_WEB` (web; `apps/web/.env`) to enable them. The backend stamps each
+issue with the authenticated `user_id` + the active `trace_id` (so it links to the matching Tempo
+trace); the web SDK captures JS errors + Web Vitals/performance. `VITE_ENABLE_DEBUG_TOOLS` (dev/test
+only — never set in production) surfaces a hidden debug-error button used to exercise the capture path
+in tests.
+
 ### One-command verify (local quality gate)
 
 Run the whole monorepo's lint + type-check + tests (+ web build) in one command — it fans out
