@@ -14,4 +14,12 @@ export const schemaLimits = {
    * (`GenerateRequest.words.maxItems`). The server rejects more with HTTP 422.
    */
   generateWordsMaxItems: 30,
+  /**
+   * Bounds + default for the number of new words `POST /discover` previews in one request
+   * (`DiscoverRequest.count` minimum/maximum/default). The Discover form clamps to these and
+   * falls back to the default when the user has no saved `discover_count` preference.
+   */
+  discoverCountMin: 1,
+  discoverCountMax: 20,
+  discoverCountDefault: 5,
 } as const;
