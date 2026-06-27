@@ -11,7 +11,8 @@ from app.deps import current_user, get_db
 from app.schemas.cards import CardOut
 from app.schemas.review import DueResponse, GradeRequest, GradeResponse
 from app.services.errors import NotFoundError, ValidationError
-from app.services.review import GradeResult, ReviewService
+from app.services.review import GradeResult, ReviewService, resolve_review_limits
+from app.services.settings import SettingsService
 
 router = APIRouter(prefix="/review", tags=["review"])
 
@@ -22,8 +23,17 @@ async def review_due(
     user_id: uuid.UUID = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DueResponse:
-    """Return the user's due batch for a language, split into new vs. previously-reviewed."""
-    batch = await ReviewService(db).due_split(user_id, language_id)
+    """Return the user's due batch for a language, split into new vs. previously-reviewed.
+
+    The batch size honors the user's per-user ``daily_new_limit`` / ``daily_total_limit``
+    preferences (read from ``user_settings`` via the settings service — no raw SQL in the router),
+    each falling back to the ``lengua_core`` config default when unset or invalid.
+    """
+    user_settings = await SettingsService(db).get_all(user_id)
+    new_limit, total_limit = resolve_review_limits(user_settings)
+    batch = await ReviewService(db).due_split(
+        user_id, language_id, new_limit=new_limit, total_limit=total_limit
+    )
     return DueResponse(
         new=[CardOut.model_validate(card) for card in batch.new],
         due=[CardOut.model_validate(card) for card in batch.due],
