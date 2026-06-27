@@ -53,6 +53,11 @@ dev = [
     "psycopg[binary]>=3.2",
     "ruff>=0.9",
     "mypy>=1.14",
+    # YAML parser for the observability config lint tests (Grafana provisioned-alerting +
+    # the external uptime-monitor descriptor under infra/; task 5.7/5.8). Dev-only — the
+    # alerting config is consumed by Grafana/the prober at deploy, not by the app at runtime.
+    "pyyaml>=6.0",
+    "types-pyyaml>=6.0",
 ]
 
 [tool.uv]
