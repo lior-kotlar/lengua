@@ -48,7 +48,19 @@ def test_all_expected_tables_present() -> None:
         "user_settings",
         "llm_usage",
         "llm_budget",
+        "feature_flags",
     }
+
+
+def test_feature_flags_is_global_name_pk_table() -> None:
+    """``feature_flags`` (task 6.9) is global config: a ``name`` text PK + ``enabled`` +
+    ``updated_at``, no per-user ``user_id`` (owner/server config, locked down like llm_budget)."""
+    feature_flags = METADATA.tables["feature_flags"]
+    assert list(feature_flags.primary_key.columns.keys()) == ["name"]
+    assert isinstance(feature_flags.c["enabled"].type, Boolean)
+    assert feature_flags.c["enabled"].nullable is False
+    assert isinstance(feature_flags.c["updated_at"].type, DateTime)
+    assert "user_id" not in feature_flags.c
 
 
 def test_profiles_id_is_uuid_pk_without_auth_fk() -> None:

@@ -115,6 +115,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/experimental/word-of-the-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Word Of The Day
+         * @description Experimental 'word of the day' — only reachable when the ``word_of_the_day`` flag is on.
+         */
+        get: operations["word_of_the_day_experimental_word_of_the_day_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/explain": {
         parameters: {
             query?: never;
@@ -133,6 +153,26 @@ export interface paths {
          *     miss the provider call runs under the global concurrency cap (``limiter``).
          */
         post: operations["explain_explain_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feature-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Feature Flags
+         * @description Return the resolved PUBLIC feature-flag map (``{name: enabled}``, no secrets).
+         */
+        get: operations["read_feature_flags_feature_flags_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -806,6 +846,22 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /**
+         * WordOfTheDayOut
+         * @description The experimental 'word of the day' payload (gated by the ``word_of_the_day`` flag).
+         *
+         *     A placeholder shape for a not-yet-finished feature: it carries no user data and no secrets, so
+         *     the route is safe to ship dark. When the flag is off the route 404s (as if absent); flipping the
+         *     flag on exposes this payload.
+         */
+        WordOfTheDayOut: {
+            /** Note */
+            note: string;
+            /** Translation */
+            translation: string;
+            /** Word */
+            word: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -952,6 +1008,26 @@ export interface operations {
             };
         };
     };
+    word_of_the_day_experimental_word_of_the_day_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WordOfTheDayOut"];
+                };
+            };
+        };
+    };
     explain_explain_post: {
         parameters: {
             query?: never;
@@ -981,6 +1057,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_feature_flags_feature_flags_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
                 };
             };
         };

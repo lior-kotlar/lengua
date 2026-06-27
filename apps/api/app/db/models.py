@@ -172,3 +172,24 @@ class LlmBudget(Base):
 
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+class FeatureFlag(Base):
+    """A global feature-flag override row (task 6.9).
+
+    GLOBAL operator config — **not** per-user data: a present row overrides the env default for the
+    flag of that ``name`` for *everyone*, so a risky/new feature can be toggled in prod without a
+    redeploy. Absence of a row means "fall back to the env default" (off unless ``FEATURE_*`` set).
+    Like ``llm_budget`` it is locked down to the server — ``REVOKE``\\d from ``authenticated`` /
+    ``anon`` and under deny-by-default RLS (Alembic 0005 / the canonical Supabase SQL) — so a user
+    can never enable their own flags: writes are admin/service-role only, reads happen server-side
+    and reach clients only via the public ``GET /feature-flags`` endpoint. PK ``name``.
+    """
+
+    __tablename__ = "feature_flags"
+
+    name: Mapped[str] = mapped_column(Text, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

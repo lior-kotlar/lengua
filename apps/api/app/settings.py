@@ -98,6 +98,14 @@ class Settings(BaseSettings):
     # bounded by ``LLM_MAX_CONCURRENCY``; acceptable as the budget sits far below the free RPD.)
     global_daily_budget: int = 1000
 
+    # ── Feature flags (Phase 6.9) ─────────────────────────────────────────────
+    # How long (seconds) the in-process feature-flag accessor (``app.feature_flags``) caches the
+    # ``feature_flags`` table snapshot before re-reading it. A short TTL is what lets an operator
+    # toggle a flag in prod by writing the table and have it take effect WITHOUT a redeploy: the
+    # change is picked up within this window (default ~30s). Set 0 to disable caching (re-read every
+    # resolution). The clock is injectable so the TTL refresh is deterministic in tests.
+    feature_flag_ttl_seconds: int = 30
+
     # ── App ───────────────────────────────────────────────────────────────────
     env: str = "local"
 

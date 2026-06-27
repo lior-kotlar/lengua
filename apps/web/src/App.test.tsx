@@ -45,6 +45,14 @@ vi.mock('@/lib/languages', () => ({
   languagesKey: ['languages'],
 }));
 
+// The Dashboard mounts the experimental, flag-gated WordOfTheDay surface. Stub the flag hook so this
+// routing test makes no GET /feature-flags request; off keeps the dark surface absent (the default).
+const { useFeatureFlag } = vi.hoisted(() => ({ useFeatureFlag: vi.fn() }));
+vi.mock('@/lib/feature-flags', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/feature-flags')>();
+  return { ...actual, useFeatureFlag };
+});
+
 import App from '@/App';
 import { AnalyticsConsentProvider } from '@/components/analytics-consent-provider';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -97,6 +105,8 @@ beforeEach(() => {
     refetch: vi.fn(),
   });
   useUpdateSettings.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  // Feature flags: the experimental Dashboard surface is off (dark) by default.
+  useFeatureFlag.mockReturnValue(false);
   // Account: export + delete mutations (idle).
   useExportAccount.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useDeleteAccount.mockReturnValue({
