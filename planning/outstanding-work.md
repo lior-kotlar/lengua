@@ -718,3 +718,25 @@ mobile (P7)); the `docs/` index was updated to list the new doc. No code touched
 | ☐ | **✅\* nuance — flip `vowelized` on an _existing_ language isn't UI-wired.** Legacy could toggle the generation-vocalization flag on the active language anytime; React only sets it at language creation. Backend `PATCH /languages/{id}` already supports it → small UI follow-up (a 4.4/4.9-style control), NOT a missing capability; the separate device-level display vowel-marks toggle IS present. Safe default: documented as a follow-up, not blocking parity (demo languages are seeded with the right flag). | apps/web/src/components/add-language-form.tsx; (backend PATCH exists) | follow-up (non-blocking) | 2026-06-27 |
 | ◐ | **✅\* by design — Discover "accept" routes through Generate.** Legacy previewed+saved in-page; React feeds accepted words into the reused Generate flow (`generate-handoff` → `/generate`) to keep the review-and-select-before-save step (rather than auto-saving via `POST /discover/accept`). End-to-end capability fully present; save UI is the shared Generate one. | apps/web/src/lib/generate-handoff.ts; pages/Discover.tsx | decided (group 4.7 reconciliation) | 2026-06-27 |
 | ♻️ | **Gemini model selector intentionally retired.** The legacy Settings "Gemini model" selectbox has no React counterpart by design — the LLM provider/model is now operator/server config (`LLM_PROVIDER`: Groq for dev/CI, Gemini for prod), not a user-facing setting. Recorded so it isn't mistaken for a parity gap. | apps/api/app/settings.py; legacy pages/4_Settings.py | decided (architecture change) | 2026-06-27 |
+
+## 11. Phase 5 (Observability) — deferred live/owner verifies
+
+Phase 5's verifies are **split**. The CI-verifiable half (in-memory OTel exporters, config-wiring
+tests) lands + stays green under the per-PR gate. The **live half** (find the trace in Tempo, log in
+Loki, Sentry issue → trace, dashboard renders, alert reaches a real channel, external uptime flips
+DOWN) needs LIVE Grafana Cloud / Sentry / PostHog creds **and/or** a DEPLOYED Cloud Run service
+(Phase 6, not built yet) — so those rows are recorded here as as-code-done / wiring-later, NOT ticked.
+
+**NAMING RECONCILIATION (applied; canonical).** The plan text (5.2/5.6) predates the provider-agnostic
+LLM seam and says `gemini.*` spans / `gemini_*` metrics + a `quota_blocks_total{reason}` counter. The
+**shipped, canonical** names are provider-agnostic: the `llm.call` span and `llm_calls_total{kind,result}`
+/ `llm_cap_hits_total{gate}` / `llm_budget_remaining` metrics (Phase 3.8, `app/llm_observability.py`).
+No `gemini`-prefixed name is introduced. The existing **`llm_cap_hits_total{gate}` IS the quota-blocks
+counter** (`gate` == the plan's `reason`). Any signal the plan asks for that doesn't exist yet is added
+under the `llm_*` convention (e.g. a future token counter would be `llm_tokens_total`, never
+`gemini_tokens_total`). All downstream dashboards/docs must reference the REAL emitted names.
+
+| | Item | Where | Status / decision | Noticed |
+|---|---|---|---|---|
+| 🔒 | **5.1.5 live verify — find the trace in Grafana Cloud Tempo.** As-code DONE + CI-verified: the env-driven OTLP exporter attaches a `BatchSpanProcessor` only when `OTEL_EXPORTER_OTLP_ENDPOINT`/`…_TRACES_ENDPOINT` is set (none otherwise), and `.env.example` documents the Grafana Cloud Tempo endpoint + the `OTEL_EXPORTER_OTLP_HEADERS` auth token. The live check (run staging with Grafana creds → see the trace in Tempo's Explore within ~1 min, searchable by `service.name=lengua-api`) needs the **Phase-6 staging Cloud Run deploy + Grafana Cloud OTLP creds (owner)**. | apps/api/app/observability.py; .env.example; tests/obs/test_otel_wiring.py | deferred — owner + phase6 (do NOT tick until staging is live) | 2026-06-27 |
+| ◐ | **Naming reconciliation (llm.* / llm_* canonical; no gemini-prefixed names).** Recorded above so dashboards (5.6) + docs reference the real emitted names, and so the plan's `quota_blocks_total{reason}` maps to the shipped `llm_cap_hits_total{gate}` rather than adding a duplicate counter. | apps/api/app/llm_observability.py; app/quota.py; planning/tasks/phase-5-observability.md (5.2/5.6) | decided (applied in group 5.1) | 2026-06-27 |

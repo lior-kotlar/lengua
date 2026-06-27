@@ -3,10 +3,13 @@
 :func:`configure_observability` is called from :func:`app.main.create_app` and wires the
 instrumentation hooks the roadmap starts here (dashboards/alerts land in Phase 5):
 
-* a process-wide OpenTelemetry :class:`~opentelemetry.sdk.trace.TracerProvider`
-  (``service.name`` from ``OTEL_SERVICE_NAME``, default ``lengua-api``) that **only** attaches an
-  OTLP span exporter when ``OTEL_EXPORTER_OTLP_ENDPOINT`` (or the traces-specific variant) is set
-  — so local dev and CI are a no-op with zero network egress;
+* a process-wide OpenTelemetry :class:`~opentelemetry.sdk.trace.TracerProvider` whose resource
+  tags every signal with ``service.name`` (from ``OTEL_SERVICE_NAME``, default ``lengua-api``) and
+  ``deployment.environment`` (from ``DEPLOYMENT_ENVIRONMENT`` / ``ENV``, default ``local``) — the
+  same :func:`build_resource` is shared with the cost-guard ``MeterProvider``
+  (:mod:`app.llm_observability`) so traces and metrics are attributed consistently per environment —
+  and that **only** attaches an OTLP span exporter when ``OTEL_EXPORTER_OTLP_ENDPOINT`` (or the
+  traces-specific variant) is set, so local dev and CI are a no-op with zero network egress;
 * auto-instrumentation for **FastAPI** (HTTP server spans, per app), **SQLAlchemy** (DB query
   spans), and **httpx** (outbound client spans); and
 * a middleware that emits exactly one structured JSON access-log line per request
@@ -33,7 +36,7 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.sdk.resources import DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -48,6 +51,11 @@ REQUEST_LOGGER_NAME = "lengua.access"
 
 #: Default OpenTelemetry ``service.name`` (overridable via ``OTEL_SERVICE_NAME``).
 DEFAULT_SERVICE_NAME = "lengua-api"
+
+#: Default ``deployment.environment`` resource tag when neither ``DEPLOYMENT_ENVIRONMENT`` nor the
+#: app's ``ENV`` is set. The documented allowed values are ``local`` | ``staging`` | ``prod`` (kept
+#: as a free string — not hard-validated — to mirror ``app.settings.Settings.env``).
+DEFAULT_DEPLOYMENT_ENVIRONMENT = "local"
 
 _request_logger = logging.getLogger(REQUEST_LOGGER_NAME)
 
@@ -152,6 +160,35 @@ def _otlp_endpoint() -> str | None:
     )
 
 
+def _deployment_environment() -> str:
+    """The ``deployment.environment`` resource tag for every OTel signal (task 5.1.1).
+
+    Read from ``DEPLOYMENT_ENVIRONMENT``, falling back to ``ENV`` (the same variable
+    :attr:`app.settings.Settings.env` reads), defaulting to ``local``. Read straight from the
+    process environment (not via ``Settings``) so this module stays decoupled from the settings
+    machinery, exactly like the ``OTEL_*`` vars above. Documented allowed values: ``local`` |
+    ``staging`` | ``prod``.
+    """
+    return os.getenv("DEPLOYMENT_ENVIRONMENT") or os.getenv("ENV") or DEFAULT_DEPLOYMENT_ENVIRONMENT
+
+
+def build_resource() -> Resource:
+    """The OpenTelemetry :class:`~opentelemetry.sdk.resources.Resource` shared by all signals.
+
+    Tags every span and metric with ``service.name`` (``OTEL_SERVICE_NAME``, default ``lengua-api``)
+    and ``deployment.environment`` (see :func:`_deployment_environment`). Applied to **both** the
+    :class:`TracerProvider` here and the cost-guard ``MeterProvider`` in
+    :mod:`app.llm_observability`, so traces and metrics carry identical attribution per environment
+    (task 5.1.1).
+    """
+    return Resource.create(
+        {
+            SERVICE_NAME: os.getenv("OTEL_SERVICE_NAME", DEFAULT_SERVICE_NAME),
+            DEPLOYMENT_ENVIRONMENT: _deployment_environment(),
+        }
+    )
+
+
 def _build_tracer_provider() -> TracerProvider:
     """Build a :class:`TracerProvider`, attaching an OTLP exporter only when an endpoint is set.
 
@@ -160,8 +197,7 @@ def _build_tracer_provider() -> TracerProvider:
     and CI). When an endpoint is set, a batching OTLP exporter is attached; it reads the endpoint,
     headers, and protocol from the standard ``OTEL_EXPORTER_OTLP_*`` environment variables.
     """
-    service_name = os.getenv("OTEL_SERVICE_NAME", DEFAULT_SERVICE_NAME)
-    provider = TracerProvider(resource=Resource.create({SERVICE_NAME: service_name}))
+    provider = TracerProvider(resource=build_resource())
     if _otlp_endpoint():
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     return provider
