@@ -8,6 +8,9 @@ vi.mock('@/lib/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api-client')>();
   return { ...actual, getApiClient: () => ({ POST: post }) };
 });
+// Spy the activation-funnel event so we can assert it fires on a successful generate (5.9.2).
+const { trackGenerate } = vi.hoisted(() => ({ trackGenerate: vi.fn() }));
+vi.mock('@/lib/analytics-events', () => ({ trackGenerate }));
 
 import {
   cardsForSentences,
@@ -167,6 +170,8 @@ describe('useGenerate', () => {
       body: { language_id: 3, words: ['a'] },
     });
     expect(out).toEqual(cards);
+    // Funnel event fires with only the word count (no words / PII).
+    expect(trackGenerate).toHaveBeenCalledWith(1);
   });
 
   it('surfaces a typed ApiError for a non-2xx response', async () => {
@@ -183,6 +188,8 @@ describe('useGenerate', () => {
     await expect(
       result.current.mutateAsync({ languageId: 1, words: ['a'] }),
     ).rejects.toMatchObject({ status: 429, code: 'daily_cap_reached' });
+    // A blocked generate fires no funnel event.
+    expect(trackGenerate).not.toHaveBeenCalled();
   });
 });
 

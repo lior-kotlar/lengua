@@ -16,6 +16,11 @@ vi.mock('@/lib/api-client', async (importOriginal) => {
     getApiClient: () => ({ GET: get, POST: post, PUT: put, DELETE: del }),
   };
 });
+// Spy the activation-funnel event so we can assert it fires on a successful add (5.9.2).
+const { trackLanguageAdded } = vi.hoisted(() => ({
+  trackLanguageAdded: vi.fn(),
+}));
+vi.mock('@/lib/analytics-events', () => ({ trackLanguageAdded }));
 
 import {
   useAddLanguage,
@@ -91,10 +96,13 @@ describe('useAddLanguage', () => {
     expect(put).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['languages'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['proficiency', 1] });
+    // Funnel event fires with the (non-PII) language code from the created row.
+    expect(trackLanguageAdded).toHaveBeenCalledWith('es');
   });
 
   it('omits the code when blank and defaults vowelized to false', async () => {
-    post.mockReturnValue(ok(SPANISH));
+    // The created row also has a null code → the funnel event passes null through (not undefined).
+    post.mockReturnValue(ok({ ...SPANISH, code: null }));
     const { wrapper } = makeClient();
 
     const { result } = renderHook(() => useAddLanguage(), { wrapper });
@@ -103,6 +111,7 @@ describe('useAddLanguage', () => {
     expect(post).toHaveBeenCalledWith('/languages', {
       body: { name: 'Spanish', code: null, vowelized: false },
     });
+    expect(trackLanguageAdded).toHaveBeenCalledWith(null);
   });
 
   it('PUTs the starting band when it is not the default A1', async () => {

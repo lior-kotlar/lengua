@@ -7,6 +7,7 @@ import { AnalyticsConsentProvider } from '@/components/analytics-consent-provide
 import {
   ANALYTICS_CONSENT_KEY,
   resetAnalytics,
+  setAnalyticsConsentApplier,
   setAnalyticsInitializer,
 } from '@/lib/analytics';
 
@@ -90,6 +91,34 @@ describe('AnalyticsConsentProvider', () => {
 
     expect(screen.getByTestId('decision')).toHaveTextContent('granted');
     expect(init).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies opt-in on grant and opt-out on deny to the live SDK', async () => {
+    vi.stubEnv('VITE_POSTHOG_KEY', 'phc_test');
+    const user = userEvent.setup();
+    const applier = vi.fn();
+    setAnalyticsConsentApplier(applier);
+
+    renderProvider();
+    // Undecided on mount → the SDK is neither resumed nor paused.
+    expect(applier).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'grant' }));
+    expect(applier).toHaveBeenLastCalledWith(true);
+
+    await user.click(screen.getByRole('button', { name: 'deny' }));
+    expect(applier).toHaveBeenLastCalledWith(false);
+  });
+
+  it('resumes the live SDK on mount for a returning opted-in user', () => {
+    vi.stubEnv('VITE_POSTHOG_KEY', 'phc_test');
+    localStorage.setItem(ANALYTICS_CONSENT_KEY, 'granted');
+    const applier = vi.fn();
+    setAnalyticsConsentApplier(applier);
+
+    renderProvider();
+
+    expect(applier).toHaveBeenCalledWith(true);
   });
 
   it('throws when the hook is used outside the provider', () => {

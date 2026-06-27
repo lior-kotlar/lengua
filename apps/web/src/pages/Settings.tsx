@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 
+import { AnalyticsConsentToggle } from '@/components/analytics-consent-toggle';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -76,6 +77,9 @@ export default function Settings() {
       ) : (
         <SettingsForm settings={settings.data} />
       )}
+
+      {/* Product-analytics consent toggle (5.9.1) — independent of the settings load above. */}
+      <AnalyticsConsentToggle />
     </section>
   );
 }

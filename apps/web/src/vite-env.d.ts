@@ -14,9 +14,10 @@ interface ImportMetaEnv {
    */
   readonly VITE_OAUTH_PROVIDERS?: string;
   /**
-   * Optional PostHog project key for product analytics. Analytics loads ONLY after the user opts in
-   * via the consent banner AND this key is set (group 4.10.3; wired fully in Phase 5/8). Unset →
-   * analytics never loads, even with consent. See `lib/analytics.ts`.
+   * Optional PostHog project key for EU-hosted product analytics (group 5.9). Analytics loads ONLY
+   * after the user opts in (consent banner / Settings toggle) AND this key is set; posthog-js is then
+   * lazily code-split in. Unset → analytics never loads or sends, even with consent. See
+   * `lib/posthog.ts` + `lib/analytics.ts`.
    */
   readonly VITE_POSTHOG_KEY?: string;
   /**

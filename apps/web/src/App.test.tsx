@@ -46,6 +46,7 @@ vi.mock('@/lib/languages', () => ({
 }));
 
 import App from '@/App';
+import { AnalyticsConsentProvider } from '@/components/analytics-consent-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 
 const SESSION = {
@@ -67,9 +68,11 @@ function renderAt(path: string) {
   return render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light">
-        <MemoryRouter initialEntries={[path]}>
-          <App />
-        </MemoryRouter>
+        <AnalyticsConsentProvider>
+          <MemoryRouter initialEntries={[path]}>
+            <App />
+          </MemoryRouter>
+        </AnalyticsConsentProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   );

@@ -8,6 +8,9 @@ vi.mock('@/lib/auth', () => ({ signUpWithEmail }));
 vi.mock('@/components/oauth-buttons', () => ({
   OAuthButtons: () => <div data-testid="oauth-buttons" />,
 }));
+// Spy the activation-funnel event so we can assert it fires only on a successful sign-up (5.9.2).
+const { trackSignup } = vi.hoisted(() => ({ trackSignup: vi.fn() }));
+vi.mock('@/lib/analytics-events', () => ({ trackSignup }));
 
 import Signup from '@/pages/Signup';
 
@@ -44,6 +47,7 @@ describe('Signup', () => {
 
     expect(screen.getByText(/do not match/i)).toBeInTheDocument();
     expect(signUpWithEmail).not.toHaveBeenCalled();
+    expect(trackSignup).not.toHaveBeenCalled();
   });
 
   it('shows the verification notice after a successful sign-up', async () => {
@@ -63,6 +67,8 @@ describe('Signup', () => {
       await screen.findByRole('heading', { name: /check your email/i }),
     ).toBeInTheDocument();
     expect(screen.getByText('demo@lengua.test')).toBeInTheDocument();
+    // The funnel signup event fires with no PII (just the method).
+    expect(trackSignup).toHaveBeenCalledWith('email');
   });
 
   it('surfaces a server error', async () => {

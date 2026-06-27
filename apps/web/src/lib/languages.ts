@@ -8,6 +8,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { components } from 'api-types';
 
+import { trackLanguageAdded } from '@/lib/analytics-events';
 import { getApiClient, unwrap } from '@/lib/api-client';
 import { CEFR_BANDS } from '@/lib/cefr';
 import { proficiencyKey } from '@/lib/proficiency';
@@ -90,6 +91,8 @@ export function useAddLanguage() {
       return language;
     },
     onSuccess: (language) => {
+      // Activation-funnel event (5.9.2): consent-gated, only the (non-PII) language code.
+      trackLanguageAdded(language.code ?? null);
       void queryClient.invalidateQueries({ queryKey: languagesKey });
       void queryClient.invalidateQueries({
         queryKey: proficiencyKey(language.id),

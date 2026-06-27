@@ -8,6 +8,9 @@ vi.mock('@/lib/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api-client')>();
   return { ...actual, getApiClient: () => ({ GET: get, POST: post }) };
 });
+// Spy the activation-funnel event so we can assert it fires on a successful grade (5.9.2).
+const { trackReview } = vi.hoisted(() => ({ trackReview: vi.fn() }));
+vi.mock('@/lib/analytics-events', () => ({ trackReview }));
 
 import {
   bareWord,
@@ -213,6 +216,8 @@ describe('useGradeCard', () => {
       body: { rating: 3 },
     });
     expect(out).toEqual(outcome);
+    // Funnel event fires with only the 1..4 rating (no PII).
+    expect(trackReview).toHaveBeenCalledWith(3);
   });
 });
 

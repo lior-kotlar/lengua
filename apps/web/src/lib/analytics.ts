@@ -1,20 +1,24 @@
 /**
- * Analytics consent seam (group 4.10.3).
+ * Analytics consent seam (group 4.10.3; PostHog wiring group 5.9).
  *
- * Product analytics (PostHog is the intended provider, wired fully in Phase 5/8) must NEVER load or
- * collect anything until the user explicitly opts in. This module is the single chokepoint that
- * enforces that contract:
+ * Product analytics (PostHog, EU-hosted) must NEVER load or collect anything until the user
+ * explicitly opts in. This module is the single, provider-agnostic chokepoint that enforces that
+ * contract — the concrete PostHog adapter lives in `lib/posthog.ts` and registers itself here:
  *
  *  - the decision (`granted` / `denied`) is persisted in localStorage, so the first-run banner is
  *    shown once and never re-prompts after a choice;
  *  - {@link initAnalytics} boots the analytics SDK at most once, and ONLY when consent is granted
  *    AND an analytics key is configured (`VITE_POSTHOG_KEY`). With no key, the choice still persists
- *    and nothing loads — a clean seam behind an env flag, so dev/CI/E2E never ship analytics.
+ *    and nothing loads — a clean seam behind an env flag, so dev/CI/E2E never ship analytics;
+ *  - {@link captureAnalytics} forwards an event to the SDK ONLY while booted AND consent is granted,
+ *    so no event can ever be sent before opt-in (or after opt-out);
+ *  - {@link applyAnalyticsConsent} is what the consent UI calls on every decision change: it boots
+ *    (first opt-in) and resumes/pauses capturing on the live SDK (`opt_in`/`opt_out`).
  *
- * The actual PostHog boot is deferred to Phase 5/8; until then the default initializer is a
- * documented no-op. It is kept injectable ({@link setAnalyticsInitializer}) so the "init exactly
- * once, only after consent" contract is unit-testable and so Phase 5/8 can register the real loader
- * without touching this consent logic.
+ * Everything PostHog-specific is injected ({@link setAnalyticsInitializer} / {@link
+ * setAnalyticsCapturer} / {@link setAnalyticsConsentApplier}), so this consent logic stays
+ * provider-agnostic and fully unit-testable, and the default implementations are no-ops — meaning a
+ * build that never calls `registerPostHogAnalytics()` (or has no key) loads and sends nothing.
  */
 
 /** The user's analytics choice. `null` (absent) means undecided — the consent banner shows. */
@@ -53,27 +57,57 @@ export function analyticsKey(
   return key !== undefined && key.trim() !== '' ? key : undefined;
 }
 
-/** Boots the analytics SDK with the configured key. Registered by Phase 5/8 (or a test). */
+/** Boots the analytics SDK with the configured key. Registered by `lib/posthog.ts` (or a test). */
 export type AnalyticsInitializer = (key: string) => void;
 
-// Phase 5/8 will register a real initializer that `import('posthog-js')` + `posthog.init(key, …)`.
-// Until then this is an intentional no-op: consent still gates it, but nothing actually loads.
+/** Sends one event to the booted SDK. Registered by `lib/posthog.ts` (or a test). */
+export type AnalyticsCapturer = (
+  event: string,
+  properties?: Record<string, unknown>,
+) => void;
+
+/** Resumes (`true`) or pauses (`false`) capturing on the live SDK. Registered by `lib/posthog.ts`. */
+export type AnalyticsConsentApplier = (granted: boolean) => void;
+
+// The real implementations live in `lib/posthog.ts` and `import('posthog-js')` lazily. Until
+// `registerPostHogAnalytics()` runs (it never does in dev/CI/E2E without a key), these are no-ops:
+// consent still gates them, but nothing loads or is sent.
 function defaultInitializer(): void {
-  /* no-op placeholder — Phase 5/8 wires the real PostHog boot here */
+  /* no-op until the PostHog adapter registers the real loader */
+}
+function defaultCapturer(): void {
+  /* no-op until the PostHog adapter registers the real capture */
+}
+function defaultConsentApplier(): void {
+  /* no-op until the PostHog adapter registers opt-in/opt-out */
 }
 
 let initializer: AnalyticsInitializer = defaultInitializer;
+let capturer: AnalyticsCapturer = defaultCapturer;
+let consentApplier: AnalyticsConsentApplier = defaultConsentApplier;
 let initialized = false;
 
-/** Register the analytics initializer (Phase 5/8 wiring, or a test spy). */
+/** Register the analytics initializer (the PostHog adapter, or a test spy). */
 export function setAnalyticsInitializer(fn: AnalyticsInitializer): void {
   initializer = fn;
 }
 
-/** Reset the init seam (tests only): clears the once-guard and restores the default initializer. */
+/** Register the event capturer (the PostHog adapter, or a test spy). */
+export function setAnalyticsCapturer(fn: AnalyticsCapturer): void {
+  capturer = fn;
+}
+
+/** Register the opt-in/opt-out applier (the PostHog adapter, or a test spy). */
+export function setAnalyticsConsentApplier(fn: AnalyticsConsentApplier): void {
+  consentApplier = fn;
+}
+
+/** Reset the seam (tests only): clears the once-guard and restores the default no-op adapter. */
 export function resetAnalytics(): void {
   initialized = false;
   initializer = defaultInitializer;
+  capturer = defaultCapturer;
+  consentApplier = defaultConsentApplier;
 }
 
 /** Options for {@link initAnalytics}; both default to the production sources. */
@@ -107,4 +141,46 @@ export function initAnalytics({
   initializer(key);
   initialized = true;
   return true;
+}
+
+/**
+ * Send a product-analytics event — but ONLY while the SDK is booted AND consent is granted.
+ *
+ * This is the capture-side privacy gate (mirroring {@link initAnalytics} for boot): an event is
+ * dropped before opt-in, when no key configured the SDK (so it never booted), and immediately after
+ * an opt-out (the persisted decision flips to `denied`), independently of the SDK's own opt-out. So
+ * no event can be sent without a live, granted consent. Properties MUST be free of PII.
+ */
+export function captureAnalytics(
+  event: string,
+  properties?: Record<string, unknown>,
+  { storage = localStorage }: { storage?: Storage } = {},
+): void {
+  if (!initialized) {
+    return;
+  }
+  if (readConsent(storage) !== 'granted') {
+    return;
+  }
+  capturer(event, properties);
+}
+
+/**
+ * Reconcile the analytics SDK with a consent decision — call this on every decision change.
+ *
+ * On `granted` it boots the SDK on the first opt-in ({@link initAnalytics}, key-gated + idempotent)
+ * and resumes capturing on an already-booted SDK (re-opt-in after a prior opt-out). On `denied` it
+ * pauses capturing on the live SDK (`opt_out`). `null` (undecided) is a no-op — nothing loads until
+ * an explicit choice. The applier is a no-op when the SDK never booted, so this is always safe.
+ */
+export function applyAnalyticsConsent(
+  decision: AnalyticsDecision | null,
+  options: InitAnalyticsOptions = {},
+): void {
+  if (decision === 'granted') {
+    initAnalytics(options);
+    consentApplier(true);
+  } else if (decision === 'denied') {
+    consentApplier(false);
+  }
 }

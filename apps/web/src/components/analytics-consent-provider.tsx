@@ -14,7 +14,7 @@ import {
   type AnalyticsConsentState,
 } from '@/components/analytics-consent-context';
 import {
-  initAnalytics,
+  applyAnalyticsConsent,
   persistConsent,
   readConsent,
   type AnalyticsDecision,
@@ -31,13 +31,13 @@ export function AnalyticsConsentProvider({
     readConsent(),
   );
 
-  // Boot analytics whenever consent is granted (on mount for a returning user, or right after a
-  // fresh opt-in). `initAnalytics` is the single guarded entry point — idempotent + key-gated — so
-  // this never double-initialises and never runs before an explicit grant.
+  // Reconcile analytics with the decision on mount and on every change. `applyAnalyticsConsent` is
+  // the single guarded entry point: on `granted` it boots once (idempotent + key-gated) and resumes
+  // capturing on an already-booted SDK; on `denied` it opts the live SDK out. So a returning opted-in
+  // user boots once, a fresh opt-in boots once, and a post-banner toggle in Settings flips capturing
+  // on/off — never running before an explicit grant.
   useEffect(() => {
-    if (decision === 'granted') {
-      initAnalytics();
-    }
+    applyAnalyticsConsent(decision);
   }, [decision]);
 
   const grant = useCallback(() => {

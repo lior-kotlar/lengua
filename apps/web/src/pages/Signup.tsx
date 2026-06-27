@@ -11,6 +11,7 @@ import { AuthCard } from '@/components/auth-card';
 import { FormField } from '@/components/form-field';
 import { OAuthButtons } from '@/components/oauth-buttons';
 import { Button } from '@/components/ui/button';
+import { trackSignup } from '@/lib/analytics-events';
 import { signUpWithEmail } from '@/lib/auth';
 import {
   isValid,
@@ -43,6 +44,8 @@ export default function Signup() {
       setError(result.error);
       return;
     }
+    // Activation-funnel event (5.9.2): consent-gated, no PII (just the sign-up method).
+    trackSignup('email');
     // Email confirmation is required, so a successful sign-up leaves the user unauthenticated until
     // they click the verification link. Show the confirmation notice.
     setSubmittedEmail(email);
