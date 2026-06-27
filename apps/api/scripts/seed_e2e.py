@@ -32,6 +32,8 @@ from dataclasses import dataclass
 import httpx
 import psycopg
 
+from lengua_core.scheduler import new_card_state
+
 # Well-known local Supabase CLI service-role JWT (NOT a secret — this is the fixed value the CLI
 # signs with the default local ``JWT_SECRET`` and prints as ``SERVICE_ROLE_KEY`` from
 # ``supabase status``). Overridable via ``SUPABASE_SERVICE_ROLE_KEY`` for CI / hosted projects;
@@ -174,11 +176,25 @@ def _ensure_cards(conn: psycopg.Connection, user_id: str, language_id: int) -> i
                 ("recognition", sentence, translation),
                 ("production", translation, sentence),
             ):
+                # Seed a real FSRS state (due immediately) — the same fresh-card state the save
+                # service writes — so these cards are gradeable. Without it the grade endpoint
+                # rejects them (``fsrs_state IS NULL`` → 422) and the review loop can't advance.
+                fsrs_json, due_iso = new_card_state()
                 conn.execute(
                     "INSERT INTO cards "
-                    "(user_id, language_id, front, back, used_words, direction, saved, due) "
-                    "VALUES (%s, %s, %s, %s, %s::jsonb, %s, true, now())",
-                    (user_id, language_id, front, back, used_json, direction),
+                    "(user_id, language_id, front, back, used_words, direction, "
+                    "fsrs_state, saved, due) "
+                    "VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, true, %s)",
+                    (
+                        user_id,
+                        language_id,
+                        front,
+                        back,
+                        used_json,
+                        direction,
+                        fsrs_json,
+                        due_iso,
+                    ),
                 )
 
     total = conn.execute(
