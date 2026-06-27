@@ -26,7 +26,9 @@ the tracer):
 The :class:`~opentelemetry.sdk.metrics.MeterProvider` is **owned here** (not the OTel global) and
 built lazily: with no ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or the generic ``…_OTLP_ENDPOINT``)
 set it has *no* metric readers, so measurements are dropped — prod/CI stay no-op with zero network.
-Tests swap in an in-memory reader via :func:`install_test_meter_provider`.
+It carries the **same** resource (``service.name`` + ``deployment.environment``) as the tracer via
+:func:`app.observability.build_resource`, so metrics and traces are attributed consistently per
+environment (task 5.1.1). Tests swap in an in-memory reader via :func:`install_test_meter_provider`.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ from opentelemetry.sdk.metrics.export import (
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.trace import Span
 
-from app.observability import DEFAULT_SERVICE_NAME
+from app.observability import build_resource
 
 # ── Span name + attribute keys (one constant per attribute so the guard, the provider boundary,
 #    and the tests all reference the same string) ────────────────────────────────────────────────
@@ -106,11 +108,9 @@ def _build_meter_provider() -> MeterProvider:
         from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 
         readers.append(PeriodicExportingMetricReader(OTLPMetricExporter()))
-    service_name = os.getenv("OTEL_SERVICE_NAME", DEFAULT_SERVICE_NAME)
-    return MeterProvider(
-        metric_readers=readers,
-        resource=Resource.create({SERVICE_NAME: service_name}),
-    )
+    # Same resource (service.name + deployment.environment) as the tracer, so metrics and traces
+    # carry identical attribution per environment (task 5.1.1).
+    return MeterProvider(metric_readers=readers, resource=build_resource())
 
 
 @dataclass

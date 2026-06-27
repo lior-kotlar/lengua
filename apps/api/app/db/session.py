@@ -14,12 +14,10 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import NewType
 
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+# Import the module (not just the symbol) so :func:`get_engine` can resolve ``create_async_engine``
+# at *call* time — see the note in :func:`get_engine` for why the late binding matters for tracing.
+import sqlalchemy.ext.asyncio as sa_asyncio
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.settings import get_settings
 
@@ -49,13 +47,25 @@ def async_dsn(url: str) -> str:
 
 
 def get_engine() -> AsyncEngine:
-    """Return the process-wide async engine, creating it from ``DATABASE_URL`` on first use."""
+    """Return the process-wide async engine, creating it from ``DATABASE_URL`` on first use.
+
+    The engine is built via ``sqlalchemy.ext.asyncio.create_async_engine`` resolved on the module
+    **at call time** (not a module-level ``from … import create_async_engine``). That late binding
+    is load-bearing for observability (task 5.1.3): the OpenTelemetry SQLAlchemy
+    auto-instrumentation wraps ``create_async_engine`` when
+    :func:`app.observability.configure_observability` runs, and
+    only engines built through that *wrapped* factory get the per-statement ``EngineTracer`` that
+    emits ``SELECT``/``INSERT`` query spans. A module-level import would capture the *unwrapped*
+    function (bound before instrumentation), leaving the app engine with only the class-level
+    ``connect`` span and **no** statement spans — so each request's trace would miss its DB
+    children. This is engine creation only — connections (and thus any network) are still lazy.
+    """
     global _engine
     if _engine is None:
         dsn = get_settings().database_url
         if not dsn:
             raise RuntimeError("DATABASE_URL is not set; the database engine cannot be created.")
-        _engine = create_async_engine(async_dsn(dsn), pool_pre_ping=True)
+        _engine = sa_asyncio.create_async_engine(async_dsn(dsn), pool_pre_ping=True)
     return _engine
 
 

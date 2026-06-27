@@ -183,16 +183,20 @@ actionable UI. Supabase is auth-only; all data flows through this client.
 
 The API is instrumented from Phase 1 (dashboards/alerts land in Phase 5). `app/observability.py`
 (wired from `create_app()`) sets up **OpenTelemetry** tracing with auto-instrumentation for
-FastAPI, SQLAlchemy, and httpx, and emits **one structured JSON access-log line per request** to
-stdout (`method`, `path`, `status`, `latency_ms`, plus the active `trace_id` so logs correlate
-with traces). Traces are exported via OTLP **only** when `OTEL_EXPORTER_OTLP_ENDPOINT` is set —
-locally and in CI it is unset, so tracing is a no-op with zero network egress. Configure a backend
-purely through the standard env vars (no code change):
+FastAPI (one server span per route), SQLAlchemy (DB query spans nested under the request), and
+httpx (outbound client spans, e.g. the prod Groq/Gemini call), and emits **one structured JSON
+access-log line per request** to stdout (`method`, `path`, `status`, `latency_ms`, plus the active
+`trace_id` so logs correlate with traces). Every signal (traces **and** metrics) is tagged with the
+`service.name` and `deployment.environment` resource attributes so Grafana can filter per
+environment. Traces are exported via OTLP (to Grafana Cloud Tempo) **only** when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set — locally and in CI it is unset, so tracing is a no-op with
+zero network egress. Configure a backend purely through the standard env vars (no code change):
 
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway.example/otlp   # enables OTLP traces + metrics export
-OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64>          # auth for the gateway
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64>          # auth token for Grafana Cloud
 OTEL_SERVICE_NAME=lengua-api                                     # service.name (default lengua-api)
+DEPLOYMENT_ENVIRONMENT=staging                                   # deployment.environment (default: ENV)
 ```
 
 **Cost-guard spans + metrics (Phase 3.8).** Every gated LLM operation also emits one
