@@ -31,6 +31,7 @@ from dataclasses import dataclass
 
 import httpx
 import psycopg
+from fsrs import Card
 
 # Well-known local Supabase CLI service-role JWT (NOT a secret — this is the fixed value the CLI
 # signs with the default local ``JWT_SECRET`` and prints as ``SERVICE_ROLE_KEY`` from
@@ -174,11 +175,30 @@ def _ensure_cards(conn: psycopg.Connection, user_id: str, language_id: int) -> i
                 ("recognition", sentence, translation),
                 ("production", translation, sentence),
             ):
+                # Seed a real FSRS state (due immediately) — the same fresh-card state
+                # ``lengua_core.scheduler.new_card_state`` / the save service write — so these
+                # cards are gradeable. Without it the grade endpoint rejects them
+                # (``fsrs_state IS NULL`` → 422) and the review loop can't advance. Built straight
+                # from ``fsrs`` (a dependency) rather than importing ``lengua_core``, since this
+                # script runs as ``python scripts/seed_e2e.py`` with the package root off sys.path.
+                fsrs_dict = Card().to_dict()
+                fsrs_json = json.dumps(fsrs_dict)
+                due_iso = fsrs_dict["due"]
                 conn.execute(
                     "INSERT INTO cards "
-                    "(user_id, language_id, front, back, used_words, direction, saved, due) "
-                    "VALUES (%s, %s, %s, %s, %s::jsonb, %s, true, now())",
-                    (user_id, language_id, front, back, used_json, direction),
+                    "(user_id, language_id, front, back, used_words, direction, "
+                    "fsrs_state, saved, due) "
+                    "VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, true, %s)",
+                    (
+                        user_id,
+                        language_id,
+                        front,
+                        back,
+                        used_json,
+                        direction,
+                        fsrs_json,
+                        due_iso,
+                    ),
                 )
 
     total = conn.execute(

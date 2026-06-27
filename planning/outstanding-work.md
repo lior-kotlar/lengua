@@ -100,7 +100,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
 | 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
-| 4 — React web app | 45 | 🛠 in progress — **4.1 shell + 4.2 typed client + 4.3 auth + 4.4 languages/CEFR + 4.5 Generate DONE** (22 boxes); remaining: review, discover, settings/account, RTL+diacritics, consent, Streamlit retirement |
+| 4 — React web app | 45 | 🛠 in progress — **4.1 shell + 4.2 typed client + 4.3 auth + 4.4 languages/CEFR + 4.5 Generate + 4.6 Review DONE** (27 boxes); remaining: discover, settings/account, RTL+diacritics, consent, Streamlit retirement |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
 | 7 — Mobile (Capacitor) | 58 | paid store accts, signing, native projects/plugins, OAuth-in-webview, iOS/Android builds, OTA, device validation |
@@ -546,3 +546,23 @@ green (248 vitest, 100% line / 99.49% branch over product code — new files 100
 | ◐ | **"Reviewable in Review" proven at the data layer (decision).** 4.5.3's verify wants saved cards "reviewable in Review", but the Review screen is group 4.6. The E2E proves it by hitting `GET /review/due` with the captured demo token (saved cards are `saved`+due-now → they appear), and the save mutation invalidates the whole `['review', ...]` query space so the 4.6 due query refetches once built. | apps/web/e2e/generate.spec.ts; apps/web/src/lib/generate.ts | decided (no owner action) | 2026-06-27 |
 | ◐ | **Shared 429 panel placement (for 4.7 + 4.10.2).** The dedicated daily-limit panel lives in `components/daily-limit-panel.tsx` (gated on the quota-429 shape via `isDailyLimitError`); Discover (4.7) and the 4.10.2 sharing check import THIS component — no duplicated 429 UI. | apps/web/src/components/daily-limit-panel.tsx; lib/llm-error.ts | decided | 2026-06-27 |
 | ☐ | **Generate words split on newlines/commas only** (not spaces) so multi-word phrases (e.g. "buenos días") stay intact; matches the server's per-entry cleaning. No dedupe (server doesn't dedupe). | apps/web/src/lib/generate.ts | note (no action) | 2026-06-27 |
+
+**4.6 — Review screen (FSRS loop) · DONE.** `GET /review/due` (split new vs. due) → counts header +
+progress bar → walk a stable client-side snapshot one card at a time → reveal the answer (recognition
+= translation; production = the target sentence, tap-a-word enabled) → rate Again/Hard/Good/Easy in the
+**LOCKED red/orange/blue/green** colours (`POST /review/{card_id}/grade`, FSRS 1–4) → advance. Clean
+"all caught up" empty state + a "done for today / check for more" (refetch) completion state. Keyboard
+shortcuts (space/enter reveal, 1–4 rate). Tap-a-word popover on production cards via `POST /explain`
+(keyed by word + language; instant from the card's pre-generated note when present). New `lib/review.ts`
++ `components/tappable-sentence.tsx`. Web gate green (301 vitest, 100% line / 99.58% branch / 100% func
+over product code — `review.ts` 100/100/100); `e2e/review.spec.ts` added (zero real LLM calls).
+
+| | Item | Where | Status / decision | Noticed |
+|---|---|---|---|---|
+| ☑ | **4.6.1–4.6.5** due batch (new/due counts + empty state), reveal (recognition/production variants), rate in locked red/orange/blue/green + advance, tap-a-word explain popover (word+language key), keyboard shortcuts | apps/web/src/pages/Review.tsx; lib/review.ts; components/tappable-sentence.tsx; e2e/review.spec.ts | merged | 2026-06-27 |
+| ◐ | **Grading walks a snapshot — no refetch on grade (decision).** The due batch is loaded once per language and walked client-side (mirrors the legacy snapshot walk); grading does NOT invalidate the due query, so the queue can't reshuffle mid-review. It refreshes on remount, on "check for more", and when cards are saved (4.5 invalidates `['review', …]`). | apps/web/src/lib/review.ts; pages/Review.tsx | decided (no owner action) | 2026-06-27 |
+| ◐ | **Client `bareWord` mirrors the backend `STRIP_CHARS` exactly (decision).** Tap-a-word strips punctuation identically to `lengua_core.cards.bare_word` (incl. the Arabic `؟،؛` marks; `¿/¡` are NOT stripped) so a tapped word matches the key the backend stored its explanation under. If the backend ever changes `STRIP_CHARS`, update `lib/review.ts` in lockstep. | apps/web/src/lib/review.ts; apps/api/lengua_core/cards.py | note (keep in sync) | 2026-06-27 |
+| ◐ | **Explain query keyed by word + language (decision).** Per the 4.6.4 verify, `useExplainWord` keys `['explain', languageId, word]` (a word's gloss in a language is stable; the backend caches per bare word too). Trade-off: the same word in two different sentences shares one cached explanation — acceptable here and matches the backend's per-word cache. | apps/web/src/lib/review.ts | decided | 2026-06-27 |
+| ☐ | **Tap-a-word is whitespace-tokenised (LTR-correct now; RTL refinement is 4.9.4).** Word boundaries come from `segmentSentence` (whitespace split + bare-word strip), correct on touch and click; the popover already anchors RTL. Group 4.9.4 adds RTL-aware segmentation/`Intl.Segmenter` if needed. | apps/web/src/components/tappable-sentence.tsx | note (4.9.4) | 2026-06-27 |
+| ☐ | **Review header omits the CEFR band (decision).** The new/due counts header is the 4.6.1 requirement; the band already shows in the sidebar `CefrPanel`, so Review isn't coupled to the proficiency query. Revisit if a band-in-header is wanted. | apps/web/src/pages/Review.tsx | note (no action) | 2026-06-27 |
+| ☑ | **Seed bug fixed: E2E demo cards now carry an `fsrs_state` (deviation).** The Review E2E was the first to GRADE a seeded card and surfaced that `scripts/seed_e2e.py` inserted demo cards with `fsrs_state IS NULL`, which the grade endpoint rejects with **422** (`Card … has no FSRS state to grade.`). Fixed the seed to write a real fresh state via `lengua_core.scheduler.new_card_state()` (the same state the save service writes), so seeded cards are gradeable exactly like real saved ones; they stay `new` + due-now, so `test_demo_seed` is unaffected. `scripts/seed_dev_user.py` may have the same gap (not exercised by the E2E) — worth a follow-up. | apps/api/scripts/seed_e2e.py | fixed in this PR | 2026-06-27 |
