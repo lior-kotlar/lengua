@@ -32,7 +32,7 @@ root, one root `pnpm-lock.yaml`). `apps/api` is a separate uv/Python project.
 | App | Location | How to run | Status |
 | --- | --- | --- | --- |
 | API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
-| Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (app shell + auth: signup/login/reset/OAuth, session gating; active-language picker + add/remove languages + CEFR level panel with manual override; **Generate** — paste words → example sentences → select & save flashcards, with a friendly daily-limit panel on quota; **Review** — the FSRS loop: due batch (new/due counts) → reveal → rate Again/Hard/Good/Easy (locked red/orange/blue/green) → next, with tap-a-word explanations on production cards and space/enter + 1–4 keyboard shortcuts; **Discover** — pick a word count (defaulting to your `discover_count` setting) + optional topic → preview suggested new words → accept (feeds them into Generate) or reroll, sharing the same daily-limit panel; **Settings** — edit your daily new-card limit, daily total-card limit, and Discover word count (validated against the allowed bounds) → save; **Account** — see your email, sign out, export all your data as a JSON download, or delete your account behind a confirm-typed dialog; copy `apps/web/.env.example` to `.env`); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
+| Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (app shell + auth: signup/login/reset/OAuth, session gating; active-language picker + add/remove languages + CEFR level panel with manual override; **Generate** — paste words → example sentences → select & save flashcards, with a friendly daily-limit panel on quota; **Review** — the FSRS loop: due batch (new/due counts) → reveal → rate Again/Hard/Good/Easy (locked red/orange/blue/green) → next, with tap-a-word explanations on production cards and space/enter + 1–4 keyboard shortcuts; **Discover** — pick a word count (defaulting to your `discover_count` setting) + optional topic → preview suggested new words → accept (feeds them into Generate) or reroll, sharing the same daily-limit panel; **Settings** — edit your daily new-card limit and daily total-card limit (which bound your review batch) and the Discover word count (validated against the allowed bounds, including new ≤ total) → save; **Account** — see your email, sign out, export all your data as a JSON download, or delete your account behind a confirm-typed dialog; copy `apps/web/.env.example` to `.env`); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
 | API types | `packages/api-types/` | `pnpm gen:api` (root convenience for `pnpm --filter api-types generate` — re-derive TS types + runtime `schemaLimits` constants from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
 | Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
 
@@ -98,7 +98,7 @@ flows above keep working.)
 | `POST /discover/accept` | `{language_id, words}` → generate + save cards for the accepted words. |
 | `POST /explain` | `{word, sentence, translation, language_id}` → tap-a-word explanation, cached in `cards.word_explanations`. |
 | `GET/PUT /proficiency/{language_id}` | Read the CEFR level (score/band/progress); `PUT` overrides it by `score` or `band`. |
-| `GET/PUT /settings` | Read/upsert per-user preferences (daily limits, discover count) as a `{key: value}` map. |
+| `GET/PUT /settings` | Read/upsert per-user preferences as a `{key: value}` map: the daily review limits `daily_new_limit` / `daily_total_limit` (which bound the `GET /review/due` batch — each falling back to the server default when unset) and the Discover word count `discover_count`. |
 | `GET /account/export` | Download a JSON bundle of **all** your data (profile, languages, cards, reviews, proficiency, settings), scoped to you — for store/GDPR data export. |
 | `DELETE /account` | **Hard-delete** your account: removes your Supabase auth user via the service-role Admin API, which cascades your profile and all domain data away (no orphans). No body; acts only on the token's user. |
 
@@ -353,5 +353,5 @@ the environment by [`apps/api/lengua_core/gemini.py`](apps/api/lengua_core/gemin
 | --- | --- | --- |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model used for generation |
 | `LENGUA_DB_PATH` | `data/lengua.db` | SQLite database location (relative to CWD) |
-| `LENGUA_DAILY_NEW_LIMIT` | `10` | Max brand-new cards per day |
-| `LENGUA_DAILY_TOTAL_LIMIT` | `50` | Max cards in a daily review batch |
+| `LENGUA_DAILY_NEW_LIMIT` | `10` | Default cap on brand-new cards in a review batch (the per-user `daily_new_limit` setting overrides it) |
+| `LENGUA_DAILY_TOTAL_LIMIT` | `50` | Default cap on total cards in a review batch (the per-user `daily_total_limit` setting overrides it) |

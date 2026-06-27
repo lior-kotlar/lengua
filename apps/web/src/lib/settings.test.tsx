@@ -11,6 +11,7 @@ vi.mock('@/lib/api-client', async (importOriginal) => {
 });
 
 import {
+  crossFieldSettingError,
   DAILY_NEW_LIMIT_KEY,
   DAILY_TOTAL_LIMIT_KEY,
   DISCOVER_COUNT_KEY,
@@ -120,6 +121,45 @@ describe('validateSettingValue', () => {
     expect(validateSettingValue(discover, String(discover.max + 1))).toBe(
       `Must be between ${discover.min} and ${discover.max}.`,
     );
+  });
+});
+
+describe('crossFieldSettingError', () => {
+  const make = (newLimit: string, totalLimit: string) => ({
+    [DAILY_NEW_LIMIT_KEY]: newLimit,
+    [DAILY_TOTAL_LIMIT_KEY]: totalLimit,
+    [DISCOVER_COUNT_KEY]: '5',
+  });
+
+  it('flags new > total with an inline message', () => {
+    expect(crossFieldSettingError(make('60', '50'))).toBe(
+      'Daily new cards cannot exceed daily total cards.',
+    );
+    // Trimmed before comparing.
+    expect(crossFieldSettingError(make(' 60 ', ' 50 '))).toBe(
+      'Daily new cards cannot exceed daily total cards.',
+    );
+  });
+
+  it('allows new <= total (including equal)', () => {
+    expect(crossFieldSettingError(make('10', '50'))).toBeNull();
+    expect(crossFieldSettingError(make('50', '50'))).toBeNull();
+  });
+
+  it('defers to per-field validation when either value is not a clean integer', () => {
+    // Blank / non-integer sides are owned by validateSettingValue, so no cross-field error fires.
+    expect(crossFieldSettingError(make('', '50'))).toBeNull();
+    expect(crossFieldSettingError(make('60', ''))).toBeNull();
+    expect(crossFieldSettingError(make('abc', '50'))).toBeNull();
+    expect(crossFieldSettingError(make('1.5', '50'))).toBeNull();
+  });
+
+  it('returns null when either key is absent from the map', () => {
+    expect(crossFieldSettingError({ [DAILY_NEW_LIMIT_KEY]: '60' })).toBeNull();
+    expect(
+      crossFieldSettingError({ [DAILY_TOTAL_LIMIT_KEY]: '50' }),
+    ).toBeNull();
+    expect(crossFieldSettingError({})).toBeNull();
   });
 });
 

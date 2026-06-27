@@ -15,11 +15,13 @@
  *    `DiscoverRequest.count` minimum/maximum with **422**. We read that bound from the OpenAPI
  *    contract (`schemaLimits.discoverCount{Min,Max,Default}`, emitted by `pnpm gen:api` and
  *    drift-checked in CI) so the client always matches the server — never hard-coded.
- *  - `daily_new_limit` / `daily_total_limit` are the review-batch limits. The generic settings store
- *    enforces no numeric bound on them today (and the review router still uses the `lengua_core`
- *    config defaults — wiring the per-user keys into the due batch is a tracked backend gap), so we
- *    validate against the sane product bounds the legacy Streamlit settings page used (new 1–100,
- *    total 1–500). They are documented as client-side product bounds, not schema-enforced ones.
+ *  - `daily_new_limit` / `daily_total_limit` are the review-batch limits — `GET /review/due` reads
+ *    them and bounds the due batch by them (task 4.8b), each falling back to the backend config
+ *    default when unset/invalid. The generic settings store still enforces no numeric bound on them,
+ *    so we validate against the sane product bounds the legacy Streamlit settings page used (new
+ *    1–100, total 1–500), plus a cross-field rule that `daily_new_limit <= daily_total_limit` (see
+ *    {@link crossFieldSettingError}). They are documented as client-side product bounds, not
+ *    schema-enforced ones.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { schemaLimits, type components } from 'api-types';
@@ -146,6 +148,35 @@ export function validateSettingValue(
   const value = Number(trimmed);
   if (value < field.min || value > field.max) {
     return `Must be between ${field.min} and ${field.max}.`;
+  }
+  return null;
+}
+
+/**
+ * Cross-field rule: the daily new-card limit must not exceed the daily total limit.
+ *
+ * The review due batch limits brand-new cards by `daily_new_limit` and then caps the whole (new +
+ * due) batch at `daily_total_limit` (see the backend `ReviewService.due_split`), so `new > total`
+ * is contradictory — the surplus new cards could never be shown. Returns an inline message (for the
+ * new-cards field) when both values are valid integers and `new > total`, otherwise `null`. It only
+ * compares once both sides parse cleanly, so per-field {@link validateSettingValue} surfaces blank /
+ * non-integer / out-of-bounds problems first.
+ */
+export function crossFieldSettingError(
+  values: Record<string, string>,
+): string | null {
+  const newRaw = values[DAILY_NEW_LIMIT_KEY];
+  const totalRaw = values[DAILY_TOTAL_LIMIT_KEY];
+  if (newRaw === undefined || totalRaw === undefined) {
+    return null;
+  }
+  const newTrimmed = newRaw.trim();
+  const totalTrimmed = totalRaw.trim();
+  if (!/^\d+$/.test(newTrimmed) || !/^\d+$/.test(totalTrimmed)) {
+    return null;
+  }
+  if (Number(newTrimmed) > Number(totalTrimmed)) {
+    return 'Daily new cards cannot exceed daily total cards.';
   }
   return null;
 }

@@ -22,6 +22,8 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { apiErrorMessage } from '@/lib/api-client';
 import {
+  crossFieldSettingError,
+  DAILY_NEW_LIMIT_KEY,
   initialSettingValue,
   SETTINGS_FIELDS,
   useSettingsQuery,
@@ -92,10 +94,18 @@ function SettingsForm({ settings }: { settings: SettingsOut }) {
   const update = useUpdateSettings();
 
   // Pair every field with its current value + validation error (the value is always present — the
-  // state is seeded with one entry per field). The Save button is gated on all being valid.
+  // state is seeded with one entry per field). The cross-field rule (new ≤ total) attaches to the
+  // new-cards field, but only once that field passes its own per-field checks, so the more specific
+  // error shows first. The Save button is gated on every field being valid.
+  const crossError = crossFieldSettingError(values);
   const fields = SETTINGS_FIELDS.map((field) => {
     const value = values[field.key];
-    return { field, value, error: validateSettingValue(field, value) };
+    const fieldError = validateSettingValue(field, value);
+    const error =
+      fieldError === null && field.key === DAILY_NEW_LIMIT_KEY
+        ? crossError
+        : fieldError;
+    return { field, value, error };
   });
   const hasError = fields.some((entry) => entry.error !== null);
 

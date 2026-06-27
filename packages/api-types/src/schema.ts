@@ -285,6 +285,10 @@ export interface paths {
         /**
          * Review Due
          * @description Return the user's due batch for a language, split into new vs. previously-reviewed.
+         *
+         *     The batch size honors the user's per-user ``daily_new_limit`` / ``daily_total_limit``
+         *     preferences (read from ``user_settings`` via the settings service — no raw SQL in the router),
+         *     each falling back to the ``lengua_core`` config default when unset or invalid.
          */
         get: operations["review_due_review_due_get"];
         put?: never;

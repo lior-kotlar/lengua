@@ -138,6 +138,40 @@ describe('Settings — validation (client bounds)', () => {
   });
 });
 
+describe('Settings — cross-field validation (new ≤ total)', () => {
+  it('blocks save with an inline error when daily new exceeds daily total', async () => {
+    get.mockReturnValue(
+      ok({ values: { daily_new_limit: '20', daily_total_limit: '50' } }),
+    );
+    renderSettings();
+    await screen.findByLabelText('Daily new cards');
+
+    // Push new above total — both stay individually in-bounds, so only the cross-field rule fires.
+    fireEvent.change(newCardsInput(), { target: { value: '60' } });
+    expect(
+      screen.getByText('Daily new cards cannot exceed daily total cards.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /save settings/i }),
+    ).toBeDisabled();
+
+    // Submitting anyway must not fire a PUT.
+    fireEvent.submit(newCardsInput().closest('form')!);
+    expect(put).not.toHaveBeenCalled();
+
+    // Raising the total above new clears the error and re-enables save.
+    fireEvent.change(screen.getByLabelText('Daily total cards'), {
+      target: { value: '80' },
+    });
+    expect(
+      screen.queryByText('Daily new cards cannot exceed daily total cards.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /save settings/i }),
+    ).toBeEnabled();
+  });
+});
+
 describe('Settings — save', () => {
   it('PUTs all fields (normalized) and toasts on success', async () => {
     const user = userEvent.setup();

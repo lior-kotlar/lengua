@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -33,6 +34,50 @@ from app.services.errors import NotFoundError, ValidationError
 from lengua_core import config, proficiency, scheduler
 
 _VALID_RATINGS = frozenset({1, 2, 3, 4})  # 1=Again 2=Hard 3=Good 4=Easy
+
+#: ``user_settings`` keys holding the per-user review-batch limits (each a stringified positive
+#: int). They are read by the ``GET /review/due`` router and passed into
+#: :meth:`ReviewService.due_split`; a missing / blank / non-numeric / non-positive value falls back
+#: to the ``lengua_core.config`` default. (Distinct from the cost-guard ``daily_cap_*`` keys in
+#: :mod:`app.quota`.)
+DAILY_NEW_LIMIT_KEY = "daily_new_limit"
+DAILY_TOTAL_LIMIT_KEY = "daily_total_limit"
+
+
+def resolve_review_limit(raw: str | None, default: int) -> int:
+    """Parse one per-user review-batch limit setting, falling back to ``default``.
+
+    The settings store keeps values as strings, so this turns a stored ``daily_new_limit`` /
+    ``daily_total_limit`` into the positive ``int`` :meth:`ReviewService.due_split` expects. A
+    missing (``None``), blank, non-numeric, or non-positive value falls back to ``default`` — the
+    ``lengua_core`` config default — so a cleared or malformed setting can never shrink the batch to
+    nothing (or raise). Pure (no I/O), so the parse rules are unit-tested directly.
+    """
+    if raw is None:
+        return default
+    text = raw.strip()
+    if not text:
+        return default
+    try:
+        value = int(text)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def resolve_review_limits(settings: Mapping[str, str | None]) -> tuple[int, int]:
+    """Resolve ``(new_limit, total_limit)`` from a user's settings map, with config fallbacks.
+
+    Reads the :data:`DAILY_NEW_LIMIT_KEY` / :data:`DAILY_TOTAL_LIMIT_KEY` entries and parses each
+    via :func:`resolve_review_limit` (defaulting to :data:`config.DAILY_NEW_LIMIT` /
+    :data:`config.DAILY_TOTAL_LIMIT`), so the review router can hand the result straight to
+    :meth:`due_split` without owning the parse rules itself.
+    """
+    new_limit = resolve_review_limit(settings.get(DAILY_NEW_LIMIT_KEY), config.DAILY_NEW_LIMIT)
+    total_limit = resolve_review_limit(
+        settings.get(DAILY_TOTAL_LIMIT_KEY), config.DAILY_TOTAL_LIMIT
+    )
+    return new_limit, total_limit
 
 
 @dataclass(frozen=True)
