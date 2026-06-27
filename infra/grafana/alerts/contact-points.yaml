@@ -1,0 +1,42 @@
+# Grafana provisioned alerting — contact points (task 5.7.1).
+#
+# As-code TEMPLATE for the alert NOTIFICATION TARGETS. Every secret is a PLACEHOLDER expanded by
+# Grafana from its environment at provision time (Grafana replaces `$VAR` / `${VAR}` in provisioning
+# files) — or paste the real value in the Grafana UI. NO real webhook/token/address is committed, so
+# the repo stays secret-free (gitleaks-safe).
+#
+# CI-verifiable (this PR): the file parses and is structurally valid (apps/api/tests/obs/test_alerts.py).
+# LIVE / OWNER (Phase 6): create the real Slack/Discord webhook (or email integration), set the env
+# var(s) in Grafana Cloud, provision this file, then click "Test" on the contact point to confirm a
+# message reaches the real channel — that delivery is the 5.7.1 verify and is NOT ticked here. See
+# planning/outstanding-work.md §11 and docs/runbook.md ("Health checks").
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: lengua-oncall
+    receivers:
+      # ── Primary: Slack incoming webhook ──────────────────────────────────────────────────────
+      # Set SLACK_WEBHOOK_URL in Grafana's environment (or paste the webhook in the UI). Grafana's
+      # default Slack title/body templates are used (no custom template needed).
+      - uid: lengua-oncall-slack
+        type: slack
+        settings:
+          url: ${SLACK_WEBHOOK_URL}
+        disableResolveMessage: false
+
+      # ── Alternative: e-mail ──────────────────────────────────────────────────────────────────
+      # Requires Grafana SMTP configured. Uncomment and set ALERT_EMAIL_ADDRESSES (semicolon-
+      # separated) to deliver by e-mail instead of (or in addition to) Slack.
+      # - uid: lengua-oncall-email
+      #   type: email
+      #   settings:
+      #     addresses: ${ALERT_EMAIL_ADDRESSES}
+      #     singleEmail: false
+
+      # ── Alternative: Discord webhook ─────────────────────────────────────────────────────────
+      # Uncomment and set DISCORD_WEBHOOK_URL to deliver to a Discord channel.
+      # - uid: lengua-oncall-discord
+      #   type: discord
+      #   settings:
+      #     url: ${DISCORD_WEBHOOK_URL}

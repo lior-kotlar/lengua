@@ -99,18 +99,18 @@ _Context: the four dashboards from 06; the cost-guard is the most important for 
 
 _Context: alerts must reach an actual notification channel (Slack/Discord/email) — proving delivery is the phase's headline check. Budget≥80% is the early warning before the Phase 3 kill-switch trips._
 
-- [ ] **5.7.1** Configure a Grafana notification contact point (Slack/Discord/email) and confirm delivery with a test notification.
+- [ ] **5.7.1** Configure a Grafana notification contact point (Slack/Discord/email) and confirm delivery with a test notification. _(As-code DONE + CI-lint-verified, NOT ticked — the verify is live delivery. Committed: `infra/grafana/alerts/contact-points.yaml` (the `lengua-oncall` contact point — Slack primary, email/Discord alternatives, all secrets env-expanded placeholders) + `infra/grafana/alerts/notification-policies.yaml` (the policy tree routing every alert to it). `apps/api/tests/obs/test_alerts.py` proves both parse + are structurally valid. The live verify — click "Test" → a message reaches the real channel — needs live Grafana Cloud + a real webhook (owner). Logged in `planning/outstanding-work.md` §11.)_
       verify: Grafana's "Test" on the contact point delivers a message to the real channel; a screenshot/record of the received message is attached to the PR.
-- [ ] **5.7.2** Alert: API error rate (5xx spike) above threshold.
+- [ ] **5.7.2** Alert: API error rate (5xx spike) above threshold. _(As-code DONE + CI-lint-verified, NOT ticked — the verify is a live firing on staging traffic. Committed: alert rule `lengua-api-5xx-spike` in `infra/grafana/alerts/alert-rules.yaml` (5xx ratio > 5% for 5m, over the real `http_server_duration_milliseconds_count` histogram — same metric as the service-health dashboard); the lint test cross-references its PromQL against emitted instruments. The live verify needs the Phase-6 staging deploy + Grafana creds (owner). §11.)_
       verify: drive forced 5xx responses on staging until the threshold trips; an error-rate alert fires to the configured channel and resolves when traffic returns to normal.
       depends: 5.6.1
-- [ ] **5.7.3** Alert: p95 latency above threshold sustained.
+- [ ] **5.7.3** Alert: p95 latency above threshold sustained. _(As-code DONE + CI-lint-verified, NOT ticked — the verify is a live firing. Committed: alert rule `lengua-api-p95-latency` (overall p95 > 1.5s for 10m, over the histogram `_bucket` series). Live verify = Phase-6 staging deploy + Grafana creds (owner). §11.)_
       verify: inject artificial latency on a staging route; the p95 alert fires to the channel after the sustained window and clears afterward.
       depends: 5.6.1
-- [ ] **5.7.4** Alert: Gemini global budget ≥ ~80% of ceiling (early warning before the kill-switch).
+- [ ] **5.7.4** Alert: Gemini global budget ≥ ~80% of ceiling (early warning before the kill-switch). _(As-code DONE + CI-lint-verified, NOT ticked — the verify is a live firing. Committed: alert rule `lengua-llm-budget-80pct` over the REAL provider-agnostic `llm_budget_remaining` gauge (NOT the stale `gemini_budget_remaining`) — fires when remaining < 20% of `GLOBAL_DAILY_BUDGET`; the lint test asserts the threshold == 20% of the configured default so it can't drift. Live verify = Phase-6 staging deploy + Grafana creds (owner). §11.)_
       verify: lower the ceiling (or push synthetic usage) so `gemini_budget_remaining` crosses 80% consumed; the budget alert fires to the channel.
       depends: 5.6.2
-- [ ] **5.7.5** Alert: prod `/health` uptime check failing, wired to the same channel.
+- [ ] **5.7.5** Alert: prod `/health` uptime check failing, wired to the same channel. _(As-code DONE + CI-lint-verified, NOT ticked — the verify is a live firing. Committed: alert rule `lengua-health-uptime-down` over the external `probe_success` series (Grafana Synthetic Monitoring / Blackbox — the uptime monitor of 5.8.1; `probe_success` is allow-listed in the lint test as the one external metric), `noDataState=Alerting` so a silent probe = down. Live verify = Phase-6 prod deploy + the external monitor (owner). §11.)_
       verify: point the uptime alert at a deliberately failing endpoint; the uptime alert reaches the channel within the check interval (ties into 5.8).
       depends: 5.8.1
 
@@ -118,7 +118,7 @@ _Context: alerts must reach an actual notification channel (Slack/Discord/email)
 
 _Context: a free external prober for prod `/health`, independent of the app's own stack._
 
-- [ ] **5.8.1** Set up a free external uptime monitor (UptimeRobot / BetterStack / Grafana synthetic) hitting prod `/health` every few minutes, alerting on failure.
+- [ ] **5.8.1** Set up a free external uptime monitor (UptimeRobot / BetterStack / Grafana synthetic) hitting prod `/health` every few minutes, alerting on failure. _(As-code DONE + CI-lint-verified, NOT ticked — the verify is a live external monitor against a real prod URL. Committed: `infra/uptime/uptime-monitor.yaml` (a vendor-neutral descriptor — `GET ${PROD_BASE_URL}/health`, expect 200 `{"status":"ok"}`, every 3 min, alert-on-failure to the on-call contact — plus ready encodings for BetterStack / UptimeRobot / Grafana Synthetic Monitoring) + `infra/uptime/README.md` + the docs/runbook.md "Health checks" entry; `apps/api/tests/obs/test_alerts.py` proves it parses + targets `/health` on a few-minute interval with a contact. The live verify — the monitor shows green and flips DOWN + notifies — needs the real prod URL (Phase-6 Cloud Run deploy) + a free-prober account (owner). §11.)_
       verify: the monitor dashboard shows the prod `/health` check green at the configured interval; pausing the service (or pointing at a bad path) flips it to DOWN and sends a notification.
       depends: Phase 6 prod deploy
 

@@ -1,0 +1,79 @@
+# External uptime monitor — config as code (task 5.8.1).
+#
+# A FREE, EXTERNAL prober that hits production /health every few minutes, INDEPENDENT of the app's
+# own Grafana/OTel stack (so it still alerts when the whole stack is down). This is a vendor-neutral
+# descriptor of the intended monitor; the `providers:` blocks below show how to express the same
+# monitor in each free prober. The Grafana-side mirror of this check is alert rule
+# `lengua-health-uptime-down` (infra/grafana/alerts/alert-rules.yaml, task 5.7.5).
+#
+# CI-verifiable (this PR): this file parses and is structurally valid (target is /health, interval
+# is a few minutes, alert-on-failure, a contact) — apps/api/tests/obs/test_alerts.py.
+# LIVE / OWNER (Phase 6): create the monitor in the chosen free prober against the REAL prod URL,
+# point it at the on-call contact, then confirm it shows green and flips to DOWN + notifies when the
+# endpoint fails — that is the 5.8.1 verify and is NOT ticked here. The actual monitor + the prod URL
+# are owner + Phase-6 (the prod host does not exist until the Cloud Run deploy). See docs/runbook.md
+# and planning/outstanding-work.md §11.
+
+monitor:
+  name: lengua-prod-health
+  # Replace ${PROD_BASE_URL} with the deployed prod host at Phase-6 (e.g. https://api.lengua.app).
+  target_url: ${PROD_BASE_URL}/health
+  method: GET
+  expected_status: 200
+  # GET /health returns {"status":"ok"}; a keyword check is an optional extra assertion.
+  expected_keyword: '"status":"ok"'
+  interval_seconds: 180        # every 3 minutes ("a few minutes")
+  timeout_seconds: 10
+  alert_on_failure: true
+  # How many consecutive failed checks before alerting (avoids flapping on a single blip).
+  confirmation_failures: 2
+  regions:
+    - eu
+  contact:
+    # Where the prober sends its OWN failure notification (independent of Grafana). Wire to the same
+    # on-call channel as infra/grafana/alerts/contact-points.yaml; set the secret via the prober's UI
+    # or env, never commit it.
+    type: slack
+    target: ${SLACK_WEBHOOK_URL}
+
+# ── Provider-specific encodings of the SAME monitor (pick one free prober) ───────────────────────
+providers:
+  # BetterStack (Better Uptime) — free tier. Terraform-style resource for reproducibility.
+  betterstack:
+    resource: betteruptime_monitor
+    config:
+      monitor_type: status
+      url: ${PROD_BASE_URL}/health
+      check_frequency: 180          # seconds
+      request_timeout: 10
+      expected_status_codes: [200]
+      required_keyword: '"status":"ok"'
+      confirmation_period: 0
+      regions: ["eu"]
+      # email_addresses / slack via the BetterStack integration UI.
+
+  # UptimeRobot — free tier (5-minute minimum interval). API/JSON shape.
+  uptimerobot:
+    api: newMonitor
+    config:
+      friendly_name: lengua-prod-health
+      url: ${PROD_BASE_URL}/health
+      type: 1                       # 1 = HTTP(s)
+      interval: 300                 # seconds (UptimeRobot free-tier minimum)
+      timeout: 10
+      # alert_contacts set via the UptimeRobot dashboard (Slack / e-mail integration).
+
+  # Grafana Synthetic Monitoring — produces the `probe_success` series that alert rule
+  # lengua-health-uptime-down (5.7.5) evaluates, unifying the external check with Grafana alerting.
+  grafana_synthetic:
+    check:
+      job: lengua-prod-health
+      target: ${PROD_BASE_URL}/health
+      frequency: 180000             # milliseconds
+      timeout: 10000
+      probes: ["Frankfurt"]
+      settings:
+        http:
+          method: GET
+          validStatusCodes: [200]
+          failIfBodyNotMatchesRegexp: ['"status":\s*"ok"']

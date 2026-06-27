@@ -1,0 +1,40 @@
+# Grafana provisioned alerting — notification policy tree (task 5.7.1).
+#
+# Routes every Lengua alert to the `lengua-oncall` contact point (contact-points.yaml). The default
+# (root) policy catches everything; the child routes only adjust grouping/cadence by severity so a
+# `critical` page isn't batched behind `warning` noise. All targets resolve to the same contact
+# point template until the owner wires a second channel (Phase 6).
+#
+# CI-verifiable (this PR): parses + structurally valid. LIVE / OWNER (Phase 6): provision alongside
+# the contact point so a fired alert actually routes to the real channel (see docs/runbook.md and
+# planning/outstanding-work.md §11). Not ticked here.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: lengua-oncall
+    # Group alerts by folder + alert name so repeated firings of the same rule collapse into one
+    # notification thread.
+    group_by:
+      - grafana_folder
+      - alertname
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      # Critical (5xx spike, uptime down): page promptly, re-notify more often.
+      - receiver: lengua-oncall
+        object_matchers:
+          - ["severity", "=", "critical"]
+        group_wait: 15s
+        group_interval: 2m
+        repeat_interval: 1h
+        continue: false
+      # Warning (sustained p95, budget >= 80%): standard cadence.
+      - receiver: lengua-oncall
+        object_matchers:
+          - ["severity", "=", "warning"]
+        group_wait: 1m
+        group_interval: 5m
+        repeat_interval: 4h
+        continue: false

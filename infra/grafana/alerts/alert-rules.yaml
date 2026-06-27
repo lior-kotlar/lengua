@@ -1,0 +1,238 @@
+# Grafana provisioned alerting — alert rules (tasks 5.7.2 – 5.7.5).
+#
+# As-code alert CONDITIONS + evaluation windows for the Lengua API. Each rule is the canonical
+# 3-stage Grafana shape: A = a PromQL query against the Prometheus/Mimir data source, B = reduce A
+# to a single value (last), C = the threshold that is the alert `condition`. The PromQL references
+# the REAL emitted metric names (provider-agnostic `llm_*` + the FastAPI request-duration histogram;
+# see infra/grafana/README.md and planning/outstanding-work.md §11) — same names the service-health
+# and cost-guard dashboards use, so a metric rename fails the drift test.
+#
+# PORTABILITY: the data source is the env-expanded placeholder `${PROM_DATASOURCE_UID}` (Grafana
+# substitutes provisioning env vars); expression stages use the built-in `__expr__` data source.
+#
+# CI-verifiable (this PR): the file parses, every rule's `condition` refId exists in its `data`, the
+# budget threshold tracks GLOBAL_DAILY_BUDGET, and every PromQL metric maps to an emitted instrument
+# (apps/api/tests/obs/test_alerts.py). LIVE / OWNER (Phase 6): drive the condition on staging traffic
+# and confirm the alert reaches the real channel — that delivery is the 5.7.x verify and is NOT
+# ticked here (see docs/runbook.md + planning/outstanding-work.md §11).
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: lengua-api
+    folder: Lengua
+    interval: 1m
+    rules:
+      # ── 5.7.2 — API error-rate (5xx) spike ───────────────────────────────────────────────────
+      # Fires when the 5xx ratio (5xx responses / all responses) exceeds 5% sustained for 5m.
+      # Mirrors the service-health dashboard's "Error ratio" panel.
+      - uid: lengua-api-5xx-spike
+        title: API 5xx error-rate spike
+        condition: C
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        labels:
+          severity: critical
+          team: lengua
+        annotations:
+          summary: "API 5xx error rate above 5%"
+          description: >-
+            The share of API responses returning 5xx has been above 5% for 5 minutes. Check the
+            Service-health dashboard (lengua-service-health) and recent deploys; inspect error logs
+            in Loki filtered by service_name="lengua-api".
+          runbook_url: https://github.com/BenArtzi4/lengua/blob/main/docs/runbook.md#health-checks
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: ${PROM_DATASOURCE_UID}
+            model:
+              refId: A
+              editorMode: code
+              instant: false
+              range: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              expr: >-
+                sum(rate(http_server_duration_milliseconds_count{http_status_code=~"5.."}[5m]))
+                / clamp_min(sum(rate(http_server_duration_milliseconds_count[5m])), 1)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.05]
+
+      # ── 5.7.3 — p95 latency sustained ────────────────────────────────────────────────────────
+      # Fires when overall request p95 latency stays above 1500 ms for 10m.
+      - uid: lengua-api-p95-latency
+        title: API p95 latency high (sustained)
+        condition: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        labels:
+          severity: warning
+          team: lengua
+        annotations:
+          summary: "API p95 latency above 1.5s for 10m"
+          description: >-
+            The overall request-duration p95 has stayed above 1500 ms for 10 minutes. Check the
+            Service-health dashboard (per-route p95 panel) for the slow route; common causes are
+            DB latency or LLM provider slowness.
+          runbook_url: https://github.com/BenArtzi4/lengua/blob/main/docs/runbook.md#health-checks
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: ${PROM_DATASOURCE_UID}
+            model:
+              refId: A
+              editorMode: code
+              instant: false
+              range: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              expr: >-
+                histogram_quantile(0.95, sum by (le)
+                (rate(http_server_duration_milliseconds_bucket[5m])))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1500]
+
+      # ── 5.7.4 — LLM global budget >= ~80% of ceiling (early warning) ─────────────────────────
+      # Fires when today's remaining budget drops below 20% of GLOBAL_DAILY_BUDGET (i.e. >=80% of
+      # the daily LLM-call ceiling consumed) — the early warning BEFORE the Phase-3 kill-switch
+      # trips at 0. The threshold (200) is 20% of the default GLOBAL_DAILY_BUDGET (1000); if you
+      # change GLOBAL_DAILY_BUDGET at deploy, update this threshold to 0.2 × the new ceiling
+      # (the CI lint test enforces threshold == round(0.2 × GLOBAL_DAILY_BUDGET default)).
+      - uid: lengua-llm-budget-80pct
+        title: LLM daily budget 80% consumed
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          team: lengua
+        annotations:
+          summary: "LLM daily budget >= 80% consumed (kill-switch approaching)"
+          description: >-
+            Remaining LLM budget for today has fallen below 20% of the GLOBAL_DAILY_BUDGET ceiling.
+            At 0 the global kill-switch refuses every LLM call (HTTP 429 daily_limit_reached). Check
+            the Cost-guard dashboard (lengua-cost-guard) for the spend rate and whether a raise is
+            warranted.
+          runbook_url: https://github.com/BenArtzi4/lengua/blob/main/docs/runbook.md#health-checks
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: ${PROM_DATASOURCE_UID}
+            model:
+              refId: A
+              editorMode: code
+              instant: false
+              range: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              expr: min(llm_budget_remaining)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [200]
+
+      # ── 5.7.5 — prod /health uptime check failing ────────────────────────────────────────────
+      # Fires when the external uptime probe for prod /health reports DOWN (probe_success < 1). The
+      # `probe_success` series comes from Grafana Synthetic Monitoring / a Blackbox-exporter probe
+      # (NOT an app metric) configured per infra/uptime/uptime-monitor.yaml (task 5.8.1). noDataState
+      # is Alerting: if the probe stops reporting entirely, treat prod as down. This is the Grafana
+      # mirror of the external prober's own alert (5.8.1) — defense in depth.
+      - uid: lengua-health-uptime-down
+        title: prod /health uptime check failing
+        condition: C
+        for: 1m
+        noDataState: Alerting
+        execErrState: Error
+        labels:
+          severity: critical
+          team: lengua
+        annotations:
+          summary: "prod /health is DOWN (uptime probe failing)"
+          description: >-
+            The external uptime probe for the production /health endpoint is failing. Confirm the
+            service is reachable; cross-check the external monitor (infra/uptime/uptime-monitor.yaml)
+            and Cloud Run instance health.
+          runbook_url: https://github.com/BenArtzi4/lengua/blob/main/docs/runbook.md#health-checks
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: ${PROM_DATASOURCE_UID}
+            model:
+              refId: A
+              editorMode: code
+              instant: false
+              range: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              expr: min(probe_success{job="lengua-prod-health"})
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
