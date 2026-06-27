@@ -100,7 +100,7 @@ The bulk lives in the phase files; tracked here as a single pointer with live op
 | 1 | 0 | ✅ done |
 | 2 | 32 | 🛠 in progress (§1) |
 | 3 — LLM quota & cost guard | 0 | ✅ done (M2) — usage counters, per-user caps, rate limit, global kill-switch, abuse guard, concurrency cap, BYOK seam, observability spans/metrics, zero-paid-usage load test |
-| 4 — React web app | 6 | ✅ DONE (M3) — **all 44 task boxes (4.1 shell → 4.10 cross-cutting UX → 4.11 Streamlit retirement note) merged green**; React app at full parity with Streamlit ([`docs/streamlit-parity.md`](../docs/streamlit-parity.md)). The 6 still-open boxes are exit-gate rows confirmed holistically at phase close (each proven by its group's merged E2E + drift checks); the "every legacy screen has a React equivalent" exit box is ticked. |
+| 4 — React web app | 0 | ✅ DONE (M3) — **all 44 task boxes + all 7 exit-gate boxes ticked**; React app at full parity with Streamlit ([`docs/streamlit-parity.md`](../docs/streamlit-parity.md)). The exit gate closed in the milestone PR by adding the dedicated end-to-end [`e2e/full-loop.spec.ts`](../../apps/web/e2e/full-loop.spec.ts) (login → generate → save → review reveal+grade → discover, zero real LLM calls); auth (incl. Google + Apple buttons) / RTL / 429+consent are proven by their group specs; the typed-client drift check runs every CI run incl. the merge commit. |
 | 5 — Observability | 39 | OTel, custom spans/metrics, correlated logs, Sentry, Grafana dashboards, alerts, uptime, PostHog |
 | 6 — Infra & CI/CD | 56 | Cloud Run, 2 Supabase + 2 Vercel envs, secrets, CD staging→gated-prod, rollback, flags, domains/CORS |
 | 7 — Mobile (Capacitor) | 58 | paid store accts, signing, native projects/plugins, OAuth-in-webview, iOS/Android builds, OTA, device validation |
@@ -469,10 +469,14 @@ DISCOVER_REUSE_WINDOW_SECONDS=300     # short in-process /discover preview reuse
 ## 10. Phase 4 (React web app) — ✅ DONE (M3 reached)
 
 All 44 task boxes (4.1–4.11) merged green; the React web app is at full parity with the legacy
-Streamlit app (see [`docs/streamlit-parity.md`](../docs/streamlit-parity.md)). The exit-gate
-"every legacy screen has a React equivalent" box is ticked; the remaining exit-gate boxes
-(full-loop / auth / RTL / 429+consent / typed-client-drift) are each proven by their group's
-already-merged green E2E + drift checks and re-confirmed by the final group's CI gate.
+Streamlit app (see [`docs/streamlit-parity.md`](../docs/streamlit-parity.md)). **All 7 exit-gate
+boxes are now ticked** — closed by the milestone PR, which added the dedicated end-to-end
+[`e2e/full-loop.spec.ts`](../../apps/web/e2e/full-loop.spec.ts) (login → generate → save → review
+reveal+grade → discover, through the real server seam, zero real LLM calls) so a SINGLE spec proves
+the whole loop, and strengthened `e2e/auth.spec.ts` to assert **both** Google + Apple buttons
+present + enabled. Auth-401/refresh-retry stays vitest-covered (4.3 decision); RTL / 429+consent are
+proven by their group specs; the typed-client drift check (`pnpm gen:api` → no diff) runs on every
+CI run including the merge commit.
 
 **4.1 — App shell & foundations · DONE (PR for group 4.1).** Vite/React/TS scaffold extended into the
 production shell: shadcn primitives, light/dark/system theming, react-router auth-vs-app route tree +
