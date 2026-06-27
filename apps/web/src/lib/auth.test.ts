@@ -25,6 +25,7 @@ import {
   signInWithEmail,
   signInWithProvider,
   signOut,
+  signOutLocal,
   signUpWithEmail,
   updatePassword,
 } from '@/lib/auth';
@@ -186,6 +187,18 @@ describe('signOut + getCurrentSession', () => {
       error: new AuthApiError('boom', 500, 'unexpected_failure'),
     });
     expect((await signOut()).error).toBeTruthy();
+  });
+
+  it('signs out LOCALLY (no network logout) for the post-delete teardown', async () => {
+    expect(await signOutLocal()).toEqual({ error: null });
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('maps a local sign-out error', async () => {
+    auth.signOut.mockResolvedValue({
+      error: new AuthApiError('boom', 500, 'unexpected_failure'),
+    });
+    expect((await signOutLocal()).error).toBeTruthy();
   });
 
   it('reads the current session', async () => {
