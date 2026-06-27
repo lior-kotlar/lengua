@@ -31,8 +31,7 @@ from dataclasses import dataclass
 
 import httpx
 import psycopg
-
-from lengua_core.scheduler import new_card_state
+from fsrs import Card
 
 # Well-known local Supabase CLI service-role JWT (NOT a secret — this is the fixed value the CLI
 # signs with the default local ``JWT_SECRET`` and prints as ``SERVICE_ROLE_KEY`` from
@@ -176,10 +175,15 @@ def _ensure_cards(conn: psycopg.Connection, user_id: str, language_id: int) -> i
                 ("recognition", sentence, translation),
                 ("production", translation, sentence),
             ):
-                # Seed a real FSRS state (due immediately) — the same fresh-card state the save
-                # service writes — so these cards are gradeable. Without it the grade endpoint
-                # rejects them (``fsrs_state IS NULL`` → 422) and the review loop can't advance.
-                fsrs_json, due_iso = new_card_state()
+                # Seed a real FSRS state (due immediately) — the same fresh-card state
+                # ``lengua_core.scheduler.new_card_state`` / the save service write — so these
+                # cards are gradeable. Without it the grade endpoint rejects them
+                # (``fsrs_state IS NULL`` → 422) and the review loop can't advance. Built straight
+                # from ``fsrs`` (a dependency) rather than importing ``lengua_core``, since this
+                # script runs as ``python scripts/seed_e2e.py`` with the package root off sys.path.
+                fsrs_dict = Card().to_dict()
+                fsrs_json = json.dumps(fsrs_dict)
+                due_iso = fsrs_dict["due"]
                 conn.execute(
                     "INSERT INTO cards "
                     "(user_id, language_id, front, back, used_words, direction, "
