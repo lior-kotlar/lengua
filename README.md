@@ -34,7 +34,7 @@ root, one root `pnpm-lock.yaml`). `apps/api` is a separate uv/Python project.
 | API | `apps/api/` | `cd apps/api && uv sync && uv run uvicorn app.main:app` (serves `GET /health`); verify with `uv run python scripts/verify.py` | runnable now |
 | Web | `apps/web/` | `pnpm install` (at the repo root — pnpm workspace), then `cd apps/web && pnpm dev` (app shell + auth: signup/login/reset/OAuth, session gating; active-language picker + add/remove languages + CEFR level panel with manual override; **Generate** — paste words → example sentences → select & save flashcards, with a friendly daily-limit panel on quota; **Review** — the FSRS loop: due batch (new/due counts) → reveal → rate Again/Hard/Good/Easy (locked red/orange/blue/green) → next, with tap-a-word explanations on production cards and space/enter + 1–4 keyboard shortcuts; **Discover** — pick a word count (defaulting to your `discover_count` setting) + optional topic → preview suggested new words → accept (feeds them into Generate) or reroll, sharing the same daily-limit panel; **Settings** — edit your daily new-card limit and daily total-card limit (which bound your review batch) and the Discover word count (validated against the allowed bounds, including new ≤ total) → save; **Account** — see your email, sign out, export all your data as a JSON download, or delete your account behind a confirm-typed dialog; **RTL & diacritics** — Arabic/Hebrew languages render the Generate/Review/Discover text right-to-left in diacritic-correct self-hosted fonts (Noto Naskh Arabic / Noto Sans Hebrew, bundled — no CDN), with a **vowel-marks** toggle that shows or strips the harakat/nikkud and an RTL-aware tap-a-word; **consistent UX states** — shared loading skeletons, empty states, and retryable error cards across Generate/Review/Discover, plus a first-class shared daily-limit panel on quota; a first-run **analytics-consent** banner — product analytics (PostHog, wired in a later phase) loads only after you explicitly opt in, the choice is remembered, and nothing analytics-related loads otherwise; copy `apps/web/.env.example` to `.env`); verify with `pnpm verify`; E2E via `pnpm exec playwright test` | runnable now |
 | API types | `packages/api-types/` | `pnpm gen:api` (root convenience for `pnpm --filter api-types generate` — re-derive TS types + runtime `schemaLimits` constants from `apps/api/openapi.json`) · `pnpm --filter api-types build` (typecheck) | runnable now |
-| Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | runnable now |
+| Legacy Streamlit | `apps/api/legacy_streamlit/` | `cd apps/api && streamlit run legacy_streamlit/app.py` | **deprecated — retained for reference** (still runnable) |
 
 ### API endpoints (Phase 1 — full loop)
 
@@ -226,8 +226,15 @@ python scripts/verify.py
 `pnpm` is invoked via `corepack pnpm` when `pnpm` isn't on your `PATH` (corepack ships with
 Node and honors the `packageManager` pin in `apps/web/package.json`).
 
-The sections below document the **legacy Streamlit app**, which stays runnable throughout the
-migration.
+### Legacy Streamlit app — deprecated (retained for reference)
+
+The React web app (`apps/web`) now has **full feature parity** with the original Streamlit app — see
+the [Streamlit → React parity checklist](docs/streamlit-parity.md), which maps every legacy
+page/feature to its React equivalent (the one exception, the Gemini model selector, is intentionally
+retired because the LLM provider/model is now operator/server config). The **legacy Streamlit app is
+therefore deprecated and retained for reference only**: the code is **not** being deleted and stays
+runnable — as a reference implementation and a fallback — until the React app ships to production
+(Phase 6) and is wrapped for mobile (Phase 7). The sections below document that legacy app.
 
 ## How it works
 

@@ -160,8 +160,9 @@ _Context: loading/empty/error states everywhere, a first-class friendly 429 dail
 
 _Context: keep the Streamlit app runnable until parity, then retire it once the React app covers the full loop._
 
-- [ ] **4.11.1** Add a parity checklist doc mapping every legacy Streamlit page/feature to its React equivalent, and mark the Streamlit app deprecated in the README once all rows are checked (do not delete code yet).
+- [x] **4.11.1** Add a parity checklist doc mapping every legacy Streamlit page/feature to its React equivalent, and mark the Streamlit app deprecated in the README once all rows are checked (do not delete code yet).
       verify: the parity doc lists each Streamlit `pages/*` feature with a ✅ React counterpart and the README "Legacy Streamlit" section is updated to "deprecated — retained for reference"; CLAUDE.md README-currency rule satisfied (README diff present in the PR).
+      _Done: [`docs/streamlit-parity.md`](../../docs/streamlit-parity.md) maps every legacy surface (home + sidebar `ui.py` + each `pages/*`) to its reachable React screen/route/component — all `pages/*` features ✅ (the lone Gemini-model-selector is ♻️ intentionally retired → operator/server config). README "Legacy Streamlit" table row + a new prose section both marked **deprecated — retained for reference** (legacy code NOT deleted, stays runnable). Two ✅* nuances logged in outstanding-work §10: existing-language `vowelized` flip isn't UI-wired (backend `PATCH` exists), and Discover "accept" routes through the reused Generate flow by design._
 
 ---
 
@@ -171,7 +172,7 @@ Phase 4 is DONE only when all of these hold:
 
 - [ ] A signed-in browser user can run the full core loop end-to-end against the API — generate → save → review (reveal + grade) → discover — with no Streamlit involved. — verify: a Playwright E2E spec runs the complete loop on the ephemeral stack (LLM stubbed) and passes in CI.
 - [ ] Auth is complete: sign up, verify, log in, password reset, Google + Apple buttons, with token refresh + 401-retry working. — verify: Playwright auth spec covers signup→verify-notice, login, and a forced-401→refresh→retry path; all green in CI.
-- [ ] Every legacy Streamlit screen has a React equivalent (Generate, Review, Discover, Settings, Language management, Account, CEFR level + override). — verify: the 4.11.1 parity checklist is fully ✅ and a reviewer can reach each screen from the app shell on the demo account.
+- [x] Every legacy Streamlit screen has a React equivalent (Generate, Review, Discover, Settings, Language management, Account, CEFR level + override). — verify: the 4.11.1 parity checklist is fully ✅ and a reviewer can reach each screen from the app shell on the demo account. _(Done via [`docs/streamlit-parity.md`](../../docs/streamlit-parity.md) — every `pages/*`/sidebar/home feature maps to a reachable React route in `AppLayout`'s primary nav; the Gemini model selector is the only intentionally-retired item.)_
 - [ ] RTL + diacritics render correctly and tap-a-word works on touch and click for an RTL language. — verify: Playwright RTL spec (Arabic/Hebrew) passes visual + interaction assertions including a mid-sentence RTL word tap.
 - [ ] The 429 daily-limit and analytics-consent experiences are first-class. — verify: vitest + Playwright assert the dedicated quota-429 panel and the consent-gated analytics init (no analytics before opt-in).
 - [ ] The typed API client is generated from `packages/api-types` and stays in sync. — verify: the CI drift check (`pnpm gen:api` produces no diff) passes on the merge commit.
