@@ -152,7 +152,9 @@ test.describe('RTL-aware tap-a-word (touch + click)', () => {
     await walkToProductionRevealed(page);
 
     const answer = page.getByTestId('card-answer');
-    const words = answer.getByRole('button');
+    // Only the tappable WORD buttons (each has aria-haspopup="dialog") — this deliberately excludes
+    // the popover's "Close" button, which would otherwise shift the indices once a popover is open.
+    const words = answer.locator('button[aria-haspopup="dialog"]');
     await expect(words.first()).toBeVisible();
     // The seeded Hebrew production sentences all have at least three words.
     expect(await words.count()).toBeGreaterThanOrEqual(3);
