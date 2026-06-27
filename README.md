@@ -42,7 +42,9 @@ Beyond `GET /health`, the FastAPI service serves the whole Generate→Save→Rev
 over HTTP. The backend **verifies a Supabase access token (JWT) on every request** (Phase 2.3):
 the `current_user` dependency checks the token's signature, `exp` and `aud` and derives the user
 id from `sub` — HS256 against `SUPABASE_JWT_SECRET` by default, or RS256/ES256 via a configured
-`SUPABASE_JWKS_URL`. Requests with a missing/invalid token get `401`; only `GET /health` is open.
+`SUPABASE_JWKS_URL`. Requests with a missing/invalid token get `401`; only the unauthenticated
+infra probes `GET /health` (liveness) and `GET /ready` (readiness — a plain `SELECT 1` for DB
+connectivity, `503` when the DB is unreachable) are open.
 A strict **CORS allowlist** (`CORS_ALLOW_ORIGINS`, defaulting to local web origins + the Capacitor
 scheme) fronts the API. For local work, point `DATABASE_URL` at a Postgres (e.g. the local
 Supabase CLI stack), seed it with `uv run python scripts/seed_dev_user.py`, and send

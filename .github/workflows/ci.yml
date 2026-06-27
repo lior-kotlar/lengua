@@ -257,6 +257,20 @@ jobs:
           load: true
           cache-from: type=gha,scope=lengua-api
           cache-to: type=gha,scope=lengua-api,mode=max
+      # Smoke-test the image's RUN path (task 6.1.1): the container must honor $PORT and answer
+      # /health 200. Liveness only — no DB/LLM needed (LLM_PROVIDER=fake, no keys). PORT=8080 (not
+      # the 8000 default) proves the shell-form CMD expands ${PORT} at runtime, as Cloud Run injects.
+      - name: Smoke-test API image (honors $PORT, /health 200)
+        run: |
+          set -euo pipefail
+          docker run -d --name lengua-api-smoke -p 8080:8080 -e PORT=8080 -e LLM_PROVIDER=fake lengua-api:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health >/dev/null; then echo "health OK"; break; fi
+            if [ "$i" = "30" ]; then echo "image did not become healthy"; docker logs lengua-api-smoke; exit 1; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8080/health | grep -q '"status": *"ok"'
+          docker rm -f lengua-api-smoke
       - name: Export API image artifact
         run: docker save lengua-api:ci -o lengua-api-image.tar
       - name: Upload API image

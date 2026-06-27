@@ -10,8 +10,16 @@
 #   docker build -t lengua-api apps/api
 #   docker run --rm -p 8000:8000 -e LLM_PROVIDER=fake lengua-api
 
+# Base image is pinned by sha256 DIGEST (not just the `python:3.12-slim` tag) so every build —
+# local, CI, and Cloud Run — resolves the byte-identical, multi-arch base, and a silent upstream
+# retag can't change what we ship. This is the OCI image-index digest (covers linux/amd64 + arm64).
+# To refresh (e.g. for a base-OS security update), re-resolve the tag's current index digest:
+#   docker buildx imagetools inspect python:3.12-slim   # copy the top-level Digest
+# or, daemonless, read the Docker-Content-Digest header from the Docker Hub registry manifest API.
+# (Dependabot's `docker` ecosystem can also bump this `FROM` pin automatically.)
+
 # ── Builder ───────────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:6c4dd321d176d61ea848dc8c73a4f7dbae8f70e0ee48bb411ea2f045b599fa8e AS builder
 
 # uv: fast, frozen, reproducible dependency install.
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
@@ -30,7 +38,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS runtime
+# Same digest-pinned base as the builder stage (keep both in lockstep when refreshing the pin).
+FROM python:3.12-slim@sha256:6c4dd321d176d61ea848dc8c73a4f7dbae8f70e0ee48bb411ea2f045b599fa8e AS runtime
 
 # Non-root runtime user.
 RUN groupadd --system app && useradd --system --gid app --create-home app
