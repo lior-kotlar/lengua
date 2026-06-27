@@ -10,12 +10,15 @@ FSRS-scheduled flashcards (recognition + production). Each language has a CEFR l
 shapes generation and adapts from review answers. See [README.md](README.md) for the full
 overview.
 
-**Status — productionization in progress (Phase 3 complete → M2 reached).** The app is being
+**Status — productionization in progress (Phase 4 complete → M3 reached).** The app is being
 rebuilt into a monorepo (FastAPI [`apps/api`](apps/api) + React [`apps/web`](apps/web) + Supabase +
-Cloud Run). Phases 0–3 are done: the backend core loop (M1), Supabase Auth + RLS multi-tenancy, and
-the **LLM cost guard** (per-user daily caps + rate limits + a global daily kill-switch + concurrency
-cap + observability spans/metrics) — proven by a zero-paid-usage load test — so **M2 (multi-user
-with the cost guard armed)** is reached. The domain logic now lives in
+Cloud Run). Phases 0–4 are done: the backend core loop (M1); Supabase Auth + RLS multi-tenancy; the
+**LLM cost guard** (per-user daily caps + rate limits + a global daily kill-switch + concurrency
+cap + observability spans/metrics) — proven by a zero-paid-usage load test — reaching **M2
+(multi-user with the cost guard armed)**; and the **React web app** ([`apps/web`](apps/web)) at full
+parity with the legacy Streamlit app (generate → save → review → discover, plus auth, language/CEFR
+management, settings/account, and RTL/diacritics) — its exit gate closed by an end-to-end full-loop
+Playwright spec — reaching **M3 (React web app at full parity)**. The domain logic now lives in
 [`apps/api/lengua_core/`](apps/api/lengua_core) and the original Streamlit app in
 [`apps/api/legacy_streamlit/`](apps/api/legacy_streamlit) (still runnable). Plan + tasks:
 [`planning/`](planning) and [`planning/tasks/task-tracker.md`](planning/tasks/task-tracker.md).
