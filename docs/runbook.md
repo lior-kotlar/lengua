@@ -1,8 +1,11 @@
 # Runbook
 
-> **Placeholder.** This is a Phase 0 stub. The operational runbook is filled in
-> as the deploy pipeline and observability land (Phases 5–6) and is finalized for
-> launch (Phase 9). The sections below are intentionally empty for now.
+> The operational runbook. **Health checks** (Phase 5) and **Deploy / Rollback / Run a migration /
+> Rotate a secret / Budget-exhausted alert / Restore from backup** (Phase 6) are written with
+> concrete commands; **On-call** and the **Store-release checklist** are finalized at launch
+> (Phase 9). The procedures are buildable-as-code now; their **live execution** against deployed
+> cloud resources is owner-run and tracked in
+> [`planning/outstanding-work.md`](../planning/outstanding-work.md) §§11–12.
 
 ## Health checks
 
@@ -112,10 +115,112 @@ last-line "is the site even up?" signal and the source of the prod-`/health` upt
 > rendering non-empty, and an alert reaching a real channel each need live Grafana Cloud creds and a
 > deployed Cloud Run service — tracked in [`planning/outstanding-work.md`](../planning/outstanding-work.md) §11.
 
-## Deploy / rollback
+## Deploy
 
-_Filled in Phase 6 (CD pipeline): how to deploy to staging and production, how to promote a build,
-and the exact steps to roll back a bad release._
+How a build reaches staging and prod. The pipeline is committed as code (CD workflow, groups 6.6 +
+6.7) and is **gated off until the owner sets the repo variable `DEPLOY_ENABLED=true`**
+(`gh variable set DEPLOY_ENABLED -b true`); the manual `gcloud` path below is the same set of steps
+and is what the workflow automates. Concrete owner values are `<placeholders>`; the real ones live
+in Secret Manager / GitHub Actions secrets (never git). Throughout: GCP project `lengua-prod`,
+EU region `$GCP_REGION`, Artifact Registry repo `${GCP_REGION}-docker.pkg.dev/lengua-prod/lengua`,
+Cloud Run services `lengua-api-staging` / `lengua-api-prod`.
+
+### Staging (automatic on merge to `main`)
+
+Merging to `main` is the staging-deploy trigger. The CD run, in order (6.6.1–6.6.5):
+
+1. **Build + push** the API image tagged with the merge commit SHA:
+   ```bash
+   SHA="$(git rev-parse HEAD)"
+   gcloud builds submit apps/api \
+     --tag "${GCP_REGION}-docker.pkg.dev/lengua-prod/lengua/api:${SHA}" --project lengua-prod
+   ```
+2. **Migrate staging** as a discrete, logged job — see "Run a migration" (never in the request path).
+3. **Deploy** the freshly pushed image as a new Cloud Run revision:
+   ```bash
+   gcloud run deploy lengua-api-staging \
+     --image "${GCP_REGION}-docker.pkg.dev/lengua-prod/lengua/api:${SHA}" \
+     --region "$GCP_REGION" --project lengua-prod
+   ```
+4. **Deploy web** to Vercel staging (`vercel deploy` / the Vercel GitHub integration).
+5. **Smoke** the deploy: `GET /health` 200, `GET /ready` 200, web `200`. A failed probe reds the run.
+
+Run config (secrets mounted, not inlined) is set once on the service — see "Rotate a secret" and
+task 6.4.1 for the secret list (`LLM_PROVIDER`, `GROQ_API_KEY`, `DATABASE_URL`,
+`SUPABASE_JWT_SECRET`, `OTEL_*`, `SENTRY_DSN_API`, quota ceilings).
+
+### Production (gated promotion)
+
+Prod is a **single manual approval** (the GitHub `production` environment reviewer, 6.7.1) that
+**promotes the exact image digest already validated on staging — no rebuild** (6.7.2):
+
+```bash
+# The digest currently serving staging:
+DIGEST="$(gcloud run services describe lengua-api-staging --region "$GCP_REGION" \
+  --project lengua-prod --format='value(spec.template.spec.containers[0].image)')"
+
+# After the approval gate: migrate prod (gated job, see below), then promote the SAME digest:
+gcloud run deploy lengua-api-prod --image "$DIGEST" --region "$GCP_REGION" --project lengua-prod
+```
+
+Then the gated prod migration (6.7.3) and Vercel **production** deploy (6.7.4) run, ending with prod
+smoke probes (6.7.5). The previous revision is retained for one-click rollback (below).
+
+## Rollback
+
+Cloud Run keeps the previous revision, so a bad release is reverted by **shifting 100% traffic back
+to the last good revision** — no rebuild, no redeploy. Group 6.8.2 adds a one-command wrapper
+(`infra/deploy/rollback.sh <service>`); until it lands, run these directly (swap `-staging` for
+`-prod` to roll back prod):
+
+```bash
+# 1. List revisions newest-first and see which serves traffic + which image each runs:
+gcloud run revisions list --service lengua-api-staging --region "$GCP_REGION" --project lengua-prod \
+  --format='table(metadata.name, status.conditions[0].lastTransitionTime, spec.containers[0].image)'
+
+# 2. Shift 100% traffic to the previous good revision (use its exact name from step 1):
+gcloud run services update-traffic lengua-api-staging --region "$GCP_REGION" --project lengua-prod \
+  --to-revisions=<previous-good-revision>=100
+
+# 3. Verify the rollback serves healthy from the old code:
+URL="$(gcloud run services describe lengua-api-staging --region "$GCP_REGION" \
+  --project lengua-prod --format='value(status.url)')"
+curl -fsS "$URL/health"   # → {"status":"ok"}
+```
+
+To roll forward again once a fix is deployed: `--to-latest` instead of `--to-revisions=...`. If a bad
+migration is implicated, roll the service back first (restores availability), then assess the schema
+separately — schema is forward-only in prod (see the migration invariants below). **Web (Vercel):**
+`vercel rollback <previous-deployment-url>` (or promote the previous deployment in the dashboard).
+
+## Run a migration
+
+Alembic owns the schema and is applied as a **discrete, logged job** (CD groups 6.6.3 staging /
+6.7.3 gated prod) — separate from the image deploy, **never in the request path**. Run from
+`apps/api`.
+
+**Environment selection:** the Alembic env (`migrations/env.py`) resolves the target DB from
+`-x db_url=<dsn>` (preferred for a one-off op) **or** `$DATABASE_URL` — there is **no `-x env=`
+switch**. Point it at the env's connection string (the `SUPABASE_{STAGING,PROD}_DATABASE_URL`
+secrets):
+
+```bash
+# Inspect first — current applied revision vs the latest defined head:
+uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" current
+uv run alembic heads          # the target; `current` must equal this after the upgrade
+
+# Apply to staging:
+uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" upgrade head
+
+# Apply to prod (gated — only from the approval-protected prod-migrate job, or manually with care):
+uv run alembic -x db_url="$SUPABASE_PROD_DATABASE_URL" upgrade head
+```
+
+After a hosted-Supabase upgrade, `\dt` lists the 8 app tables (+ `llm_usage` / `llm_budget`) and the
+trigger / RLS / kill-switch from revisions `0002`–`0004` are present (they apply on Supabase because
+it has the `authenticated` role + `auth.uid()`). See
+[`infra/supabase/README.md`](../infra/supabase/README.md) for how the Alembic schema and the
+canonical Supabase-CLI SQL relate.
 
 > **Schema invariant — never migrate prod with Alembic-only.** `DELETE /account` relies on the
 > `auth.users → profiles` `ON DELETE CASCADE` present in the canonical Supabase schema
@@ -132,11 +237,168 @@ and the exact steps to roll back a bad release._
 > production would let a user trip or hide the cost guard for everyone; treat `0004` as a one-way
 > migration in prod.
 
+## Rotate a secret
+
+Secrets live per platform — **Secret Manager** (Cloud Run runtime), **GitHub Actions** (deploy
+credentials), **Supabase / Vercel** (their own) — never in git (task 6.4). Rotation is always
+**add-the-new → cut-over → verify → revoke-the-old**, so a bad new value never causes an outage with
+no way back. Cloud Run pins a secret version per revision, so a new version is only picked up by a
+**new revision** (a redeploy). Below, `lengua-api-staging` / `$GCP_REGION` / project `lengua-prod`.
+
+### Groq API key (`GROQ_API_KEY`)
+
+```bash
+# 1. Mint a NEW key in the Groq console (https://console.groq.com/keys) — keep the old one ENABLED.
+# 2. Add it as a new Secret Manager version (pipe the value; no shell-history echo):
+printf '%s' '<new-groq-key>' | gcloud secrets versions add GROQ_API_KEY --data-file=- --project lengua-prod
+# 3. Roll a new Cloud Run revision so the service re-resolves GROQ_API_KEY:latest:
+gcloud run services update lengua-api-staging --region "$GCP_REGION" --project lengua-prod \
+  --update-secrets=GROQ_API_KEY=GROQ_API_KEY:latest
+# 4. Verify a generate call still succeeds against the service URL (Groq answers with sentences).
+# 5. Revoke the OLD key in the Groq console; optionally disable the old Secret Manager version:
+#    gcloud secrets versions disable <N> --secret=GROQ_API_KEY --project lengua-prod
+```
+
+Repeat for `lengua-api-prod`. The same shape rotates any Secret-Manager-mounted value
+(`SENTRY_DSN_API`, `OTEL_EXPORTER_OTLP_HEADERS`, the quota ceilings, etc.).
+
+### Supabase JWT secret (`SUPABASE_JWT_SECRET`)
+
+Higher-impact: the backend verifies **every** access token against this, so the new value must reach
+Cloud Run **in lockstep** with rotating it in Supabase, or every request 401s and all existing
+sessions are invalidated (users must re-login). Do it in a low-traffic window.
+
+```bash
+# 1. Rotate the JWT secret in the Supabase dashboard (Project Settings → API → JWT Settings).
+# 2. IMMEDIATELY update the Secret Manager version with the new value:
+printf '%s' '<new-jwt-secret>' | gcloud secrets versions add SUPABASE_JWT_SECRET --data-file=- --project lengua-prod
+# 3. Roll a new revision to pick it up:
+gcloud run services update lengua-api-staging --region "$GCP_REGION" --project lengua-prod \
+  --update-secrets=SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest
+# 4. Verify: a fresh login issues a token the API accepts (an authenticated request returns 200).
+```
+
+**Zero-downtime alternative:** prefer Supabase **asymmetric JWT signing keys** (RS256/ES256) over the
+shared HS256 secret. The backend can verify via JWKS (`SUPABASE_JWKS_URL`, see `.env.example`), and
+Supabase rotates signing keys without invalidating live sessions — no shared-secret cut-over.
+
+### Deploy credential (GCP deployer SA key, `GCP_SA_JSON`)
+
+The CD pipeline authenticates to GCP with the deployer service-account key in the `GCP_SA_JSON`
+GitHub Actions secret. Rotate keys periodically:
+
+```bash
+# 1. Create a NEW key for the deployer SA:
+gcloud iam service-accounts keys create new-key.json \
+  --iam-account=<deployer-sa>@lengua-prod.iam.gserviceaccount.com --project lengua-prod
+# 2. Replace the GitHub Actions secret (masked; never printed):
+gh secret set GCP_SA_JSON < new-key.json
+# 3. Re-run a deploy workflow to confirm auth still works (the auth step exits 0).
+# 4. Delete the OLD key by id and shred the local file:
+gcloud iam service-accounts keys list --iam-account=<deployer-sa>@lengua-prod.iam.gserviceaccount.com --project lengua-prod
+gcloud iam service-accounts keys delete <old-key-id> \
+  --iam-account=<deployer-sa>@lengua-prod.iam.gserviceaccount.com --project lengua-prod
+rm -f new-key.json
+```
+
+**Preferred long-term:** migrate CD auth to **Workload Identity Federation** (keyless, no SA JSON to
+store or rotate); then there is no `GCP_SA_JSON` to leak. The Vercel token (`VERCEL_TOKEN`) and
+Supabase access token (`SUPABASE_ACCESS_TOKEN`) rotate the same way — regenerate in the provider
+dashboard, `gh secret set <NAME>`, re-run a deploy to confirm, revoke the old.
+
+> **Live rotation is owner + a deployed service.** The end-to-end verify (rotate the **staging**
+> Groq key, redeploy, confirm the service serves on the new key and the old one no longer works)
+> needs the live Cloud Run service + Secret Manager and is owner-run — tracked in
+> [`planning/outstanding-work.md`](../planning/outstanding-work.md) §12.
+
+## Respond to a budget-exhausted alert
+
+The LLM cost guard is the "I will never get a bill" backstop. Two signals fire here: the **early
+warning** Grafana alert `lengua-llm-budget-80pct` (when `llm_budget_remaining` < 20% of
+`GLOBAL_DAILY_BUDGET`), and — if consumption reaches 100% — the **kill-switch** itself, after which
+every user gets `HTTP 429 {"code":"daily_limit_reached"}` until UTC midnight.
+
+**1. Confirm the condition.** Open the **LLM cost guard** dashboard (`lengua-cost-guard`):
+`llm_budget_remaining` approaching/at 0, and a rise in `llm_cap_hits_total{gate="global_budget"}`.
+Cross-check the counter directly (privileged DB URL — `llm_budget` is service-role-only):
+
+```bash
+psql "$SUPABASE_PROD_DATABASE_URL" -c \
+  "select day, count from llm_budget where day = (now() at time zone 'utc')::date"
+# count >= GLOBAL_DAILY_BUDGET means the kill-switch is tripped for the day.
+```
+
+**2. Triage legitimate growth vs. abuse.** Look for one hot user in `llm_usage`
+(`select user_id, kind, count from llm_usage where day = current_date order by count desc limit 10`)
+and at `llm_cap_hits_total{gate}` (are per-user caps / rate limits also firing?). Genuine abuse is
+contained by the per-user caps, the rate limiter, and the day-0 signup guard — the global budget is
+the last line.
+
+**3. Raise the ceiling SAFELY (only if it is real demand).** `GLOBAL_DAILY_BUDGET` is env-driven
+(default 1000). Before raising it, confirm the **new ceiling × max retry attempts (3)** still stays
+under the active provider's free requests-per-day (Groq `llama-3.1-8b-instant`) — one counted call
+can fan out to 3 real HTTP requests on 429/5xx. Then update the secret/env and roll a new revision:
+
+```bash
+printf '%s' '<new-budget>' | gcloud secrets versions add GLOBAL_DAILY_BUDGET --data-file=- --project lengua-prod
+gcloud run services update lengua-api-prod --region "$GCP_REGION" --project lengua-prod \
+  --update-secrets=GLOBAL_DAILY_BUDGET=GLOBAL_DAILY_BUDGET:latest
+```
+
+**Do not** hand-edit the `llm_budget` row to "unblock" unless you understand it re-arms only at the
+UTC rollover and that lowering today's count re-opens spend up to the ceiling. If you are near the
+provider's hard free limit, the safe action is to **wait for the automatic midnight-UTC reset**
+rather than raise the ceiling. Never set `GLOBAL_DAILY_BUDGET` at or above provider RPD ÷ 3.
+
+## Restore from backup
+
+Postgres lives in Supabase, which takes **automated daily backups** (free tier) and supports
+**point-in-time recovery (PITR)** on paid tiers. Two recovery paths:
+
+**PITR (paid tier).** Supabase dashboard → Database → Backups → restore to a timestamp. This is
+destructive to the project, so for anything but a true disaster **restore into a scratch project**
+first and validate, then cut over.
+
+**`pg_dump` → scratch DB drill (works on every tier).** This is also the rehearsal for task 6.8.4:
+
+```bash
+# 1. Dump prod (custom format, no owner/ACL so it restores into any role):
+pg_dump "$SUPABASE_PROD_DATABASE_URL" --no-owner --no-acl -Fc -f "prod-$(date +%F).dump"
+
+# 2. Restore into a throwaway scratch database (a fresh Supabase project or a local CLI stack):
+pg_restore --no-owner --no-acl --clean --if-exists -d "$SCRATCH_DATABASE_URL" "prod-$(date +%F).dump"
+
+# 3. Verify the row counts match expectations:
+psql "$SCRATCH_DATABASE_URL" -c "select count(*) from cards"
+psql "$SCRATCH_DATABASE_URL" -c "select count(*) from reviews"
+```
+
+> **The actual restore drill is owner-run (task 6.8.4).** Running a real `pg_dump` of prod and
+> restoring it into a scratch DB needs the live prod connection string + a scratch target — tracked
+> in [`planning/outstanding-work.md`](../planning/outstanding-work.md) §12. The procedure above is
+> the script to follow when it is exercised.
+
+## Store-release checklist
+
+Mobile (iOS/Android via Capacitor) and the store submission are **Phases 7–9** and are not yet
+built. When they are, the release checklist (signing, store metadata, data-safety forms, screenshots,
+staged rollout) lives with those phases. Pointers:
+
+- [`planning/tasks/phase-7-mobile.md`](../planning/tasks/phase-7-mobile.md) — native projects,
+  signing, OAuth-in-webview, store builds, OTA.
+- [`planning/tasks/phase-8-compliance-store.md`](../planning/tasks/phase-8-compliance-store.md) —
+  privacy/support URLs, GDPR rights, Apple/Play data-safety, listings, closed tests.
+- [`planning/tasks/phase-9-launch.md`](../planning/tasks/phase-9-launch.md) — prod smoke on every
+  platform, store submit/promote, domain cutover, the 48-hour launch watch.
+- [`planning/go-live-activation.md`](../planning/go-live-activation.md) — the owner-run activation
+  track that turns this as-code pipeline into a live, watchable app (staging → gated prod).
+
 ## On-call
 
 _Filled in for launch (Phase 9): on-call rotation, escalation path, alert routing, and the
 first-response checklist for an incident. Alert routing is wired as code now — see "Health checks →
-Alerts" above and [`infra/grafana/alerts/`](../infra/grafana/alerts)._
+Alerts" above and [`infra/grafana/alerts/`](../infra/grafana/alerts); deploy/rollback/secret/budget
+first-response steps are the sections above._
 
 ## Historical data import (legacy SQLite → Postgres)
 

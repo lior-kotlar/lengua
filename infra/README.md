@@ -7,6 +7,8 @@ there). This directory holds the committed CI/branch-protection docs added in Ph
 0.5–0.6 (e.g. `ci/README.md`, `branch-protection.md`).
 
 The **Supabase CLI config** (the file the CLI actually reads) lives at the repo-root `supabase/`
-(`config.toml`, `migrations/`, `templates/`). Owner-only Auth setup that can't be committed —
-Google/Apple OAuth credentials and custom SMTP (Resend) — is documented in
-[`supabase/oauth-setup.md`](supabase/oauth-setup.md).
+(`config.toml`, `migrations/`, `templates/`) — including the canonical RLS / trigger / kill-switch
+SQL the CLI applies. [`supabase/README.md`](supabase/README.md) documents where that SQL lives, how
+it relates to the Alembic schema (source of truth for DDL), how to apply it per hosted project, and
+how to seed an environment. Owner-only Auth setup that can't be committed — Google/Apple OAuth
+credentials and custom SMTP (Resend) — is in [`supabase/oauth-setup.md`](supabase/oauth-setup.md).
