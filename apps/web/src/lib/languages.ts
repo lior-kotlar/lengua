@@ -15,6 +15,15 @@ import { proficiencyKey } from '@/lib/proficiency';
 /** A language as returned by the API (`GET /languages`). */
 export type LanguageOut = components['schemas']['LanguageOut'];
 
+/**
+ * A minimal placeholder language for the defensive case where a language id is selected but its
+ * full object hasn't resolved yet (e.g. mid-load): LTR, no script font, not vowelized — so a
+ * language-scoped screen renders sensibly instead of crashing on a missing object.
+ */
+export function fallbackLanguage(id: number): LanguageOut {
+  return { id, name: '', code: null, vowelized: false };
+}
+
 /** Query key for the current user's language list. */
 export const languagesKey = ['languages'] as const;
 

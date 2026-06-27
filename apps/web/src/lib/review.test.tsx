@@ -127,6 +127,26 @@ describe('segmentSentence', () => {
   it('returns an empty list for an empty sentence', () => {
     expect(segmentSentence('')).toEqual([]);
   });
+
+  it('returns correct word spans for an RTL string, keeping diacritics in the bare form (4.9.4)', () => {
+    // Hebrew "שָׁלוֹם עוֹלָם גָּדוֹל" (with nikkud) — three whitespace-separated words.
+    const input = 'שָׁלוֹם עוֹלָם גָּדוֹל';
+    const segments = segmentSentence(input);
+    // Reconstruction is exact (so click/touch targets line up with the source).
+    expect(segments.map((s) => s.raw).join('')).toBe(input);
+    const words = segments.filter((s) => s.isWord);
+    expect(words).toHaveLength(3);
+    // The nikkud is retained in the bare form (it keys the explanation cache).
+    expect(words.map((s) => s.bare)).toEqual(['שָׁלוֹם', 'עוֹלָם', 'גָּדוֹל']);
+  });
+
+  it('strips Arabic punctuation but keeps Arabic harakat in the bare form', () => {
+    // "بيتٌ، كبيرٌ" — the Arabic comma (،, in STRIP_CHARS) is stripped; the dammatan (ٌ) is kept.
+    const words = segmentSentence('بيتٌ، كبيرٌ')
+      .filter((s) => s.isWord)
+      .map((s) => s.bare);
+    expect(words).toEqual(['بيتٌ', 'كبيرٌ']);
+  });
 });
 
 describe('cardExplanation', () => {

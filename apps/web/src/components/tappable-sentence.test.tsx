@@ -48,8 +48,9 @@ function renderSentence(
       <TappableSentence
         text={SENTENCE}
         translation={TRANSLATION}
-        languageId={2}
+        language={{ id: 2, code: 'es' }}
         explanations={null}
+        showVowels={true}
         {...props}
       />
     </QueryClientProvider>,
@@ -188,29 +189,82 @@ describe('TappableSentence — dismissal', () => {
   });
 });
 
-describe('TappableSentence — RTL', () => {
-  it('marks the sentence and popover right-to-left and anchors the popover to the right', async () => {
+describe('TappableSentence — RTL (4.9.4)', () => {
+  it('derives RTL + the Hebrew font from the language code and anchors the popover to the right', async () => {
     const user = userEvent.setup();
     post.mockReturnValue(okResult({ word: 'بيت', explanation: 'a house' }));
-    render(
-      <QueryClientProvider
-        client={
-          new QueryClient({ defaultOptions: { queries: { retry: false } } })
-        }
-      >
-        <TappableSentence
-          text="هذا بيت"
-          translation="This is a house"
-          languageId={3}
-          explanations={null}
-          dir="rtl"
-        />
-      </QueryClientProvider>,
-    );
+    renderSentence({
+      text: 'هذا بيت كبير',
+      translation: 'This is a big house',
+      language: { id: 3, code: 'ar' },
+    });
 
+    // The sentence region is RTL and uses the Arabic script font.
+    const paragraph = screen.getByRole('button', { name: 'هذا' }).closest('p');
+    expect(paragraph).toHaveAttribute('dir', 'rtl');
+    expect(paragraph?.className).toContain('font-arabic');
+
+    // Tapping a word MID-sentence opens that exact word's popover (not a neighbour).
     await user.click(screen.getByRole('button', { name: 'بيت' }));
     const popover = await screen.findByTestId('word-popover');
     expect(popover).toHaveAttribute('dir', 'rtl');
     expect(popover.className).toContain('right-0');
+    expect(post).toHaveBeenCalledWith('/explain', {
+      body: {
+        language_id: 3,
+        word: 'بيت',
+        sentence: 'هذا بيت كبير',
+        translation: 'This is a big house',
+      },
+    });
+  });
+});
+
+describe('TappableSentence — vowel-marks toggle (4.9.3)', () => {
+  // Hebrew "שָׁלוֹם עוֹלָם" (with nikkud) → bare "שלום עולם".
+  const VOWELIZED = 'שָׁלוֹם עוֹלָם';
+  const BARE_FIRST = 'שלום';
+  const VOWELIZED_FIRST = 'שָׁלוֹם';
+
+  it('shows the marks when on, and the looked-up word still carries them', async () => {
+    const user = userEvent.setup();
+    post.mockReturnValue(
+      okResult({ word: VOWELIZED_FIRST, explanation: 'hi' }),
+    );
+    renderSentence({
+      text: VOWELIZED,
+      translation: 'hello world',
+      language: { id: 3, code: 'he' },
+      showVowels: true,
+    });
+
+    await user.click(screen.getByRole('button', { name: VOWELIZED_FIRST }));
+    expect(post).toHaveBeenCalledWith(
+      '/explain',
+      expect.objectContaining({
+        body: expect.objectContaining({ word: VOWELIZED_FIRST }),
+      }),
+    );
+  });
+
+  it('strips the marks from the GLYPHS when off but looks up the canonical word', async () => {
+    const user = userEvent.setup();
+    renderSentence({
+      text: VOWELIZED,
+      translation: 'hello world',
+      language: { id: 3, code: 'he' },
+      showVowels: false,
+      // Pre-generated note keyed by the canonical word (WITH marks) — must still match.
+      explanations: { [VOWELIZED_FIRST]: 'a greeting' },
+    });
+
+    // The visible word is stripped …
+    const button = screen.getByRole('button', { name: BARE_FIRST });
+    expect(screen.queryByRole('button', { name: VOWELIZED_FIRST })).toBeNull();
+
+    // … but tapping it serves the pre-generated note (keyed by the diacritized word) — no request.
+    await user.click(button);
+    expect(await screen.findByText('a greeting')).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
   });
 });

@@ -14,6 +14,7 @@ import { ArrowRight, Compass, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
+import { LanguageText } from '@/components/language-text';
 import { LlmErrorState } from '@/components/llm-error-state';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +25,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { useVowelMarks } from '@/components/vowel-marks-context';
+import { VowelMarksToggle } from '@/components/vowel-marks-toggle';
 import {
   clampDiscoverCount,
   DISCOVER_COUNT_MAX,
@@ -32,13 +35,20 @@ import {
   useDiscover,
 } from '@/lib/discover';
 import { handOffWords } from '@/lib/generate-handoff';
+import { directionForCode } from '@/lib/language-text';
+import { fallbackLanguage, type LanguageOut } from '@/lib/languages';
 import { useSettingsQuery } from '@/lib/settings';
 
 export default function Discover() {
   const { activeLanguageId, activeLanguage, isLoading } = useActiveLanguage();
+  const { showVowels } = useVowelMarks();
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
+    <section
+      dir={directionForCode(activeLanguage?.code)}
+      data-testid="discover-content"
+      className="mx-auto max-w-2xl space-y-6"
+    >
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Discover</h1>
         <p className="text-sm text-muted-foreground">
@@ -47,6 +57,8 @@ export default function Discover() {
           {activeLanguage !== null ? ` in ${activeLanguage.name}` : ''}.
         </p>
       </div>
+
+      <VowelMarksToggle />
 
       {isLoading ? (
         <LoadingNote>Loading your languages…</LoadingNote>
@@ -68,7 +80,8 @@ export default function Discover() {
         // Re-mount per language so a switch resets the count/topic/suggestions cleanly.
         <DiscoverWorkspace
           key={activeLanguageId}
-          languageId={activeLanguageId}
+          language={activeLanguage ?? fallbackLanguage(activeLanguageId)}
+          showVowels={showVowels}
         />
       )}
     </section>
@@ -80,7 +93,13 @@ export default function Discover() {
  * Gating the session on the settings load means the count input shows the user's preference from the
  * first render (no flash of the fallback default); a settings error degrades to the server default.
  */
-function DiscoverWorkspace({ languageId }: { languageId: number }) {
+function DiscoverWorkspace({
+  language,
+  showVowels,
+}: {
+  language: LanguageOut;
+  showVowels: boolean;
+}) {
   const settings = useSettingsQuery();
 
   if (settings.isLoading) {
@@ -89,19 +108,26 @@ function DiscoverWorkspace({ languageId }: { languageId: number }) {
 
   return (
     <DiscoverSession
-      languageId={languageId}
+      language={language}
+      showVowels={showVowels}
       initialCount={resolveDiscoverCount(settings.data)}
     />
   );
 }
 
 interface DiscoverSessionProps {
-  languageId: number;
+  language: LanguageOut;
+  showVowels: boolean;
   initialCount: number;
 }
 
 /** The discover → preview → accept/reroll workflow for a known language + resolved default count. */
-function DiscoverSession({ languageId, initialCount }: DiscoverSessionProps) {
+function DiscoverSession({
+  language,
+  showVowels,
+  initialCount,
+}: DiscoverSessionProps) {
+  const languageId = language.id;
   const navigate = useNavigate();
   const [count, setCount] = useState(() => String(initialCount));
   const [topic, setTopic] = useState('');
@@ -167,6 +193,8 @@ function DiscoverSession({ languageId, initialCount }: DiscoverSessionProps) {
       ) : (
         <SuggestionsPanel
           words={suggested}
+          language={language}
+          showVowels={showVowels}
           isRerolling={discover.isPending}
           onAccept={handleAccept}
           onReroll={runDiscover}
@@ -291,6 +319,8 @@ function DiscoverForm({
 
 interface SuggestionsPanelProps {
   words: string[];
+  language: LanguageOut;
+  showVowels: boolean;
   isRerolling: boolean;
   onAccept: (words: string[]) => void;
   onReroll: () => void;
@@ -299,6 +329,8 @@ interface SuggestionsPanelProps {
 
 function SuggestionsPanel({
   words,
+  language,
+  showVowels,
   isRerolling,
   onAccept,
   onReroll,
@@ -353,7 +385,12 @@ function SuggestionsPanel({
               key={`${word}-${index}`}
               className="rounded-full bg-muted px-3 py-1 text-sm"
             >
-              {word}
+              <LanguageText
+                as="span"
+                text={word}
+                language={language}
+                showVowels={showVowels}
+              />
             </li>
           ))}
         </ul>
