@@ -8,6 +8,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { useAuth } = vi.hoisted(() => ({ useAuth: vi.fn() }));
 vi.mock('@/components/auth-context', () => ({ useAuth }));
 
+// The authenticated shell mounts ActiveLanguageProvider (→ GET /languages) and the Languages screen
+// (→ add/remove mutations). Stub the data layer so this routing test needs no QueryClient/network;
+// an empty list keeps the picker/CEFR panel in their no-language states.
+const { useLanguagesQuery, useAddLanguage, useRemoveLanguage } = vi.hoisted(
+  () => ({
+    useLanguagesQuery: vi.fn(),
+    useAddLanguage: vi.fn(),
+    useRemoveLanguage: vi.fn(),
+  }),
+);
+vi.mock('@/lib/languages', () => ({
+  useLanguagesQuery,
+  useAddLanguage,
+  useRemoveLanguage,
+  languagesKey: ['languages'],
+}));
+
 import App from '@/App';
 import { ThemeProvider } from '@/components/theme-provider';
 
@@ -35,6 +52,13 @@ function renderAt(path: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useLanguagesQuery.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
+  });
+  useAddLanguage.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useRemoveLanguage.mockReturnValue({ mutate: vi.fn(), isPending: false });
 });
 
 describe('App routing — authenticated', () => {

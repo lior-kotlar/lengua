@@ -349,16 +349,21 @@ jobs:
           SERVICE_ROLE_KEY: ${{ steps.sb.outputs.SERVICE_ROLE_KEY }}
           JWT_SECRET: ${{ steps.sb.outputs.JWT_SECRET }}
         run: |
-          # SUPABASE_JWT_SECRET lets the API verify the real GoTrue access tokens the web app sends,
-          # so authenticated-screen E2E (4.4+) works against this stack. The token is the local
-          # stack's well-known HS256 secret (ephemeral; not a production credential).
+          # The local Supabase stack signs access tokens with ASYMMETRIC keys (ES256), so the API
+          # verifies the real GoTrue tokens the web app sends via the stack's JWKS endpoint
+          # (SUPABASE_JWKS_URL) — not the legacy HS256 shared secret. This is what makes
+          # authenticated-screen E2E (4.4+) work; the 4.3 auth flows only hit Supabase directly, so
+          # this verification path wasn't exercised before. CORS_ALLOW_ORIGINS allow-lists the
+          # Playwright preview origin (the bundle is served on 127.0.0.1:4173) so the browser's
+          # cross-origin calls to the API pass preflight.
           docker run -d --name lengua-api --network host \
             -e LLM_PROVIDER=fake \
             -e PORT=8000 \
             -e DATABASE_URL="$DB_URL" \
             -e SUPABASE_URL="$API_URL" \
             -e SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
-            -e SUPABASE_JWT_SECRET="$JWT_SECRET" \
+            -e SUPABASE_JWKS_URL="$API_URL/auth/v1/.well-known/jwks.json" \
+            -e CORS_ALLOW_ORIGINS="http://127.0.0.1:4173" \
             lengua-api:ci
       - name: Wait for API health
         run: |

@@ -61,15 +61,16 @@ _Context: signup is required (no guest mode); email verification, password reset
 
 _Context: ports the Streamlit sidebar — pick the active language, add/remove languages, and the CEFR band with progress + manual override. Per-user, RLS-isolated via the API._
 
-- [ ] **4.4.1** Active-language picker in the app shell: list the user's languages from the API and persist the current selection (per user/session) so all screens scope to it.
+- [x] **4.4.1** Active-language picker in the app shell: list the user's languages from the API and persist the current selection (per user/session) so all screens scope to it.
       verify: Playwright selects a language and asserts Generate/Review reflect that language; vitest asserts switching selection refetches language-scoped queries.
-- [ ] **4.4.2** Add-language flow (name + CEFR starting level/direction) calling the API; new language appears in the picker.
+- [x] **4.4.2** Add-language flow (name + CEFR starting level/direction) calling the API; new language appears in the picker.
       verify: Playwright adds a language and sees it in the picker; vitest asserts the create mutation invalidates the languages query and the empty-state disappears.
-- [ ] **4.4.3** Remove-language flow with a confirm dialog (cascade warning) calling the delete endpoint.
+      _Reconciliation: `POST /languages` accepts name/code/vowelized ONLY (no CEFR/direction); a non-default starting band is applied with a follow-up `PUT /proficiency/{id}`, and text direction is DERIVED from the language code (group 4.9), so there is no manual "direction" field._
+- [x] **4.4.3** Remove-language flow with a confirm dialog (cascade warning) calling the delete endpoint.
       verify: Playwright removes a throwaway language and confirms it leaves the picker; vitest asserts the confirm dialog gates the delete mutation.
-- [ ] **4.4.4** CEFR level panel in the sidebar: show the current band and progress-to-next-band for the active language (read from the `proficiency` endpoint), with red/orange/blue/green-neutral progress styling.
+- [x] **4.4.4** CEFR level panel in the sidebar: show the current band and progress-to-next-band for the active language (read from the `proficiency` endpoint), with red/orange/blue/green-neutral progress styling.
       verify: vitest renders the panel against a mocked proficiency payload and asserts the band label + progress percentage; Playwright asserts the band is visible for the demo account.
-- [ ] **4.4.5** Manual CEFR override control (set the band explicitly) that calls the API and updates generation level.
+- [x] **4.4.5** Manual CEFR override control (set the band explicitly) that calls the API and updates generation level.
       verify: Playwright overrides the band and asserts the panel reflects the new band; vitest asserts the override mutation invalidates the proficiency query.
 
 ## 4.5 — Generate screen  ·  M
