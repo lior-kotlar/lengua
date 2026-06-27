@@ -40,21 +40,21 @@ _Context: the OpenAPI-generated client from `packages/api-types` is the single t
 
 _Context: signup is required (no guest mode); email verification, password reset, and Google + Apple OAuth must all work, with token refresh and 401-retry handled centrally so screens never deal with raw tokens._
 
-- [ ] **4.3.1** Sign-up screen (email + password) calling supabase-js, with validation and an "check your email to verify" confirmation state.
+- [x] **4.3.1** Sign-up screen (email + password) calling supabase-js, with validation and an "check your email to verify" confirmation state.
       verify: vitest mocks `supabase.auth.signUp`, submits the form, and asserts the verification-notice state renders; Playwright (LLM-stubbed ephemeral stack) signs up a fresh email and lands on the verify-notice screen.
-- [ ] **4.3.2** Log-in screen (email + password) with error states for bad credentials and unverified email, plus a "forgot password?" link.
+- [x] **4.3.2** Log-in screen (email + password) with error states for bad credentials and unverified email, plus a "forgot password?" link.
       verify: Playwright logs in the seeded demo account against the ephemeral stack and reaches the authenticated home route; vitest asserts a bad-credentials error message renders.
-- [ ] **4.3.3** Email-verification landing route that consumes the Supabase verification redirect and routes the user into the app (or shows a resend action on failure).
+- [x] **4.3.3** Email-verification landing route that consumes the Supabase verification redirect and routes the user into the app (or shows a resend action on failure).
       verify: vitest renders the route with a mocked verified session and asserts redirect to home; with an error token it asserts the resend-verification CTA appears.
-- [ ] **4.3.4** Password-reset flow: request-reset screen + reset-with-token screen, both via supabase-js.
+- [x] **4.3.4** Password-reset flow: request-reset screen + reset-with-token screen, both via supabase-js.
       verify: vitest mocks `resetPasswordForEmail` and `updateUser`, drives both screens, and asserts success/error states; Playwright walks the request step and asserts the confirmation copy.
-- [ ] **4.3.5** Google + Apple OAuth buttons wired to `supabase.auth.signInWithOAuth` with correct redirect URLs (web origin), shown on both sign-up and log-in.
+- [x] **4.3.5** Google + Apple OAuth buttons wired to `supabase.auth.signInWithOAuth` with correct redirect URLs (web origin), shown on both sign-up and log-in.
       verify: vitest asserts each button calls `signInWithOAuth` with the right provider and redirect URL; Playwright asserts both buttons are present and enabled on the login screen.
-- [ ] **4.3.6** Session bootstrap + auth context: read the existing Supabase session on load, expose `useAuth()` (user/session/loading), and gate authenticated routes (redirect unauthenticated users to `/login`).
+- [x] **4.3.6** Session bootstrap + auth context: read the existing Supabase session on load, expose `useAuth()` (user/session/loading), and gate authenticated routes (redirect unauthenticated users to `/login`).
       verify: Playwright visiting `/` while logged out redirects to `/login`; vitest asserts protected routes redirect when `session` is null.
-- [ ] **4.3.7** Central token refresh + 401-retry: a TanStack Query / fetch interceptor that, on a 401, refreshes via supabase-js once and retries the request; sign out + redirect if refresh fails.
+- [x] **4.3.7** Central token refresh + 401-retry: a TanStack Query / fetch interceptor that, on a 401, refreshes via supabase-js once and retries the request; sign out + redirect if refresh fails.
       verify: vitest simulates a 401 → refresh → retry-success path and asserts the second call carries the new token; a forced refresh failure logs the user out and redirects to `/login`.
-- [ ] **4.3.8** Sign-out action (header/account menu) that clears the Supabase session and resets the Query cache.
+- [x] **4.3.8** Sign-out action (header/account menu) that clears the Supabase session and resets the Query cache.
       verify: Playwright clicks sign out and is redirected to `/login`; revisiting `/` redirects back to login (session cleared).
 
 ## 4.4 — Language management & CEFR level UI  ·  M

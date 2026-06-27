@@ -178,6 +178,80 @@ async function sessionAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
+// ── Central token refresh + 401 retry (task 4.3.7) ──────────────────────────────────────────────
+//
+// supabase-js refreshes the access token in the background, but a token can still expire in the
+// window between a request being built and the server validating it. So on a 401 we refresh ONCE
+// via supabase-js and retry the request with the new token; if the refresh itself fails we sign out
+// (which clears the Query cache via the AuthProvider and lets the route guard redirect to /login).
+
+/**
+ * In-flight refresh promise, so a burst of concurrent 401s triggers exactly ONE `refreshSession()`
+ * (no refresh storm). Reset once it settles. The returned token is only ever written to a request
+ * header — never logged or persisted here.
+ */
+let inFlightRefresh: Promise<string | null> | null = null;
+
+/** Refresh the Supabase session once (deduped) and return the new access token, or null on failure. */
+async function sessionRefreshToken(): Promise<string | null> {
+  if (inFlightRefresh === null) {
+    inFlightRefresh = (async () => {
+      try {
+        const { data, error } = await getSupabaseClient().auth.refreshSession();
+        if (error !== null) {
+          return null;
+        }
+        return data.session?.access_token ?? null;
+      } catch {
+        return null;
+      }
+    })();
+    void inFlightRefresh.finally(() => {
+      inFlightRefresh = null;
+    });
+  }
+  return inFlightRefresh;
+}
+
+/** Default refresh-failure handler: sign out (AuthProvider then clears the cache + guard redirects). */
+async function defaultOnAuthFailure(): Promise<void> {
+  await getSupabaseClient().auth.signOut();
+}
+
+/** The single-argument `(Request) => Promise<Response>` fetch shape `openapi-fetch` calls. */
+type FetchImpl = (request: Request) => Promise<Response>;
+
+/**
+ * Wrap a fetch so that a 401 triggers a one-time token refresh + retry.
+ *
+ * The request is cloned BEFORE the first send (a sent body can't be re-read), so the retry can be
+ * re-issued with the refreshed `Authorization`. There is at most ONE retry (no loop): if the retried
+ * request also 401s, that response is returned as-is. If the refresh fails, `onAuthFailure` runs and
+ * the original 401 is surfaced.
+ */
+export function createRefreshRetryFetch(
+  baseFetch: FetchImpl,
+  refreshAccessToken: () => Promise<string | null>,
+  onAuthFailure: () => void | Promise<void>,
+): FetchImpl {
+  return async (request) => {
+    const retryRequest = request.clone();
+    const response = await baseFetch(request);
+    if (response.status !== 401) {
+      return response;
+    }
+
+    const token = await refreshAccessToken();
+    if (token === null) {
+      await onAuthFailure();
+      return response;
+    }
+
+    retryRequest.headers.set('Authorization', `Bearer ${token}`);
+    return baseFetch(retryRequest);
+  };
+}
+
 /** Middleware that attaches `Authorization: Bearer <token>` when a session token is available. */
 function authMiddleware(
   getAccessToken: () => Promise<string | null>,
@@ -201,19 +275,35 @@ export interface AuthedApiClientOptions {
   fetch?: ClientOptions['fetch'];
   /** Access-token source (defaults to the current Supabase session). */
   getAccessToken?: () => Promise<string | null>;
+  /** Refresh the session + return a fresh access token (defaults to supabase-js `refreshSession`). */
+  refreshAccessToken?: () => Promise<string | null>;
+  /** Invoked when a refresh fails (defaults to signing out the Supabase session). */
+  onAuthFailure?: () => void | Promise<void>;
 }
 
 /**
- * Create a typed API client with the auth middleware attached.
+ * Create a typed API client with the auth + refresh/retry layers attached.
  *
- * Exposed (vs. just the singleton) so tests can inject a base URL, a fetch, and a token source.
+ * Exposed (vs. just the singleton) so tests can inject a base URL, a fetch, a token source, and the
+ * refresh/auth-failure hooks. The request middleware injects the current bearer token; the fetch
+ * wrapper handles the 401 → refresh-once → retry path (task 4.3.7).
  */
 export function createAuthedApiClient(
   options: AuthedApiClientOptions = {},
 ): ApiClient {
   const baseUrl = options.baseUrl ?? readEnv().apiBaseUrl;
   const getAccessToken = options.getAccessToken ?? sessionAccessToken;
-  const client = createApiClient({ baseUrl, fetch: options.fetch });
+  const refreshAccessToken = options.refreshAccessToken ?? sessionRefreshToken;
+  const onAuthFailure = options.onAuthFailure ?? defaultOnAuthFailure;
+  // Default to the global fetch (wrapped in an arrow so it isn't called detached from `globalThis`).
+  const baseFetch: FetchImpl =
+    (options.fetch as FetchImpl | undefined) ?? ((request) => fetch(request));
+  const wrappedFetch = createRefreshRetryFetch(
+    baseFetch,
+    refreshAccessToken,
+    onAuthFailure,
+  );
+  const client = createApiClient({ baseUrl, fetch: wrappedFetch });
   client.use(authMiddleware(getAccessToken));
   return client;
 }
