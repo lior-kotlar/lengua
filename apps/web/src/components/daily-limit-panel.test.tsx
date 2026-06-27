@@ -45,4 +45,17 @@ describe('DailyLimitPanel', () => {
     expect(container).toBeEmptyDOMElement();
     expect(screen.queryByTestId('daily-limit-panel')).not.toBeInTheDocument();
   });
+
+  it('renders nothing for a 429 that is NOT a quota code (tied to the quota shape, not just status)', () => {
+    // A 429 rate-limit is NOT the daily-limit panel's concern — the panel is tied to the quota
+    // response shape (daily_cap_reached / daily_limit_reached), not merely the 429 status.
+    const { container } = render(
+      <DailyLimitPanel
+        error={
+          new ApiError({ status: 429, code: 'rate_limited', message: 'slow' })
+        }
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
 });

@@ -23,6 +23,7 @@ function renderPicker(overrides: Partial<ActiveLanguageState> = {}) {
     setActiveLanguageId,
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
     ...overrides,
   };
   render(

@@ -30,9 +30,17 @@ const USER_ID = 'user-1';
 /** Records the language id each scoped query is keyed by, to prove refetch-on-switch. */
 const scopedKeys: Array<number | null> = [];
 
+/** Spy for the languages query's `refetch`, surfaced through the context for the retry path. */
+const languagesRefetch = vi.fn();
+
 function Probe() {
-  const { activeLanguageId, activeLanguage, languages, setActiveLanguageId } =
-    useActiveLanguage();
+  const {
+    activeLanguageId,
+    activeLanguage,
+    languages,
+    setActiveLanguageId,
+    refetch,
+  } = useActiveLanguage();
 
   useQuery({
     queryKey: ['scoped', activeLanguageId],
@@ -55,6 +63,7 @@ function Probe() {
           pick {language.name}
         </button>
       ))}
+      <button onClick={refetch}>retry languages</button>
     </div>
   );
 }
@@ -86,6 +95,7 @@ beforeEach(() => {
     data: LANGS,
     isLoading: false,
     isError: false,
+    refetch: languagesRefetch,
   });
 });
 
@@ -131,6 +141,17 @@ describe('ActiveLanguageProvider', () => {
     await waitFor(() => expect(scopedKeys).toContain(2));
     // And the choice is persisted for next time.
     expect(localStorage.getItem(activeLanguageStorageKey(USER_ID))).toBe('2');
+  });
+
+  it('exposes a refetch that re-runs the languages query (retryable error path)', async () => {
+    const user = userEvent.setup();
+    renderProvider();
+    await waitFor(() =>
+      expect(screen.getByTestId('active-id')).toHaveTextContent('1'),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'retry languages' }));
+    expect(languagesRefetch).toHaveBeenCalled();
   });
 
   it('stays unselected while the language list is still loading', async () => {

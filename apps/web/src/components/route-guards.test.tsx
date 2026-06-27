@@ -1,12 +1,32 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // MemoryRouter's `initialEntries` element type (react-router-dom doesn't export `InitialEntry`).
 type Entry =
   | string
-  | { pathname: string; state?: { from?: { pathname: string } } };
+  | {
+      pathname: string;
+      state?: {
+        from?: { pathname: string; search?: string; hash?: string };
+      };
+    };
+
+/** Surfaces the resolved location so a test can assert search + hash survived the redirect. */
+function LocationProbe({ label }: { label: string }) {
+  const location = useLocation();
+  return (
+    <div>
+      {label}
+      <span data-testid="resolved-location">
+        {location.pathname}
+        {location.search}
+        {location.hash}
+      </span>
+    </div>
+  );
+}
 
 const { useAuth } = vi.hoisted(() => ({ useAuth: vi.fn() }));
 vi.mock('@/components/auth-context', () => ({ useAuth }));
@@ -47,7 +67,10 @@ function renderAuthRoute(initialEntries: Entry[]) {
           <Route path="/login" element={<div>Login form</div>} />
         </Route>
         <Route path="/" element={<div>Home screen</div>} />
-        <Route path="/review" element={<div>Review screen</div>} />
+        <Route
+          path="/review"
+          element={<LocationProbe label="Review screen" />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -111,5 +134,21 @@ describe('RedirectIfAuthed', () => {
       { pathname: '/login', state: { from: { pathname: '/review' } } },
     ]);
     expect(screen.getByText('Review screen')).toBeInTheDocument();
+  });
+
+  it('preserves the full target location (pathname + search + hash) on the post-login redirect', () => {
+    setAuth({ session: SESSION, loading: false });
+    renderAuthRoute([
+      {
+        pathname: '/login',
+        state: {
+          from: { pathname: '/review', search: '?tab=due', hash: '#card-3' },
+        },
+      },
+    ]);
+    // Not just the pathname — the query string and fragment survive the round-trip.
+    expect(screen.getByTestId('resolved-location')).toHaveTextContent(
+      '/review?tab=due#card-3',
+    );
   });
 });

@@ -32,6 +32,16 @@ the app, so the eventual policy starts from the truth.
   Only one provider is active at a time; your vocabulary and the generated
   sentences are sent to whichever provider is currently configured.
 
+### Product analytics (opt-in only)
+
+- **Analytics is off until you opt in.** The web app shows a first-run consent
+  banner. No product-analytics SDK is loaded and no analytics events are
+  collected unless you explicitly accept; the choice is remembered on your
+  device, and declining (or never deciding) means nothing analytics-related ever
+  loads. PostHog is the intended analytics provider (wired in a later phase);
+  even after opt-in it loads only when an analytics key is configured for the
+  deployment.
+
 ## To be completed in Phase 8
 
 - Legal basis, data-subject rights, and GDPR consent/residency.

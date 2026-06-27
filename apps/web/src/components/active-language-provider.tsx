@@ -31,7 +31,7 @@ export function ActiveLanguageProvider({
 }: ActiveLanguageProviderProps) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const { data: languages, isLoading, isError } = useLanguagesQuery();
+  const { data: languages, isLoading, isError, refetch } = useLanguagesQuery();
 
   const [activeId, setActiveId] = useState<number | null>(null);
 
@@ -71,6 +71,12 @@ export function ActiveLanguageProvider({
     [userId],
   );
 
+  // Stable `() => void` wrapper so a retryable error state can re-run the languages query without
+  // depending on react-query's `refetch` signature/return.
+  const refetchLanguages = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+
   const activeLanguage = useMemo(
     () => languages?.find((l) => l.id === activeId) ?? null,
     [languages, activeId],
@@ -84,6 +90,7 @@ export function ActiveLanguageProvider({
       setActiveLanguageId,
       isLoading,
       isError,
+      refetch: refetchLanguages,
     }),
     [
       languages,
@@ -92,6 +99,7 @@ export function ActiveLanguageProvider({
       setActiveLanguageId,
       isLoading,
       isError,
+      refetchLanguages,
     ],
   );
 

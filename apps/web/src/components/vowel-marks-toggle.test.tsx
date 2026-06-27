@@ -32,6 +32,7 @@ function activeValue(language: LanguageOut | null): ActiveLanguageState {
     setActiveLanguageId: vi.fn(),
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
   };
 }
 

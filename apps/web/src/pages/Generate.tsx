@@ -14,8 +14,11 @@ import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
+import { EmptyState } from '@/components/empty-state';
+import { ErrorState } from '@/components/error-state';
 import { LanguageText } from '@/components/language-text';
 import { LlmErrorState } from '@/components/llm-error-state';
+import { LoadingState } from '@/components/loading-state';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -44,7 +47,8 @@ import { takeHandedOffWords } from '@/lib/generate-handoff';
 import { cn } from '@/lib/utils';
 
 export default function Generate() {
-  const { activeLanguageId, activeLanguage, isLoading } = useActiveLanguage();
+  const { activeLanguageId, activeLanguage, isLoading, isError, refetch } =
+    useActiveLanguage();
   const { showVowels } = useVowelMarks();
 
   return (
@@ -64,27 +68,22 @@ export default function Generate() {
       <VowelMarksToggle />
 
       {isLoading ? (
-        <p
-          className="flex items-center gap-2 text-sm text-muted-foreground"
-          aria-busy="true"
-        >
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading your languages…
-        </p>
+        <LoadingState label="Loading your languages…" />
+      ) : isError ? (
+        <ErrorState
+          title="Couldn't load your languages"
+          description="Something went wrong loading your languages."
+          onRetry={refetch}
+        />
       ) : activeLanguageId === null ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Add a language first</CardTitle>
-            <CardDescription>
-              You need a language before you can generate sentences.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link to="/languages">Add a language</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="Add a language first"
+          description="You need a language before you can generate sentences."
+        >
+          <Button asChild>
+            <Link to="/languages">Add a language</Link>
+          </Button>
+        </EmptyState>
       ) : (
         // Re-mount the workspace per language so its draft/results never leak across a switch.
         <GenerateWorkspace
@@ -393,19 +392,14 @@ function ResultsPanel({
 
   if (sentences.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">No sentences generated</CardTitle>
-          <CardDescription>
-            Nothing came back for those words. Try different ones.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={onStartOver}>
-            Back to words
-          </Button>
-        </CardContent>
-      </Card>
+      <EmptyState
+        title="No sentences generated"
+        description="Nothing came back for those words. Try different ones."
+      >
+        <Button variant="outline" onClick={onStartOver}>
+          Back to words
+        </Button>
+      </EmptyState>
     );
   }
 

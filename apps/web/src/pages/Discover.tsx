@@ -14,8 +14,11 @@ import { ArrowRight, Compass, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
+import { EmptyState } from '@/components/empty-state';
+import { ErrorState } from '@/components/error-state';
 import { LanguageText } from '@/components/language-text';
 import { LlmErrorState } from '@/components/llm-error-state';
+import { LoadingState } from '@/components/loading-state';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -40,7 +43,8 @@ import { fallbackLanguage, type LanguageOut } from '@/lib/languages';
 import { useSettingsQuery } from '@/lib/settings';
 
 export default function Discover() {
-  const { activeLanguageId, activeLanguage, isLoading } = useActiveLanguage();
+  const { activeLanguageId, activeLanguage, isLoading, isError, refetch } =
+    useActiveLanguage();
   const { showVowels } = useVowelMarks();
 
   return (
@@ -61,21 +65,22 @@ export default function Discover() {
       <VowelMarksToggle />
 
       {isLoading ? (
-        <LoadingNote>Loading your languages…</LoadingNote>
+        <LoadingState label="Loading your languages…" />
+      ) : isError ? (
+        <ErrorState
+          title="Couldn't load your languages"
+          description="Something went wrong loading your languages."
+          onRetry={refetch}
+        />
       ) : activeLanguageId === null ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Add a language first</CardTitle>
-            <CardDescription>
-              You need a language before you can discover new words.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link to="/languages">Add a language</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="Add a language first"
+          description="You need a language before you can discover new words."
+        >
+          <Button asChild>
+            <Link to="/languages">Add a language</Link>
+          </Button>
+        </EmptyState>
       ) : (
         // Re-mount per language so a switch resets the count/topic/suggestions cleanly.
         <DiscoverWorkspace
@@ -103,7 +108,7 @@ function DiscoverWorkspace({
   const settings = useSettingsQuery();
 
   if (settings.isLoading) {
-    return <LoadingNote>Loading your preferences…</LoadingNote>;
+    return <LoadingState label="Loading your preferences…" />;
   }
 
   return (
@@ -338,30 +343,24 @@ function SuggestionsPanel({
 }: SuggestionsPanelProps) {
   if (words.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">No new words found</CardTitle>
-          <CardDescription>
-            Lengua could not find new vocabulary for that request. Try a
-            different topic or count.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center gap-3">
-          <Button variant="outline" onClick={onReroll} disabled={isRerolling}>
-            {isRerolling ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Finding…
-              </>
-            ) : (
-              'Try again'
-            )}
-          </Button>
-          <Button variant="ghost" onClick={onStartOver} disabled={isRerolling}>
-            Change topic
-          </Button>
-        </CardContent>
-      </Card>
+      <EmptyState
+        title="No new words found"
+        description="Lengua could not find new vocabulary for that request. Try a different topic or count."
+      >
+        <Button variant="outline" onClick={onReroll} disabled={isRerolling}>
+          {isRerolling ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Finding…
+            </>
+          ) : (
+            'Try again'
+          )}
+        </Button>
+        <Button variant="ghost" onClick={onStartOver} disabled={isRerolling}>
+          Change topic
+        </Button>
+      </EmptyState>
     );
   }
 
@@ -416,18 +415,5 @@ function SuggestionsPanel({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-/** A small inline "loading…" line with a spinner, used by the language + settings gates. */
-function LoadingNote({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      className="flex items-center gap-2 text-sm text-muted-foreground"
-      aria-busy="true"
-    >
-      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-      {children}
-    </p>
   );
 }
