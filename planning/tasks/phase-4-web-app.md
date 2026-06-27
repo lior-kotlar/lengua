@@ -117,11 +117,12 @@ _Context: ports Discover — optional topic + count → preview suggested new wo
 
 _Context: ports Settings (per-user daily new/total limits, discover count) and Account (profile, data export, delete account, sign out). Delete + export are store-compliance flows backed by the Phase 2 endpoints._
 
-- [ ] **4.8.1** Settings screen: edit per-user daily new-card limit, daily total limit, and discover count; save via the settings endpoint with validation against server bounds.
+- [x] **4.8.1** Settings screen: edit per-user daily new-card limit, daily total limit, and discover count; save via the settings endpoint with validation against server bounds.
       verify: Playwright changes the daily new-card limit, saves, reloads, and asserts the value persists; vitest asserts client validation rejects values outside server bounds.
-- [ ] **4.8.2** Account screen — profile + data export: trigger the JSON export endpoint and download/display the file.
+      _Reconciliation: `PUT /settings` is a generic key/value store with no per-value bound. `discover_count` is validated against a REAL server bound (`DiscoverRequest.count` min/max from the OpenAPI schema, via `schemaLimits`); the two daily review limits have no schema bound today (the review batch still uses the `lengua_core` config defaults — wiring the per-user keys into the due batch is a tracked backend gap), so they validate against the legacy app's product bounds (new 1–100, total 1–500), documented in `lib/settings.ts`._
+- [x] **4.8.2** Account screen — profile + data export: trigger the JSON export endpoint and download/display the file.
       verify: Playwright clicks export and asserts a JSON download is offered (or rendered); vitest asserts the export call hits the correct endpoint and handles the returned payload.
-- [ ] **4.8.3** Account screen — delete account: a confirm-typed dialog calling the hard-delete endpoint, then sign out + redirect to login.
+- [x] **4.8.3** Account screen — delete account: a confirm-typed dialog calling the hard-delete endpoint, then sign out + redirect to login.
       verify: vitest asserts the delete button is disabled until the confirmation phrase is typed and that confirming calls the delete endpoint then signs out; Playwright walks the dialog up to (mocked) deletion and asserts redirect to `/login`.
 
 ## 4.9 — RTL, diacritics & complex scripts  ·  M

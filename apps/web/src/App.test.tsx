@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
@@ -7,6 +8,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test controls whether a session exists, without standing up a real AuthProvider + Supabase.
 const { useAuth } = vi.hoisted(() => ({ useAuth: vi.fn() }));
 vi.mock('@/components/auth-context', () => ({ useAuth }));
+
+// The Settings + Account screens (groups 4.8) call their data hooks; stub them so this routing test
+// stays network-free (the Account delete dialog still uses a real QueryClient — provided below).
+const { useSettingsQuery, useUpdateSettings } = vi.hoisted(() => ({
+  useSettingsQuery: vi.fn(),
+  useUpdateSettings: vi.fn(),
+}));
+vi.mock('@/lib/settings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/settings')>();
+  return { ...actual, useSettingsQuery, useUpdateSettings };
+});
+const { useExportAccount, useDeleteAccount } = vi.hoisted(() => ({
+  useExportAccount: vi.fn(),
+  useDeleteAccount: vi.fn(),
+}));
+vi.mock('@/lib/account', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/account')>();
+  return { ...actual, useExportAccount, useDeleteAccount };
+});
 
 // The authenticated shell mounts ActiveLanguageProvider (→ GET /languages) and the Languages screen
 // (→ add/remove mutations). Stub the data layer so this routing test needs no QueryClient/network;
@@ -41,12 +61,17 @@ function setSession(session: Session | null) {
 }
 
 function renderAt(path: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
-    <ThemeProvider defaultTheme="light">
-      <MemoryRouter initialEntries={[path]}>
-        <App />
-      </MemoryRouter>
-    </ThemeProvider>,
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light">
+        <MemoryRouter initialEntries={[path]}>
+          <App />
+        </MemoryRouter>
+      </ThemeProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -59,6 +84,24 @@ beforeEach(() => {
   });
   useAddLanguage.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useRemoveLanguage.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  // Settings: a loaded, empty settings map → the form renders with defaults.
+  useSettingsQuery.mockReturnValue({
+    data: { values: {} },
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  });
+  useUpdateSettings.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  // Account: export + delete mutations (idle).
+  useExportAccount.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useDeleteAccount.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+    reset: vi.fn(),
+  });
 });
 
 describe('App routing — authenticated', () => {
