@@ -74,6 +74,7 @@ from app.llm_observability import (
     ATTR_LLM_TOKENS_IN,
     ATTR_LLM_TOKENS_OUT,
     ATTR_QUOTA_CAP_HIT,
+    ATTR_USER_CAP_REMAINING,
     CAP_HIT_NONE,
     RESULT_BLOCKED,
     RESULT_ERROR,
@@ -83,6 +84,7 @@ from app.llm_observability import (
     record_cap_hit,
     set_budget_remaining,
     start_llm_span,
+    start_quota_check_span,
 )
 from app.ratelimit import RateLimiter, get_rate_limiter
 from app.repositories.profiles import ProfilesRepository
@@ -219,16 +221,17 @@ async def _account_created_today(db: AsyncSession, user_id: uuid.UUID, day: date
     return profile.created_at.astimezone(UTC).date() == day
 
 
-async def enforce_daily_cap(
-    db: AsyncSession, settings: Settings, user_id: uuid.UUID, kind: Kind, day: date | None = None
-) -> None:
-    """The daily-cap gate: raise :class:`DailyCapReached` when the user is at/over their cap.
+async def resolve_daily_cap_state(
+    db: AsyncSession, settings: Settings, user_id: uuid.UUID, kind: Kind, day: date
+) -> tuple[int, int]:
+    """Return ``(effective_cap, current_count)`` for ``user_id``/``kind`` on ``day`` (read-only).
 
-    Compares ``day``'s ``get_user_daily_count`` (RLS-scoped read on the request session) to the
-    effective cap; refuses with a 429 once ``count >= cap``. Read-only — it never increments (that
-    is :meth:`QuotaGuard.record_success`, post-success). ``day`` defaults to the current UTC day;
-    the gate chain (:meth:`QuotaGuard.check`) passes the request's single, already-computed UTC day
-    so the cap read, the budget read, and the later increment all reference the same day.
+    The single source of the daily-cap *inputs* — the effective cap (resolved per-user cap with the
+    generate-only day-0 clamp applied) and the day's usage count — used by **both** the decision
+    (:func:`enforce_daily_cap` / :meth:`QuotaGuard.check`) and the ``quota.check`` span (task 5.2.3,
+    which reports ``cap - count`` as ``user.cap_remaining``). It performs **no**
+    decision and raises nothing, so reading it for the span never changes gate behavior; the caller
+    compares ``count >= cap``.
 
     **Signup-abuse day-0 clamp (3.7.2).** For ``generate`` the effective cap is
     ``min(resolve_user_cap(...), NEW_ACCOUNT_DAY0_GENERATE_CAP)`` while the account is on its first
@@ -239,14 +242,31 @@ async def enforce_daily_cap(
     their own day-0 ceilings later. (A CAPTCHA challenge on signup / first generate would slot in
     here as an additional day-0 gate — DESIGN-ONLY; not built.)
     """
-    if day is None:
-        day = _utc_today()
     cap = await resolve_user_cap(db, settings, user_id, kind)
     if kind == "generate":
         day0_cap = settings.new_account_day0_generate_cap
         if cap > day0_cap and await _account_created_today(db, user_id, day):
             cap = day0_cap
     count = await UsageRepository(db).get_user_daily_count(user_id, kind, day)
+    return cap, count
+
+
+async def enforce_daily_cap(
+    db: AsyncSession, settings: Settings, user_id: uuid.UUID, kind: Kind, day: date | None = None
+) -> None:
+    """The daily-cap gate: raise :class:`DailyCapReached` when the user is at/over their cap.
+
+    Compares ``day``'s ``get_user_daily_count`` (RLS-scoped read on the request session) to the
+    effective cap; refuses with a 429 once ``count >= cap``. Read-only — it never increments (that
+    is :meth:`QuotaGuard.record_success`, post-success). ``day`` defaults to the current UTC day;
+    the gate chain (:meth:`QuotaGuard.check`) passes the request's single, already-computed UTC day
+    so the cap read, the budget read, and the later increment all reference the same day. The cap +
+    count come from :func:`resolve_daily_cap_state` (which applies the day-0 clamp); this is purely
+    the ``count >= cap`` decision over them.
+    """
+    if day is None:
+        day = _utc_today()
+    cap, count = await resolve_daily_cap_state(db, settings, user_id, kind, day)
     if count >= cap:
         raise DailyCapReached(kind)
 
@@ -298,6 +318,15 @@ class QuotaGuard:
         """
         return self._span
 
+    @property
+    def kind(self) -> Kind:
+        """The LLM ``kind`` this guard meters (``generate`` / ``discover`` / ``explain``).
+
+        The single source of the kind for the call boundary, so :func:`app.llm_runner.run_provider`
+        labels ``llm_tokens_total`` consistently with the gate's ``quota.kind`` / cap counters.
+        """
+        return self._kind
+
     async def check(self) -> None:
         """Run the gate chain in documented order; raise on the first (highest-priority) failure.
 
@@ -309,6 +338,14 @@ class QuotaGuard:
         sets ``quota.cap_hit`` to the blocking gate, records the blocked metrics, ends the span,
         and raises; on admission it sets ``quota.cap_hit=none`` and leaves the span open for the
         provider call + :meth:`record_success` to finish.
+
+        Also emits a dedicated, short-lived ``quota.check`` gate span (task 5.2.3, a sibling of
+        ``llm.call`` under the request) carrying ``user.cap_remaining`` (once the daily-cap gate
+        evaluates) and ``budget.remaining`` (the freshly-read global budget, or the last-known value
+        for a call short-circuited by an earlier gate). It is started here and **always** ended in
+        the ``finally`` regardless of admit/block, so every gated call yields exactly one such span.
+        Stamping it never changes any gate decision — the daily-cap inputs come from the same
+        :func:`resolve_daily_cap_state` the decision reads, so the cap state is read once only.
         """
         # Pin the request's UTC day ONCE here, then thread the same value through the daily-cap
         # read, the budget read, and the increment so they never disagree across a midnight flip.
@@ -316,46 +353,66 @@ class QuotaGuard:
         self._day = day
         span = start_llm_span(self._kind)
         self._span = span
-
-        # 1) email-verified (3.7.1): the very first gate — no LLM spend for an unverified account.
-        if not self._email_verified:
-            self._block(GATE_EMAIL)
-            raise EmailUnverified
-
-        # 2) rate-limit (3.3.2): per-user sliding window across all gated kinds; consumes a token.
-        decision = self._rate_limiter.hit(self._user_id)
-        if not decision.allowed:
-            self._block(GATE_RATE)
-            raise RateLimited(decision.retry_after)
-
-        # 3) daily-cap (3.2) + the generate-only day-0 signup-abuse clamp (3.7.2).
+        quota_span = start_quota_check_span(self._kind)
+        # Filled as the gates read them; the ``finally`` backfills ``budget.remaining`` for a call
+        # short-circuited before the global-budget read so the span always carries it.
+        budget_remaining_observed: int | None = None
         try:
-            await enforce_daily_cap(self._db, self._settings, self._user_id, self._kind, day)
-        except DailyCapReached:
-            self._block(GATE_DAILY_CAP)
-            raise
+            # 1) email-verified (3.7.1): the first gate — no LLM spend for an unverified account.
+            if not self._email_verified:
+                self._block(GATE_EMAIL)
+                raise EmailUnverified
 
-        # 4) global-budget kill-switch (3.4): the LAST gate — the project-wide "I will never get a
-        # bill" backstop. Read the GLOBAL counter on the PRIVILEGED usage session (the
-        # ``authenticated`` request role is REVOKE'd from ``llm_budget`` and cannot EXECUTE the
-        # reader, so this MUST run on ``self._usage_db``, never ``self._db``) and refuse EVERY
-        # caller once the day's count reaches the ceiling. This is a deliberate
-        # check-then-increment-on-success design: the read here precedes the provider call and the
-        # atomic increment lands only AFTER success (``record_success``), so concurrent in-flight
-        # requests can overshoot the ceiling slightly. That overshoot is bounded by
-        # ``LLM_MAX_CONCURRENCY`` (3.5) and is acceptable because the budget sits far below the
-        # provider's free RPD — we do NOT reserve before spending, because a failed/blocked provider
-        # call must never burn budget (3.4.3), and there is no refund/decrement path.
-        budget_count = await UsageRepository(self._usage_db).get_budget_count(day)
-        remaining = self._settings.global_daily_budget - budget_count
-        set_budget_remaining(remaining)  # refresh the observable gauge from the just-read count
-        span.set_attribute(ATTR_BUDGET_REMAINING, remaining)
-        if budget_count >= self._settings.global_daily_budget:
-            self._block(GATE_GLOBAL_BUDGET, budget_remaining=remaining)
-            raise GlobalBudgetReached
+            # 2) rate-limit (3.3.2): per-user sliding window across kinds; consumes a token.
+            decision = self._rate_limiter.hit(self._user_id)
+            if not decision.allowed:
+                self._block(GATE_RATE)
+                raise RateLimited(decision.retry_after)
 
-        # Admitted: record the cap-hit attribute now; ``llm.*`` + the final budget land later.
-        span.set_attribute(ATTR_QUOTA_CAP_HIT, CAP_HIT_NONE)
+            # 3) daily-cap (3.2) + the generate-only day-0 signup-abuse clamp (3.7.2). The cap +
+            # count are read ONCE via ``resolve_daily_cap_state`` and reused for both the decision
+            # below and the ``quota.check`` span's ``user.cap_remaining`` (no extra/duplicate read);
+            # the ``count >= cap`` comparison is the exact gate ``enforce_daily_cap`` applies.
+            cap, count = await resolve_daily_cap_state(
+                self._db, self._settings, self._user_id, self._kind, day
+            )
+            quota_span.set_attribute(ATTR_USER_CAP_REMAINING, cap - count)
+            if count >= cap:
+                self._block(GATE_DAILY_CAP)
+                raise DailyCapReached(self._kind)
+
+            # 4) global-budget kill-switch (3.4): the LAST gate — the project-wide "I will never get
+            # a bill" backstop. Read the GLOBAL counter on the PRIVILEGED usage session (the
+            # ``authenticated`` request role is REVOKE'd from ``llm_budget`` and cannot EXECUTE the
+            # reader, so this MUST run on ``self._usage_db``, never ``self._db``) and refuse EVERY
+            # caller once the day's count reaches the ceiling. This is a deliberate
+            # check-then-increment-on-success design: the read here precedes the provider call and
+            # the atomic increment lands only AFTER success (``record_success``), so concurrent
+            # in-flight requests can overshoot the ceiling slightly. That overshoot is bounded by
+            # ``LLM_MAX_CONCURRENCY`` (3.5) and is acceptable because the budget sits far below the
+            # provider's free RPD — we do NOT reserve before spending, because a failed/blocked
+            # provider call must never burn budget (3.4.3), and there is no refund/decrement path.
+            budget_count = await UsageRepository(self._usage_db).get_budget_count(day)
+            remaining = self._settings.global_daily_budget - budget_count
+            budget_remaining_observed = remaining
+            set_budget_remaining(remaining)  # refresh the observable gauge from the just-read count
+            span.set_attribute(ATTR_BUDGET_REMAINING, remaining)
+            if budget_count >= self._settings.global_daily_budget:
+                self._block(GATE_GLOBAL_BUDGET, budget_remaining=remaining)
+                raise GlobalBudgetReached
+
+            # Admitted: record the cap-hit attribute now; ``llm.*`` + the final budget land later.
+            span.set_attribute(ATTR_QUOTA_CAP_HIT, CAP_HIT_NONE)
+        finally:
+            # The ``quota.check`` span always carries ``budget.remaining``: the value the global
+            # gate just read, or the last-known remaining for a call short-circuited by an earlier
+            # gate (so the span is complete without an extra privileged read on the fast-fail path).
+            if budget_remaining_observed is None:
+                budget_remaining_observed = peek_budget_remaining(
+                    self._settings.global_daily_budget
+                )
+            quota_span.set_attribute(ATTR_BUDGET_REMAINING, budget_remaining_observed)
+            quota_span.end()
 
     def _block(self, gate: str, *, budget_remaining: int | None = None) -> None:
         """Finalize the span for a call refused by ``gate``: cap-hit + tokens 0 + blocked metrics.

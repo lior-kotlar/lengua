@@ -19,6 +19,7 @@ from lengua_core.llm.usage import (
     capture_usage,
     report_gemini_usage,
     report_groq_usage,
+    report_retry_count,
     report_usage,
 )
 
@@ -31,9 +32,22 @@ def test_capture_usage_records_reported_counts() -> None:
     assert usage == TokenUsage(tokens_in=11, tokens_out=7)
 
 
+def test_token_usage_defaults_to_zero_retries() -> None:
+    # A fresh sink reports a first-try success (no retries) until a provider reports otherwise.
+    assert TokenUsage().retry_count == 0
+
+
+def test_capture_usage_records_retry_count() -> None:
+    with capture_usage() as usage:
+        report_usage(3, 4)
+        report_retry_count(2)
+    assert usage == TokenUsage(tokens_in=3, tokens_out=4, retry_count=2)
+
+
 def test_report_usage_is_noop_without_capture_scope() -> None:
     # No active scope → reporting is a safe no-op (a provider called directly in a unit test).
     report_usage(5, 5)  # must not raise
+    report_retry_count(3)  # must not raise either (covers the no-sink branch)
 
 
 def test_nested_capture_scopes_are_isolated() -> None:

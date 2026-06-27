@@ -199,15 +199,23 @@ OTEL_SERVICE_NAME=lengua-api                                     # service.name 
 DEPLOYMENT_ENVIRONMENT=staging                                   # deployment.environment (default: ENV)
 ```
 
-**Cost-guard spans + metrics (Phase 3.8).** Every gated LLM operation also emits one
+**Cost-guard spans + metrics (Phase 3.8 / 5.2).** Every gated LLM operation also emits one
 OpenTelemetry **span** `llm.call` carrying `llm.provider` / `llm.model` / `llm.latency_ms` /
-`llm.tokens_in` / `llm.tokens_out` (from the vendor's token usage) plus the cost-guard context
-`quota.kind`, `quota.cap_hit` (which gate blocked — `email` / `rate` / `daily_cap` /
-`global_budget`, or `none`), and `budget.remaining` (`GLOBAL_DAILY_BUDGET − today's count`). A
-blocked call records tokens `0` and still emits a complete span. Three **metrics** track budget
-burn: `llm_calls_total{kind, result}` (`result` ∈ `success` / `blocked` / `error`),
-`llm_cap_hits_total{gate}`, and the `llm_budget_remaining` gauge. Metrics export via OTLP **only**
-when an endpoint is set (the generic `OTEL_EXPORTER_OTLP_ENDPOINT` or the metrics-specific
+`llm.tokens_in` / `llm.tokens_out` (from the vendor's token usage), `llm.input_size` (words for
+generate / count for discover / 1 for explain) and `llm.retry_count` (backoff retries), plus the
+cost-guard context `quota.kind`, `quota.cap_hit` (which gate blocked — `email` / `rate` /
+`daily_cap` / `global_budget`, or `none`), and `budget.remaining` (`GLOBAL_DAILY_BUDGET − today's
+count`). A blocked call records tokens `0` and still emits a complete span. A sibling **`quota.check`
+span** (emitted on every gated call, admit and block) carries `user.cap_remaining` +
+`budget.remaining`, and **`review.grade`** wraps a graded review with `review.rating` /
+`review.next_due` / `review.proficiency_delta`. **Cost metrics:** `llm_calls_total{kind, result}`
+(`result` ∈ `success` / `blocked` / `error`), `llm_cap_hits_total{gate}` (the quota-blocks counter —
+`gate` is the block reason), `llm_tokens_total{kind, direction}`, and the `llm_budget_remaining`
+gauge. **Product metrics:** `reviews_total`, `cards_created_total`, `signups_total`, and the
+`active_users` gauge (process-local for now; a Phase-6 distributed store replaces them at scale). The
+FastAPI instrumentation also exports a per-route RED **`http.server.duration`** histogram. All names
+are provider-agnostic (`llm.*` / `llm_*`, never `gemini.*`). Metrics export via OTLP **only** when an
+endpoint is set (the generic `OTEL_EXPORTER_OTLP_ENDPOINT` or the metrics-specific
 `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`), so they too are no-op with zero egress by default.
 
 ### One-command verify (local quality gate)

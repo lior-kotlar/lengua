@@ -248,9 +248,19 @@ def configure_observability(app: FastAPI) -> None:
     instrumented per app instance (its own guard prevents double-instrumentation). The OTel ASGI
     middleware ends up outermost (FastAPI instrumentation rebuilds the middleware stack), so the
     request-logging middleware runs inside the active server span and can stamp its ``trace_id``.
+
+    The FastAPI instrumentation is also given the app-wide ``MeterProvider`` (task 5.2.6) so it
+    emits the per-route RED histogram (``http.server.duration`` with an ``http.route`` label): rate,
+    errors, and p50/p95/p99 latency for free. The provider is imported lazily here to avoid an
+    import cycle (``app.llm_observability`` imports :func:`build_resource` from here); with no OTLP
+    metrics endpoint it has no readers, so the histogram is recorded into a no-op (zero egress).
     """
+    from app.llm_observability import get_meter_provider
+
     _configure_request_logging()
     provider = _ensure_tracer_provider()
     app.add_middleware(RequestLoggingMiddleware)
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+    FastAPIInstrumentor.instrument_app(
+        app, tracer_provider=provider, meter_provider=get_meter_provider()
+    )
     _instrument_globals(provider)

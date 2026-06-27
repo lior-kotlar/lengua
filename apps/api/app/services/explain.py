@@ -89,16 +89,15 @@ class ExplainService:
         if guard is not None:
             await guard.check()
         # Blocking provider call under the global concurrency cap (3.5.1); ``run_provider`` stamps
-        # the ``llm.*`` attributes on the guard's per-call span (3.8.1).
+        # the ``llm.*`` attributes on the guard's per-call span (3.8.1 / 5.2.1) and counts tokens
+        # (5.2.4). ``input_size`` for explain is 1 (a single tapped word).
         note: str = await run_provider(
             self._limiter,
             self._provider,
             guard.span if guard is not None else None,
-            self._provider.explain_word,
-            word,
-            sentence,
-            translation,
-            language.name,
+            lambda: self._provider.explain_word(word, sentence, translation, language.name),
+            input_size=1,
+            kind=guard.kind if guard is not None else None,
         )
         if guard is not None:
             await guard.record_success()

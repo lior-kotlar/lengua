@@ -22,6 +22,8 @@ import time
 from collections.abc import Callable
 from typing import TypeVar
 
+from .usage import report_retry_count
+
 T = TypeVar("T")
 
 
@@ -85,6 +87,11 @@ def call_with_retry(
     considered exhausted and a :class:`LLMTransientError` is raised (with the last vendor exception as
     its ``__cause__``) — the clean signal the app layer renders as a friendly 503 ``server_busy``
     rather than an unhandled 500.
+
+    The number of retries before the outcome (``0`` when the first attempt succeeded) is reported
+    through :func:`~lengua_core.llm.usage.report_retry_count` so the per-call ``llm.call`` span can
+    carry ``llm.retry_count`` (task 5.2.1). This is pure observability — it never affects the retry
+    decision, delays, or what is returned/raised, and is a safe no-op outside a capture scope.
     """
     last_exc: BaseException | None = None
     for attempt in range(max_attempts):
@@ -92,11 +99,15 @@ def call_with_retry(
             backoff = base_delay * 2 ** (attempt - 1)
             sleep(backoff * rng())
         try:
-            return fn()
+            result = fn()
         except Exception as exc:
             if not is_transient(exc):
                 raise
             last_exc = exc
+        else:
+            report_retry_count(attempt)  # ``attempt`` == retries taken before this success
+            return result
     # Reached only when every attempt raised a transient error (max_attempts >= 1).
     assert last_exc is not None
+    report_retry_count(max_attempts - 1)  # all attempts retried-and-failed
     raise LLMTransientError(last_exc) from last_exc

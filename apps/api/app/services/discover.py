@@ -114,17 +114,17 @@ class DiscoverService:
         band: str = proficiency.band_for_score(score)
         known = await self._cards.known_words(user_id, language_id)
         # Blocking provider call under the global concurrency cap (3.5.1); ``run_provider`` stamps
-        # the ``llm.*`` attributes on the guard's per-call span (3.8.1).
+        # the ``llm.*`` attributes on the guard's per-call span (3.8.1 / 5.2.1) and counts tokens
+        # (5.2.4). ``input_size`` for discover is the requested word count.
         suggestions: list[str] = await run_provider(
             self._limiter,
             self._provider,
             guard.span if guard is not None else None,
-            self._provider.suggest_new_words,
-            language.name,
-            band,
-            known,
-            count=count,
-            topic=topic,
+            lambda: self._provider.suggest_new_words(
+                language.name, band, known, count=count, topic=topic
+            ),
+            input_size=count,
+            kind=guard.kind if guard is not None else None,
         )
         # Count the successful spend, then memoise the preview for the reuse window.
         if guard is not None:

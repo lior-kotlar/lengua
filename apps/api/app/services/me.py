@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.product_metrics import record_signup
 from app.repositories.languages import LanguagesRepository
 from app.repositories.proficiency import ProficiencyRepository
 from app.repositories.profiles import ProfilesRepository
@@ -56,7 +57,13 @@ class MeService:
         self._proficiency = ProficiencyRepository(session)
 
     async def get(self, user_id: uuid.UUID) -> MeView:
-        """Return ``user_id``'s plan and per-language proficiency levels (oldest language first)."""
+        """Return ``user_id``'s plan and per-language proficiency levels (oldest language first).
+
+        ``/me`` is the web app's post-login bootstrap call, so this is also where the server counts
+        a signup (``signups_total``, deduped per process) and marks the user active
+        (``active_users``) — a coarse proxy; the precise funnel is PostHog 5.9.2 (task 5.2.5).
+        """
+        record_signup(user_id)
         profile = await self._profiles.get(user_id)
         plan = profile.plan if profile is not None else DEFAULT_PLAN
 
