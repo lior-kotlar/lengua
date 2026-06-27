@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.db.session import check_db_ready
 from app.error_tracking import configure_error_tracking
 from app.llm_runner import register_llm_handlers
 from app.observability import configure_observability
@@ -81,6 +82,24 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     def health() -> dict[str, str]:
         """Liveness probe used by Cloud Run and CI smoke checks."""
         return {"status": "ok"}
+
+    @application.get("/ready")
+    async def ready(response: Response) -> dict[str, str]:
+        """Readiness probe: ``200 {"status":"ready"}`` when the DB answers, else ``503``.
+
+        Unauthenticated like ``/health``, but where the pure liveness probe does no I/O, ``/ready``
+        verifies database connectivity with a lightweight ``SELECT 1`` on a PLAIN (RLS-free) engine
+        connection — no JWT, never the ``authenticated`` role (see
+        :func:`app.db.session.check_db_ready`). Cloud Run's startup + liveness probes point at
+        ``/health`` (so a transient DB blip never *kills* the instance); its **readiness** probe
+        points here, so an instance that cannot reach Postgres is pulled from rotation until it
+        recovers. Any failure answers ``503``, never a ``500`` (wiring these probes into the Cloud
+        Run service config lands in CD, group 6.6).
+        """
+        if await check_db_ready():
+            return {"status": "ready"}
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "not_ready"}
 
     # The JWT smoke-protected identity route (everything below is scoped to current_user).
     application.include_router(me.router)

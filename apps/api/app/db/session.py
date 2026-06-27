@@ -11,15 +11,22 @@ test ``conftest``, and ``.env`` all emit — so :func:`async_dsn` rewrites the s
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
 from typing import NewType
 
 # Import the module (not just the symbol) so :func:`get_engine` can resolve ``create_async_engine``
 # at *call* time — see the note in :func:`get_engine` for why the late binding matters for tracing.
 import sqlalchemy.ext.asyncio as sa_asyncio
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.settings import get_settings
+
+#: How long the readiness probe waits for the database to answer before declaring "not ready".
+#: Deliberately short — a readiness check must fail fast so Cloud Run can pull a wedged instance
+#: from rotation rather than hang the probe (the startup/liveness probes hit the DB-free /health).
+READY_CHECK_TIMEOUT_SECONDS = 5.0
 
 #: A privileged, **RLS-bypassing** session for the server-only cost-guard counters (group 3.1). It
 #: is a distinct type from a plain :class:`AsyncSession` so the cost-guard code path is visible in
@@ -67,6 +74,33 @@ def get_engine() -> AsyncEngine:
             raise RuntimeError("DATABASE_URL is not set; the database engine cannot be created.")
         _engine = sa_asyncio.create_async_engine(async_dsn(dsn), pool_pre_ping=True)
     return _engine
+
+
+async def _ping_db() -> None:
+    """Run a trivial ``SELECT 1`` on a plain (RLS-free) engine connection.
+
+    Uses :func:`get_engine` directly — the app engine, **not** the per-request RLS session — so it
+    needs no JWT and never switches to the ``authenticated`` role. The connection is returned to the
+    pool on exit; the process-wide engine is never disposed here.
+    """
+    engine = get_engine()
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+
+
+async def check_db_ready(timeout_seconds: float = READY_CHECK_TIMEOUT_SECONDS) -> bool:
+    """Return ``True`` iff the database answers a ``SELECT 1`` within ``timeout_seconds``.
+
+    The connectivity backend for the unauthenticated ``GET /ready`` readiness probe. The check is
+    bounded by ``timeout_seconds`` (via :func:`asyncio.wait_for`) and catches **every** error — an
+    unset ``DATABASE_URL``, a refused or slow connection, a timeout — returning ``False`` so the
+    probe can answer ``503`` instead of surfacing a ``500``. It never raises.
+    """
+    try:
+        await asyncio.wait_for(_ping_db(), timeout=timeout_seconds)
+    except Exception:
+        return False
+    return True
 
 
 def get_sessionmaker() -> async_sessionmaker[AsyncSession]:

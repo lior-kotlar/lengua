@@ -18,8 +18,9 @@ The API exposes a liveness probe:
 GET /health  →  200 {"status":"ok"}
 ```
 
-It is unauthenticated, does no DB/LLM work, and is consumed by **Cloud Run** (liveness/readiness),
-the **CI smoke check**, and the **external uptime monitor** (below). Quick manual check:
+It is unauthenticated, does no DB/LLM work, and is consumed by **Cloud Run** (the startup +
+liveness probes — so a transient DB blip never *kills* a serving instance), the **CI smoke check**,
+and the **external uptime monitor** (below). Quick manual check:
 
 ```bash
 curl -fsS https://<prod-host>/health    # expect: {"status":"ok"}
@@ -28,6 +29,26 @@ curl -fsS https://<prod-host>/health    # expect: {"status":"ok"}
 - **Green:** `200 {"status":"ok"}`.
 - **Red:** non-200, a timeout, or no response → the instance is down or unreachable; check Cloud Run
   instance health and recent deploys, then escalate per the On-call section.
+
+### The `/ready` endpoint
+
+The API also exposes a **readiness** probe — distinct from liveness:
+
+```
+GET /ready  →  200 {"status":"ready"}   |   503 {"status":"not_ready"}
+```
+
+It is unauthenticated like `/health`, but additionally verifies **database connectivity**: a
+lightweight `SELECT 1` on a plain (RLS-free) engine connection — no JWT, never the `authenticated`
+role — bounded by a short timeout. It answers `200 {"status":"ready"}` when the DB responds and
+`503 {"status":"not_ready"}` (never `500`) when it cannot. **Cloud Run's readiness probe points at
+`/ready`** so an instance that has lost its database is pulled from rotation without being killed,
+while the startup + liveness probes stay on the DB-free `/health` above. (The probe *wiring* in the
+Cloud Run service config lands with the CD pipeline, group 6.6.)
+
+```bash
+curl -i https://<prod-host>/ready    # expect: 200 {"status":"ready"} (or 503 when the DB is down)
+```
 
 ### Observability signals (Grafana Cloud)
 

@@ -14,9 +14,9 @@
 
 _Context: a reproducible container image is the deploy unit for both Cloud Run services; staging and prod are two services in an EU region, each scaling to zero, each with health/readiness probes. Locked: Cloud Run, EU region._
 
-- [ ] **6.1.1** Write a production `apps/api/Dockerfile` (multi-stage, non-root user, pinned base, `uvicorn`/`gunicorn` entrypoint reading `$PORT`) and a `.dockerignore`.
+- [x] **6.1.1** Write a production `apps/api/Dockerfile` (multi-stage, non-root user, pinned base, `uvicorn`/`gunicorn` entrypoint reading `$PORT`) and a `.dockerignore`. <!-- confirmed + hardened: base image now pinned by sha256 digest in both stages; build+run path CI-verified by the `build` job's new smoke step. -->
       verify: `docker build -t lengua-api apps/api` succeeds and `docker run -p 8080:8080 -e PORT=8080 lengua-api` answers `curl localhost:8080/health` with `200`.
-- [ ] **6.1.2** Add `/health` (liveness) and `/ready` (readiness — checks DB connectivity) endpoints and wire Cloud Run startup/liveness probes to them.
+- [x] **6.1.2** Add `/health` (liveness) and `/ready` (readiness — checks DB connectivity) endpoints and wire Cloud Run startup/liveness probes to them. <!-- endpoints + tests done & CI-verified; the live Cloud Run probe WIRING (startup/liveness→/health, readiness→/ready in the service config) lands in CD §6.6 / owner — see outstanding-work §12 -->
       verify: `pytest apps/api/tests/test_health_ready.py` asserts `/health` returns `200` always and `/ready` returns `503` when the DB is unreachable and `200` when reachable.
 - [ ] **6.1.3** Create an Artifact Registry repo (EU region) and push the built image with both a git-SHA tag and `latest`.
       verify: `gcloud artifacts docker images list <eu-region>-docker.pkg.dev/<project>/lengua` lists the pushed image with the current commit SHA as a tag.

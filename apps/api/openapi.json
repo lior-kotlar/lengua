@@ -1649,6 +1649,29 @@
         ]
       }
     },
+    "/ready": {
+      "get": {
+        "description": "Readiness probe: ``200 {\"status\":\"ready\"}`` when the DB answers, else ``503``.\n\nUnauthenticated like ``/health``, but where the pure liveness probe does no I/O, ``/ready``\nverifies database connectivity with a lightweight ``SELECT 1`` on a PLAIN (RLS-free) engine\nconnection — no JWT, never the ``authenticated`` role (see\n:func:`app.db.session.check_db_ready`). Cloud Run's startup + liveness probes point at\n``/health`` (so a transient DB blip never *kills* the instance); its **readiness** probe\npoints here, so an instance that cannot reach Postgres is pulled from rotation until it\nrecovers. Any failure answers ``503``, never a ``500`` (wiring these probes into the Cloud\nRun service config lands in CD, group 6.6).",
+        "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ready Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
     "/review/due": {
       "get": {
         "description": "Return the user's due batch for a language, split into new vs. previously-reviewed.\n\nThe batch size honors the user's per-user ``daily_new_limit`` / ``daily_total_limit``\npreferences (read from ``user_settings`` via the settings service — no raw SQL in the router),\neach falling back to the ``lengua_core`` config default when unset or invalid.",

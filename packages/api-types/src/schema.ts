@@ -275,6 +275,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ready
+         * @description Readiness probe: ``200 {"status":"ready"}`` when the DB answers, else ``503``.
+         *
+         *     Unauthenticated like ``/health``, but where the pure liveness probe does no I/O, ``/ready``
+         *     verifies database connectivity with a lightweight ``SELECT 1`` on a PLAIN (RLS-free) engine
+         *     connection — no JWT, never the ``authenticated`` role (see
+         *     :func:`app.db.session.check_db_ready`). Cloud Run's startup + liveness probes point at
+         *     ``/health`` (so a transient DB blip never *kills* the instance); its **readiness** probe
+         *     points here, so an instance that cannot reach Postgres is pulled from rotation until it
+         *     recovers. Any failure answers ``503``, never a ``500`` (wiring these probes into the Cloud
+         *     Run service config lands in CD, group 6.6).
+         */
+        get: operations["ready_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/review/due": {
         parameters: {
             query?: never;
@@ -1210,6 +1239,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ready_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };

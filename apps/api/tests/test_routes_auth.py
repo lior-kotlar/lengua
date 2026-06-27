@@ -1,8 +1,9 @@
-"""Every domain route requires a JWT; only ``/health`` is public (task 2.4.2).
+"""Every domain route requires a JWT; only the infra probes are public (task 2.4.2).
 
 Iterates the live route table and asserts that, **without** an ``Authorization`` header, every
-non-``/health`` API route returns ``401`` (the ``current_user`` dependency rejects before the
-handler — and before body/query validation — runs), while ``GET /health`` returns ``200``.
+domain API route returns ``401`` (the ``current_user`` dependency rejects before the handler — and
+before body/query validation — runs), while the unauthenticated infra probes ``GET /health`` and
+``GET /ready`` are reachable without a token (``/health`` → ``200``).
 
 No database or LLM is needed: a missing token is rejected during dependency resolution, so the
 ``get_db`` / ``get_llm_provider`` dependencies (stubbed here to be safe) are never reached. This
@@ -25,7 +26,8 @@ from app.main import create_app
 
 # FastAPI/Starlette built-ins (docs + schema) are not domain routes and are intentionally public.
 _NON_DOMAIN_PATHS = frozenset({"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"})
-_PUBLIC_PATH = "/health"
+# Unauthenticated infra probes (liveness + readiness) — intentionally public, like the docs routes.
+_PUBLIC_PATHS = frozenset({"/health", "/ready"})
 # Methods Starlette adds automatically; auth is not asserted for them.
 _SKIP_METHODS = frozenset({"HEAD", "OPTIONS"})
 
@@ -51,11 +53,11 @@ def _iter_api_routes(routes: list[BaseRoute]) -> Iterator[APIRoute]:
 
 
 def _domain_routes() -> list[tuple[str, str]]:
-    """Every (method, concrete-path) pair for the app's domain routes, excluding ``/health``."""
+    """Every (method, concrete-path) pair for the app's domain routes, minus the infra probes."""
     app = create_app(include_test_routes=False)
     pairs: list[tuple[str, str]] = []
     for route in _iter_api_routes(app.routes):
-        if route.path in _NON_DOMAIN_PATHS or route.path == _PUBLIC_PATH:
+        if route.path in _NON_DOMAIN_PATHS or route.path in _PUBLIC_PATHS:
             continue
         for method in sorted((route.methods or set()) - _SKIP_METHODS):
             pairs.append((method, _concrete_path(route.path)))
