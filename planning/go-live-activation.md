@@ -34,7 +34,34 @@
 
 ---
 
-## A. Watch it locally NOW (fast path, ~10 min) — staging Supabase + local servers · **Ben**
+## Progress update — 2026-06-28 (Ben ran §A + §B; see [outstanding-work §13](outstanding-work.md))
+
+**Live now / done (✅):**
+- **§A1–A5 local fast-path is GREEN** — staging schema applied (0001→0005, `current==heads`), RLS +
+  trigger confirmed, demo account seeded (`demo@lengua.test` / `demo-password-123`, 6 due cards),
+  `apps/web/.env` created, and the **full loop verified end-to-end against staging**: login (JWKS
+  ES256) → `/languages` → `/review/due` → **Groq `/generate`** all 200. Run it:
+  `cd apps/api && uv run uvicorn app.main:app --port 8000` + `corepack pnpm --filter web dev` → open
+  `http://localhost:5173`.
+- **§B API deployed to Cloud Run staging** — `lengua-api-staging` (europe-west1), image built via
+  Cloud Build, rev `00002-8kg`, `/health`+`/ready` 200. URL:
+  `https://lengua-api-staging-1083154360111.europe-west1.run.app`.
+- **🐞 Fixed a real CD bug:** the Supabase projects sign tokens with **ES256/JWKS**, not the legacy
+  HS256 secret, but neither deploy workflow set `SUPABASE_JWKS_URL` → a CD-deployed API would 401
+  every real token. Added it (derived from `SUPABASE_*_URL`) to `deploy-staging.yml` + `deploy-prod.yml`.
+
+**Blocked on Kotlar (🔒) before the deployed web works end-to-end:**
+1. **Make the Cloud Run staging API public** (one of): Kotlar (Owner) runs
+   `gcloud run services add-iam-policy-binding lengua-api-staging --region=europe-west1 --project lengua-prod --member=allUsers --role=roles/run.invoker`;
+   OR grant Ben `roles/run.admin`; OR just turn CD on — the `github-ci` SA already has `run.admin`.
+   (Ben is `roles/editor`, which lacks `run.services.setIamPolicy`, so he cannot do it.)
+2. **Vercel web** — the canonical project is on Kotlar's account; deploy via the CD (his `VERCEL_*`
+   secrets) or from his account. Set `STAGING_WEB_ORIGIN` so CORS allows the browser.
+3. Supabase Auth wiring (§D), `DEPLOY_ENABLED=true` (§E), prod promotion (§F) — as below.
+
+---
+
+## A. Watch it locally NOW (fast path, ~10 min) — staging Supabase + local servers · **Ben** · ✅ DONE 2026-06-28 (full loop green)
 
 The quickest way to *see and click* the real app today, before any deploy. Runs the real API +
 web locally against the hosted **staging** Supabase.
@@ -53,7 +80,7 @@ web locally against the hosted **staging** Supabase.
 
 ---
 
-## B. Deploy the API to Cloud Run — **staging** · **Ben** (uses the as-code CD once it lands)
+## B. Deploy the API to Cloud Run — **staging** · **Ben** (uses the as-code CD once it lands) · ✅ DEPLOYED 2026-06-28 (rev `00002-8kg`; 🔒 public access pending Kotlar — see Progress update)
 
 - **B1 — Build + push image** to `…-docker.pkg.dev/lengua-prod/lengua` tagged with the commit SHA. **verify:** `gcloud artifacts docker images list …/lengua` shows the SHA tag.
 - **B2 — Apply staging migrations** as a discrete step (skip if A1 done). **verify:** `alembic current` == `heads` against `SUPABASE_STAGING_DATABASE_URL`.
@@ -62,7 +89,7 @@ web locally against the hosted **staging** Supabase.
 
 ---
 
-## C. Deploy the web to Vercel — **staging** · **Ben**
+## C. Deploy the web to Vercel — **staging** · **Ben** · 🔒 OWNER-GATED — the canonical `lengua` Vercel project is on Kotlar's account (Ben's local Vercel CLI is his own personal account). Deploy via the CD (Kotlar's `VERCEL_*` secrets) or from Kotlar's account.
 
 - **C1 — Link `apps/web`** (`vercel link` with `VERCEL_ORG_ID`/`PROJECT_ID`; root dir `apps/web`, install/build via `corepack pnpm`). **verify:** the project appears in `vercel projects ls`.
 - **C2 — Set Vercel env (staging), client-safe only:** `VITE_API_BASE_URL=<staging Cloud Run URL>`, `VITE_SUPABASE_URL/ANON_KEY` (staging), `VITE_SENTRY_DSN_WEB`, optional `VITE_POSTHOG_KEY`. **verify:** `vercel env ls` shows **no** service-role / LLM / JWT secret.
@@ -106,6 +133,70 @@ Each is as-code-done; this lights up the live half (see [outstanding-work.md §1
 - **G4** — Sentry API + web issues, `trace_id` opens the matching Tempo trace (5.4.1/5.4.2); Sentry alert rule → channel (5.4.3).
 - **G5** — Grafana alert rules fire to a real Slack/Discord/email channel (5.7.1–5); external uptime monitor flips DOWN + notifies (5.8.1).
 - **G6** — PostHog (EU) ingests the 4 consent-gated funnel events (5.9.1/5.9.2); build funnel/retention/feature insights (5.9.3).
+
+---
+
+## H. Web-host migration — Vercel → free multi-admin host · 📝 PLAN ONLY (do NOT execute yet)
+
+> **Why:** Vercel's free (Hobby) plan allows **only 1 member**, so Ben + Kotlar can't both be admins.
+> Netlify free has the same 1-seat limit. The web app is a **static Vite SPA** that only calls the
+> Cloud Run API (it uses **no** Vercel serverless/edge functions), so it's fully portable.
+> **This section is a to-do list, not done work.** Host is **decided: Cloudflare Pages** (§H0), but
+> nothing here is executed until the owner says go and the Cloudflare account/token exist. Until then,
+> §C (Vercel) is superseded-on-paper but still the only live web path.
+
+### H0. ✅ DECIDED 2026-06-28 — **Cloudflare Pages**
+Chosen for being the best/most-common static host with **free RBAC multi-admin** (no per-seat charge),
+`wrangler` CLI, unlimited bandwidth, and Git-integrated per-PR previews. **Needs:** a Cloudflare account
++ an API token + the account id (one of us creates the account and invites the other as Administrator —
+that's how we both become admins on the free tier).
+
+> **Fallback kept on record:** **Firebase Hosting** (GCP-native — free Spark plan, multiple Owners via
+> the same IAM already used for Cloud Run, `firebase deploy` CLI). Use only if Cloudflare turns out not
+> to fit; the H2 steps note its config deltas.
+
+### H1. Parity bar — the new host MUST preserve everything we use Vercel for
+☐ serve the static `apps/web` build (`dist/`) on HTTPS + global CDN · ☐ **SPA client-side-routing
+fallback** (all paths → `index.html`) · ☐ **two environments** (preview = staging, production = prod)
+· ☐ **prebuilt CLI deploy** from CI (replaces `vercel deploy --prebuilt`) · ☐ build-time `VITE_*`
+env injection (client-safe only) · ☐ custom domain + auto SSL · ☐ **both owners are admins on free**.
+*(No Vercel Functions / Image Optimization / Middleware are in use → nothing else to replace.)*
+
+### H2. Changes required (the full to-do — execute later, all at once)
+1. **Create the host project + add both as admins** (owner action): Cloudflare → create Pages project,
+   invite the other as Administrator; Firebase → enable Hosting, add both as Owners via IAM.
+2. **Secrets/vars swap** (owner sets in GitHub repo → Settings → Secrets/Variables):
+   - *add* Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (+ project name) — **or** Firebase:
+     `FIREBASE_SERVICE_ACCOUNT` (JSON) + `FIREBASE_PROJECT_ID`.
+   - *remove (after cutover)*: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+3. **Add an SPA-routing config to `apps/web`** so deep links don't 404:
+   - Cloudflare → `apps/web/public/_redirects` with `/*  /index.html  200`.
+   - Firebase → `apps/web/firebase.json` with `"rewrites": [{ "source": "**", "destination": "/index.html" }]`.
+4. **Rewrite the web-deploy job** in **both** `.github/workflows/deploy-staging.yml` (`deploy-web-staging`)
+   and `deploy-prod.yml` (`deploy-web-prod`): replace the `vercel pull/build/deploy` steps with
+   `wrangler pages deploy ./apps/web/dist --branch=<preview|production>` (Cloudflare) or
+   `firebase deploy --only hosting:<staging|prod>` (Firebase). Keep the same `VITE_*` build env and the
+   `outputs.url` that the smoke job consumes.
+5. **Repoint the web-origin repo vars** `STAGING_WEB_ORIGIN` / `PROD_WEB_ORIGIN` to the new URLs
+   (`*.pages.dev` / `*.web.app` or the custom domain) — these become the API's `CORS_ALLOW_ORIGINS`.
+6. **Update Supabase Auth redirect/allow-list URLs** (both projects) to the new web origins (drop the
+   Vercel ones) — else email-confirm/OAuth redirects break.
+7. **⚠️ Update ALL relevant files (docs + config) so nothing still says "Vercel"** — do this as part of
+   the same change, not after:
+   - this file (§C, §E2, §F4, the Ownership-split row) · `planning/owner-setup-checklist.html` (item 4 +
+     the Kotlar copy-paste prompt) · `planning/outstanding-work.md` (§12 Vercel secrets, §13) ·
+     `planning/05-infra-deploy.md` (the "locked decision" that named Vercel — re-decide + record why) ·
+     `planning/tasks/phase-6-infra-cicd.md` (tasks 6.3.1 link, 6.4.2 env, 6.6.4 / 6.7.x deploy steps) ·
+     `README.md` (any deploy/host mention) · `apps/web/.env.example` if it references Vercel.
+   - grep the repo for `vercel`/`VERCEL_`/`Vercel` and reconcile every hit.
+8. **Keep the old Vercel project alive until parity is verified**, then decommission it (delete project +
+   remove the 3 secrets) so there's a clean rollback if cutover fails.
+
+### H3. Verify (parity gate — don't call it done until all pass)
+☐ a preview (staging) deploy serves 200 and the **full loop** works against the staging Cloud Run API ·
+☐ a production deploy serves 200 · ☐ a deep link (e.g. `/review`) loads directly (SPA fallback works) ·
+☐ Supabase email-confirm/OAuth redirect returns to the new origin · ☐ **both Ben and Kotlar can log in
+and administer the host** on the free tier · ☐ CI's `deploy-web-*` job is green end-to-end.
 
 ---
 
