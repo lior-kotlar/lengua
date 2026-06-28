@@ -136,6 +136,70 @@ Each is as-code-done; this lights up the live half (see [outstanding-work.md §1
 
 ---
 
+## H. Web-host migration — Vercel → free multi-admin host · 📝 PLAN ONLY (do NOT execute yet)
+
+> **Why:** Vercel's free (Hobby) plan allows **only 1 member**, so Ben + Kotlar can't both be admins.
+> Netlify free has the same 1-seat limit. The web app is a **static Vite SPA** that only calls the
+> Cloud Run API (it uses **no** Vercel serverless/edge functions), so it's fully portable.
+> **This section is a to-do list, not done work.** Host is **decided: Cloudflare Pages** (§H0), but
+> nothing here is executed until the owner says go and the Cloudflare account/token exist. Until then,
+> §C (Vercel) is superseded-on-paper but still the only live web path.
+
+### H0. ✅ DECIDED 2026-06-28 — **Cloudflare Pages**
+Chosen for being the best/most-common static host with **free RBAC multi-admin** (no per-seat charge),
+`wrangler` CLI, unlimited bandwidth, and Git-integrated per-PR previews. **Needs:** a Cloudflare account
++ an API token + the account id (one of us creates the account and invites the other as Administrator —
+that's how we both become admins on the free tier).
+
+> **Fallback kept on record:** **Firebase Hosting** (GCP-native — free Spark plan, multiple Owners via
+> the same IAM already used for Cloud Run, `firebase deploy` CLI). Use only if Cloudflare turns out not
+> to fit; the H2 steps note its config deltas.
+
+### H1. Parity bar — the new host MUST preserve everything we use Vercel for
+☐ serve the static `apps/web` build (`dist/`) on HTTPS + global CDN · ☐ **SPA client-side-routing
+fallback** (all paths → `index.html`) · ☐ **two environments** (preview = staging, production = prod)
+· ☐ **prebuilt CLI deploy** from CI (replaces `vercel deploy --prebuilt`) · ☐ build-time `VITE_*`
+env injection (client-safe only) · ☐ custom domain + auto SSL · ☐ **both owners are admins on free**.
+*(No Vercel Functions / Image Optimization / Middleware are in use → nothing else to replace.)*
+
+### H2. Changes required (the full to-do — execute later, all at once)
+1. **Create the host project + add both as admins** (owner action): Cloudflare → create Pages project,
+   invite the other as Administrator; Firebase → enable Hosting, add both as Owners via IAM.
+2. **Secrets/vars swap** (owner sets in GitHub repo → Settings → Secrets/Variables):
+   - *add* Cloudflare: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (+ project name) — **or** Firebase:
+     `FIREBASE_SERVICE_ACCOUNT` (JSON) + `FIREBASE_PROJECT_ID`.
+   - *remove (after cutover)*: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+3. **Add an SPA-routing config to `apps/web`** so deep links don't 404:
+   - Cloudflare → `apps/web/public/_redirects` with `/*  /index.html  200`.
+   - Firebase → `apps/web/firebase.json` with `"rewrites": [{ "source": "**", "destination": "/index.html" }]`.
+4. **Rewrite the web-deploy job** in **both** `.github/workflows/deploy-staging.yml` (`deploy-web-staging`)
+   and `deploy-prod.yml` (`deploy-web-prod`): replace the `vercel pull/build/deploy` steps with
+   `wrangler pages deploy ./apps/web/dist --branch=<preview|production>` (Cloudflare) or
+   `firebase deploy --only hosting:<staging|prod>` (Firebase). Keep the same `VITE_*` build env and the
+   `outputs.url` that the smoke job consumes.
+5. **Repoint the web-origin repo vars** `STAGING_WEB_ORIGIN` / `PROD_WEB_ORIGIN` to the new URLs
+   (`*.pages.dev` / `*.web.app` or the custom domain) — these become the API's `CORS_ALLOW_ORIGINS`.
+6. **Update Supabase Auth redirect/allow-list URLs** (both projects) to the new web origins (drop the
+   Vercel ones) — else email-confirm/OAuth redirects break.
+7. **⚠️ Update ALL relevant files (docs + config) so nothing still says "Vercel"** — do this as part of
+   the same change, not after:
+   - this file (§C, §E2, §F4, the Ownership-split row) · `planning/owner-setup-checklist.html` (item 4 +
+     the Kotlar copy-paste prompt) · `planning/outstanding-work.md` (§12 Vercel secrets, §13) ·
+     `planning/05-infra-deploy.md` (the "locked decision" that named Vercel — re-decide + record why) ·
+     `planning/tasks/phase-6-infra-cicd.md` (tasks 6.3.1 link, 6.4.2 env, 6.6.4 / 6.7.x deploy steps) ·
+     `README.md` (any deploy/host mention) · `apps/web/.env.example` if it references Vercel.
+   - grep the repo for `vercel`/`VERCEL_`/`Vercel` and reconcile every hit.
+8. **Keep the old Vercel project alive until parity is verified**, then decommission it (delete project +
+   remove the 3 secrets) so there's a clean rollback if cutover fails.
+
+### H3. Verify (parity gate — don't call it done until all pass)
+☐ a preview (staging) deploy serves 200 and the **full loop** works against the staging Cloud Run API ·
+☐ a production deploy serves 200 · ☐ a deep link (e.g. `/review`) loads directly (SPA fallback works) ·
+☐ Supabase email-confirm/OAuth redirect returns to the new origin · ☐ **both Ben and Kotlar can log in
+and administer the host** on the free tier · ☐ CI's `deploy-web-*` job is green end-to-end.
+
+---
+
 ## Ownership split
 
 | Doer | Scope |

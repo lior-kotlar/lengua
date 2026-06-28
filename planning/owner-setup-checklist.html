@@ -133,12 +133,14 @@
           </span></label><span class="owner-tag tag-kotlar">Kotlar</span>
       </div>
 
-      <div class="item" data-owner="kotlar">
+      <div class="item" data-owner="both">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>4. Deploy the web to Vercel — STAGING</strong> &nbsp;<em>(your Vercel account)</em>
-            <div class="item-detail">The canonical <code>lengua</code> Vercel project is on <strong>your</strong> account; Ben's local Vercel CLI is his own personal account (no access to yours). Either let the CD do it (item 6, uses your <code>VERCEL_*</code> GitHub secrets) or deploy from your account. Set client-safe env only: <code>VITE_API_BASE_URL</code> = the staging Cloud Run URL, <code>VITE_SUPABASE_URL</code>/<code>ANON_KEY</code> (staging) — <strong>never</strong> a service-role/LLM key. Also set repo var <code>STAGING_WEB_ORIGIN</code> = the Vercel URL so the API's CORS allows the browser.
-              <strong>verify:</strong> the staging web URL serves and the full loop works against the (now-public) API.</div>
-          </span></label><span class="owner-tag tag-kotlar">Kotlar</span>
+          <span class="item-text"><strong>4. Move the web host OFF Vercel → <span style="color:#2563eb;">Cloudflare Pages</span> (so we're BOTH admins)</strong>
+            <div class="item-detail"><strong>Why:</strong> Vercel's free plan allows only <strong>1 member</strong> — we can't both administer it. The web app is a static SPA (it just calls the Cloud Run API, no Vercel functions), so it's fully portable. <strong>Decided: Cloudflare Pages</strong> — free, has <strong>multi-admin RBAC at no per-seat cost</strong>, a CLI, and per-PR previews. <em>(GCP-native fallback on record: Firebase Hosting — both admins via the IAM we already use.)</em>
+              <br><strong>Your part (Kotlar):</strong> create a Cloudflare account for the project, <strong>invite Ben as Administrator</strong> (now we're both admins), and create an <strong>API token</strong> (Pages:Edit) + note the <strong>Account ID</strong>; hand those to Ben / add as GitHub secrets <code>CLOUDFLARE_API_TOKEN</code> + <code>CLOUDFLARE_ACCOUNT_ID</code>.
+              <br><strong>Ben's part:</strong> swap the <code>deploy-web-*</code> CD jobs from Vercel → <code>wrangler pages deploy</code>, add the SPA-routing fallback, and repoint <code>STAGING_WEB_ORIGIN</code> + Supabase redirect URLs. Full step list: <code>go-live-activation.md §H</code> (plan written, not yet executed).
+              <strong>verify:</strong> the Cloudflare Pages URL serves, a deep link loads (SPA fallback), the full loop works, and <strong>both of us can log in &amp; administer</strong> the project on the free tier.</div>
+          </span></label><span class="owner-tag tag-both">Both</span>
       </div>
 
       <div class="item" data-owner="kotlar">
@@ -152,7 +154,7 @@
       <div class="item" data-owner="both">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
           <span class="item-text"><strong>6. Turn on CD — <code>DEPLOY_ENABLED=true</code></strong> &nbsp;<em>(the all-in-one path)</em>
-            <div class="item-detail">The CD-as-code is committed and gated off. Flipping the switch makes <strong>every merge to <code>main</code> auto-ship staging</strong>: build → migrate → Cloud Run (the <code>github-ci</code> SA has <code>run.admin</code>, so it <strong>also makes the API public</strong>, covering item 3) → Vercel (item 4) → smoke probes. Run once: <code>gh variable set DEPLOY_ENABLED -b true</code>. Do it <em>after</em> a quick manual sanity pass, or now if you'd rather let the pipeline own everything.
+            <div class="item-detail">The CD-as-code is committed and gated off. Flipping the switch makes <strong>every merge to <code>main</code> auto-ship staging</strong>: build → migrate → Cloud Run (the <code>github-ci</code> SA has <code>run.admin</code>, so it <strong>also makes the API public</strong>, covering item 3) → the web host (Cloudflare Pages once item 4 is migrated) → smoke probes. Run once: <code>gh variable set DEPLOY_ENABLED -b true</code>. Do it <em>after</em> a quick manual sanity pass, or now if you'd rather let the pipeline own everything.
               <strong>verify:</strong> a trivial merge to <code>main</code> goes green with <code>/health</code>+<code>/ready</code>+web 200.</div>
           </span></label><span class="owner-tag tag-both">Both</span>
       </div>
@@ -194,13 +196,13 @@ THEN guide me, one validated step at a time, through the OWNER items:
   (1) MAKE THE API PUBLIC (required — the browser uses a Supabase token, not a Google one, so Cloud Run must allow public ingress; the app's own login still guards every route). Run:
         gcloud run services add-iam-policy-binding lengua-api-staging --region=europe-west1 --project lengua-prod --member=allUsers --role=roles/run.invoker
       verify: curl <url>/health returns 200 with NO auth header.
-  (2) DEPLOY THE WEB to Vercel staging (my account) with client-safe env only (VITE_API_BASE_URL=<Cloud Run url>, VITE_SUPABASE_URL/ANON_KEY staging — never a service-role/LLM key); set repo var STAGING_WEB_ORIGIN=<vercel url> for CORS. verify: the web URL serves and the full loop works.
+  (2) WEB HOST = CLOUDFLARE PAGES (we're moving OFF Vercel because its free plan caps at 1 member, and we both need admin). I (Kotlar) create the Cloudflare account, invite Ben as Administrator, and make an API token (Pages:Edit) + Account ID -> GitHub secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID. Then the CD (or Ben) deploys with client-safe env only (VITE_API_BASE_URL=<Cloud Run url>, VITE_SUPABASE_URL/ANON_KEY staging — never a service-role/LLM key); set repo var STAGING_WEB_ORIGIN=<pages url> for CORS. (GCP-native fallback if needed: Firebase Hosting.) Migration steps: go-live-activation.md section H. verify: the Pages URL serves, a deep link loads, the full loop works, and BOTH of us can administer it.
   (3) WIRE SUPABASE AUTH (staging): redirect/allow-list URLs = the web origin; Resend custom SMTP + SPF/DKIM/DMARC DNS. verify: a signup email arrives via Resend; the confirm link returns to the web origin.
   (4) (optional but easiest) TURN ON CD: gh variable set DEPLOY_ENABLED -b true — then every merge to main auto-ships staging AND makes the API public automatically (the github-ci SA has run.admin), covering (1)+(2). Do this after a manual sanity pass.
   (5) PROD promotion - GATED. Pause for my explicit approval before any prod step.
   (6) observability live verifies (Tempo, Loki, Sentry, dashboards, alerts, uptime, PostHog).
 
-CONSTRAINTS: LLM is Groq llama-3.1-8b-instant (NOT gemma2-9b-it - decommissioned). Never put a service-role or LLM key in the web/Vercel client env (only VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL, VITE_SENTRY_DSN_WEB belong there). Never commit secrets. Staging fully green before prod. Stop and ask before any prod/destructive step. Do NOT re-enable branch protection on main until launch (it blocks the automated build).
+CONSTRAINTS: LLM is Groq llama-3.1-8b-instant (NOT gemma2-9b-it - decommissioned). Never put a service-role or LLM key in the web (Cloudflare Pages) client env (only VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL, VITE_SENTRY_DSN_WEB belong there). Never commit secrets. Staging fully green before prod. Stop and ask before any prod/destructive step. Do NOT re-enable branch protection on main until launch (it blocks the automated build).
 
 Start now: read the two planning files, confirm the live state, and give me the first concrete step.</div>
     </div>
