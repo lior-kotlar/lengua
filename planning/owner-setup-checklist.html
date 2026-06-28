@@ -162,7 +162,7 @@
       <div class="item" data-owner="both">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
           <span class="item-text"><strong>7. Promote to PROD (gated): schema, API+web, your approval</strong>
-            <div class="item-detail">Apply the schema to the PROD Supabase DB (<code>SUPABASE_PROD_DATABASE_URL</code>); promote the exact staging-validated image digest to <code>lengua-api-prod</code> behind the GitHub <code>production</code> approval (<strong>you approve</strong> — add yourself as the environment reviewer); deploy Vercel prod; wire prod Supabase Auth.
+            <div class="item-detail">Apply the schema to the PROD Supabase DB (<code>SUPABASE_PROD_DATABASE_URL</code>); promote the exact staging-validated image digest to <code>lengua-api-prod</code> behind the GitHub <code>production</code> approval (<strong>you approve</strong> — add yourself as the environment reviewer); deploy the web prod (Cloudflare Pages) + set repo var <code>PROD_WEB_ORIGIN</code>; wire prod Supabase Auth.
               <strong>verify:</strong> prod <code>/health</code>+<code>/ready</code> 200; prod web serves; rollback drill restores the previous revision.</div>
           </span></label><span class="owner-tag tag-both">Both</span>
       </div>
@@ -186,6 +186,8 @@
       <p style="font-size:.83rem; color:#475569;">Open Claude Code inside the cloned repo and paste this. It reads the runbook, verifies the live state, then walks you through the deploy one validated step at a time.</p>
       <div class="promptbox" id="kotlarPrompt"><button class="copybtn" onclick="copyPrompt()">Copy</button>You are helping take the Lengua app LIVE on the web. As of 2026-06-28, Ben already did the parts within his access: the STAGING Supabase DB has the schema + a seeded demo account; the API is deployed to Cloud Run staging (lengua-api-staging, /health+/ready = 200) and the full app loop is verified end-to-end against staging. He also fixed a CD auth bug (SUPABASE_JWKS_URL now set in both deploy workflows). What's LEFT needs MY (the owner's) account/admin rights.
 
+PREREQS (do once, locally): clone the repo and `cd` into it; make sure gcloud + gh are authed AS ME (gcloud auth login as liorkotlar@gmail.com with project lengua-prod; gh auth login). The Cloudflare and Supabase/DNS steps are done in their web dashboards (I have those accounts).
+
 STEP 0 - Orient, READ-ONLY. Read planning/go-live-activation.md (esp. the "Progress update - 2026-06-28" block) and planning/owner-setup-checklist.html. Confirm the live state:
   - Cloud Run exists:   gcloud run services describe lengua-api-staging --region europe-west1 --project lengua-prod --format='value(status.url)'
   - API is PRIVATE:     curl -s -o /dev/null -w '%{http_code}\n' <that-url>/health     (expected today: 403 — that's the thing to fix)
@@ -198,7 +200,7 @@ THEN guide me, one validated step at a time, through the OWNER items:
       verify: curl <url>/health returns 200 with NO auth header.
   (2) WEB HOST = CLOUDFLARE PAGES (we're moving OFF Vercel because its free plan caps at 1 member, and we both need admin). I (Kotlar) create the Cloudflare account, invite Ben as Administrator, and make an API token (Pages:Edit) + Account ID -> GitHub secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID. Then the CD (or Ben) deploys with client-safe env only (VITE_API_BASE_URL=<Cloud Run url>, VITE_SUPABASE_URL/ANON_KEY staging — never a service-role/LLM key); set repo var STAGING_WEB_ORIGIN=<pages url> for CORS. (GCP-native fallback if needed: Firebase Hosting.) Migration steps: go-live-activation.md section H. verify: the Pages URL serves, a deep link loads, the full loop works, and BOTH of us can administer it.
   (3) WIRE SUPABASE AUTH (staging): redirect/allow-list URLs = the web origin; Resend custom SMTP + SPF/DKIM/DMARC DNS. verify: a signup email arrives via Resend; the confirm link returns to the web origin.
-  (4) (optional but easiest) TURN ON CD: gh variable set DEPLOY_ENABLED -b true — then every merge to main auto-ships staging AND makes the API public automatically (the github-ci SA has run.admin), covering (1)+(2). Do this after a manual sanity pass.
+  (4) TURN ON CD: gh variable set DEPLOY_ENABLED -b true — then every merge to main auto-ships staging: build -> migrate -> Cloud Run (this ALSO makes the API public automatically, covering step (1), because the github-ci SA has run.admin) -> web deploy -> smoke probes. IMPORTANT ORDERING: the CD web job today still targets VERCEL; it only ships to Cloudflare AFTER Ben lands the migration in step (2) (go-live-activation.md section H). So either do step (2) first, or accept that an early flip deploys the web to Vercel. Do this after a manual sanity pass.
   (5) PROD promotion - GATED. Pause for my explicit approval before any prod step.
   (6) observability live verifies (Tempo, Loki, Sentry, dashboards, alerts, uptime, PostHog).
 
