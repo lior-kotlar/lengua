@@ -68,9 +68,12 @@
 <div class="header">
   <h1>Lengua — What's Left to Deploy</h1>
   <p class="sub">Only the real remaining work. Blue = Kotlar · Green = Ben · Purple = both.</p>
-  <p class="stamp">Verified missing via CLI on <strong>2026-06-27</strong> (<code>gcloud</code> / <code>supabase</code> / <code>vercel</code> / <code>gh</code> / <code>psql</code>).
-    All accounts &amp; secrets are already in place — what's left is to <strong>run the deploy</strong>.
-    Full step-by-step runbook: <code>planning/go-live-activation.md</code>.</p>
+  <p class="stamp"><strong>Updated 2026-06-28.</strong> Ben ran the runbook as far as his access allows:
+    the <strong>staging DB is live</strong> (schema + seed), the <strong>API is deployed to Cloud Run</strong>,
+    and the <strong>full app loop is verified end-to-end</strong> (he also found &amp; fixed a real auth bug — see note).
+    The <span style="color:#fca5a5;font-weight:700;">red items below are the ones only you (Kotlar) can do</span> —
+    they need account-owner / admin rights Ben doesn't have. Full runbook: <code>planning/go-live-activation.md</code>;
+    detail: <code>planning/outstanding-work.md §13</code>.</p>
 </div>
 
 <div class="sticky-bar">
@@ -82,65 +85,89 @@
 
 <div class="container">
 
+  <div class="info" style="border-left-color:#10b981; background:#ecfdf5;">
+    <strong>✅ Already done by Ben (2026-06-28):</strong>
+    <strong>(1)</strong> applied the full schema to staging Supabase (10 tables, RLS on, trigger live) +
+    seeded the demo account (<code>demo@lengua.test</code> / <code>demo-password-123</code>, 6 due cards);
+    <strong>(2)</strong> deployed the API to <strong>Cloud Run staging</strong>
+    (<code>lengua-api-staging</code>, <code>/health</code>+<code>/ready</code> = 200);
+    <strong>(3)</strong> ran the <strong>full loop end-to-end against staging</strong> — login → generate (Groq) → save → review;
+    <strong>(4)</strong> found &amp; fixed a real CD auth bug (see the amber note below).
+    The <strong>local app is runnable right now</strong>: <code>cd apps/api &amp;&amp; uv run uvicorn app.main:app --port 8000</code> +
+    <code>corepack pnpm --filter web dev</code> → open <code>http://localhost:5173</code>.
+  </div>
+
+  <div class="info" style="border-left-color:#f59e0b; background:#fffbeb;">
+    <strong>🐞 Bug Ben fixed (FYI — no action needed):</strong> the Supabase projects sign login tokens with
+    <strong>asymmetric keys (ES256/JWKS)</strong>, not the old shared HS256 secret. The deploy workflows never set
+    <code>SUPABASE_JWKS_URL</code>, so a real deploy would have rejected <em>every</em> user login (401). Fixed in
+    <code>deploy-staging.yml</code> + <code>deploy-prod.yml</code> (derived from the existing Supabase URL secret — no new secret).
+  </div>
+
   <div class="section">
-    <div class="section-head"><div class="section-num">&#10007;</div><div class="section-title">Deploy checklist — what's actually left</div></div>
+    <div class="section-head"><div class="section-num">&#10007;</div><div class="section-title">What's left — and most of it is yours, Kotlar</div></div>
     <div class="section-body">
 
       <div class="item" data-owner="ben">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>1. Apply the schema to the STAGING Supabase DB</strong>
-            <div class="item-detail">The hosted <code>lengua-staging</code> DB is empty (<code>psql</code> &rarr; <code>public_tables=0</code>, no <code>alembic_version</code>).
-              From <code>apps/api</code>: <code>uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" upgrade head</code> (schema + trigger + RLS + kill-switch), then <code>uv run python scripts/seed_e2e.py</code>.
-              <strong>verify:</strong> <code>\dt</code> lists the tables; <code>alembic current</code> == <code>heads</code>; demo login returns &ge;1 due card.</div>
-          </span></label><span class="owner-tag tag-ben">Ben</span>
+        <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+          <span class="item-text"><strong>1. Apply the schema to STAGING Supabase + seed</strong> &nbsp;✅ <em>done by Ben</em>
+            <div class="item-detail">Applied Alembic <code>0001&rarr;0005</code> to <code>lengua-staging</code> (10 tables, RLS on all 9 user tables, <code>on_auth_user_created</code> trigger, kill-switch). Seeded <code>demo@lengua.test</code> / <code>demo-password-123</code> (1 language, 6 due cards). <code>alembic current</code> == <code>heads</code>. <strong>Nothing for you here.</strong></div>
+          </span></label><span class="owner-tag tag-ben">Ben ✓</span>
       </div>
 
       <div class="item" data-owner="ben">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>2. Deploy the API to Cloud Run — STAGING</strong>
-            <div class="item-detail">No Cloud Run service exists yet (<code>gcloud run services list --region europe-west1 --project lengua-prod</code> &rarr; empty). Registry + deployer SA + project are ready.
-              Build+push the image to <code>europe-west1-docker.pkg.dev/lengua-prod/lengua</code>, deploy <code>lengua-api-staging</code> with the staging secrets mounted.
-              <strong>verify:</strong> <code>curl &lt;url&gt;/health</code> 200 and <code>&lt;url&gt;/ready</code> 200.</div>
-          </span></label><span class="owner-tag tag-ben">Ben</span>
-      </div>
-
-      <div class="item" data-owner="both">
-        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>3. Deploy the web to Vercel — STAGING</strong>
-            <div class="item-detail">Nothing deployed yet. The <code>lengua</code> Vercel project is on <strong>Kotlar's</strong> account; deploys run via GitHub Actions using <code>VERCEL_TOKEN/ORG_ID/PROJECT_ID</code> (no dashboard access needed for Ben).
-              Kotlar: confirm the project is connected to <code>lior-kotlar/lengua</code>; set the staging Vercel env (client-safe vars only — never a service-role/LLM key).
-              <strong>verify:</strong> the staging web URL serves and the full loop works.</div>
-          </span></label><span class="owner-tag tag-both">Both</span>
+        <label><input type="checkbox" class="cb" checked><span class="cb-box"></span>
+          <span class="item-text"><strong>2. Deploy the API to Cloud Run — STAGING</strong> &nbsp;✅ <em>done by Ben</em>
+            <div class="item-detail">Built the image via Cloud Build &rarr; <code>europe-west1-docker.pkg.dev/lengua-prod/lengua/lengua-api</code> and deployed <code>lengua-api-staging</code> (europe-west1, scale-to-zero). <code>/health</code> + <code>/ready</code> = 200 (DB reachable). URL: <code>https://lengua-api-staging-1083154360111.europe-west1.run.app</code>. <strong>It just isn't public yet — that's item&nbsp;3 (yours).</strong></div>
+          </span></label><span class="owner-tag tag-ben">Ben ✓</span>
       </div>
 
       <div class="item" data-owner="kotlar">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>4. Wire Supabase Auth (staging): redirect URLs + Resend SMTP + CORS</strong>
-            <div class="item-detail">Redirect/allow-list URLs = staging web origin (+ capacitor/deep-link). Resend custom SMTP + SPF/DKIM/DMARC on the sending domain (<code>RESEND_API_KEY</code> ready). API CORS = exact staging origin, no wildcard.
-              <strong>verify:</strong> a staging signup email arrives via Resend (not the built-in sender); the confirmation redirect returns to the staging web origin.</div>
+          <span class="item-text"><strong>3. ⭐ Make the Cloud Run API publicly reachable</strong> &nbsp;<em>(only you can — needs Owner/admin)</em>
+            <div class="item-detail">The browser calls the API with a <em>Supabase</em> token, not a Google token, so Cloud Run must allow public ingress; the app's own login then guards every route. Ben is <code>roles/editor</code>, which lacks <code>run.services.setIamPolicy</code>, so he can't do this. Pick <strong>one</strong>:
+              <br>&nbsp;&nbsp;<strong>(a) easiest — you run one command:</strong> <code>gcloud run services add-iam-policy-binding lengua-api-staging --region=europe-west1 --project lengua-prod --member=allUsers --role=roles/run.invoker</code>
+              <br>&nbsp;&nbsp;<strong>(b) grant Ben once:</strong> <code>gcloud projects add-iam-policy-binding lengua-prod --member=user:benartzi4@gmail.com --role=roles/run.admin</code> (then Ben finishes it).
+              <br>&nbsp;&nbsp;<strong>(c) or just turn CD on (item 6)</strong> — the <code>github-ci</code> deploy SA already has <code>run.admin</code>, so the pipeline makes it public automatically.
+              <strong>verify:</strong> <code>curl &lt;url&gt;/health</code> returns 200 <em>without</em> any auth header (today it's 403).</div>
           </span></label><span class="owner-tag tag-kotlar">Kotlar</span>
       </div>
 
-      <div class="item" data-owner="ben">
+      <div class="item" data-owner="kotlar">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>5. Land the CD pipeline + flip <code>DEPLOY_ENABLED=true</code></strong>
-            <div class="item-detail"><code>.github/workflows/</code> has only <code>ci.yml</code>; <code>gh variable list</code> is empty. The CD-as-code (deploy-staging/prod, gated) is being built now (Phase 6).
-              After the CD PR merges: <code>gh variable set DEPLOY_ENABLED -b true</code>.
-              <strong>verify:</strong> a merge to <code>main</code> auto-ships staging with green smoke probes.</div>
-          </span></label><span class="owner-tag tag-ben">Ben</span>
+          <span class="item-text"><strong>4. Deploy the web to Vercel — STAGING</strong> &nbsp;<em>(your Vercel account)</em>
+            <div class="item-detail">The canonical <code>lengua</code> Vercel project is on <strong>your</strong> account; Ben's local Vercel CLI is his own personal account (no access to yours). Either let the CD do it (item 6, uses your <code>VERCEL_*</code> GitHub secrets) or deploy from your account. Set client-safe env only: <code>VITE_API_BASE_URL</code> = the staging Cloud Run URL, <code>VITE_SUPABASE_URL</code>/<code>ANON_KEY</code> (staging) — <strong>never</strong> a service-role/LLM key. Also set repo var <code>STAGING_WEB_ORIGIN</code> = the Vercel URL so the API's CORS allows the browser.
+              <strong>verify:</strong> the staging web URL serves and the full loop works against the (now-public) API.</div>
+          </span></label><span class="owner-tag tag-kotlar">Kotlar</span>
+      </div>
+
+      <div class="item" data-owner="kotlar">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>5. Wire Supabase Auth (staging): redirect URLs + Resend SMTP + DNS</strong>
+            <div class="item-detail">Redirect/allow-list URLs = staging web origin (+ capacitor/deep-link). Resend custom SMTP + SPF/DKIM/DMARC on the sending domain (<code>RESEND_API_KEY</code> ready). <em>(API CORS is handled by <code>STAGING_WEB_ORIGIN</code> in item 4.)</em>
+              <strong>verify:</strong> a staging signup email arrives via Resend (not Supabase's built-in sender); the confirmation link returns to the staging web origin.</div>
+          </span></label><span class="owner-tag tag-kotlar">Kotlar</span>
       </div>
 
       <div class="item" data-owner="both">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>6. Promote to PROD (gated): schema, API+web, approval</strong>
-            <div class="item-detail">Apply the schema to the PROD Supabase DB (<code>SUPABASE_PROD_DATABASE_URL</code>); promote the exact staging-validated image digest to <code>lengua-api-prod</code> behind the GitHub <code>production</code> approval (Kotlar approves); deploy Vercel prod; wire prod Supabase Auth.
+          <span class="item-text"><strong>6. Turn on CD — <code>DEPLOY_ENABLED=true</code></strong> &nbsp;<em>(the all-in-one path)</em>
+            <div class="item-detail">The CD-as-code is committed and gated off. Flipping the switch makes <strong>every merge to <code>main</code> auto-ship staging</strong>: build → migrate → Cloud Run (the <code>github-ci</code> SA has <code>run.admin</code>, so it <strong>also makes the API public</strong>, covering item 3) → Vercel (item 4) → smoke probes. Run once: <code>gh variable set DEPLOY_ENABLED -b true</code>. Do it <em>after</em> a quick manual sanity pass, or now if you'd rather let the pipeline own everything.
+              <strong>verify:</strong> a trivial merge to <code>main</code> goes green with <code>/health</code>+<code>/ready</code>+web 200.</div>
+          </span></label><span class="owner-tag tag-both">Both</span>
+      </div>
+
+      <div class="item" data-owner="both">
+        <label><input type="checkbox" class="cb"><span class="cb-box"></span>
+          <span class="item-text"><strong>7. Promote to PROD (gated): schema, API+web, your approval</strong>
+            <div class="item-detail">Apply the schema to the PROD Supabase DB (<code>SUPABASE_PROD_DATABASE_URL</code>); promote the exact staging-validated image digest to <code>lengua-api-prod</code> behind the GitHub <code>production</code> approval (<strong>you approve</strong> — add yourself as the environment reviewer); deploy Vercel prod; wire prod Supabase Auth.
               <strong>verify:</strong> prod <code>/health</code>+<code>/ready</code> 200; prod web serves; rollback drill restores the previous revision.</div>
           </span></label><span class="owner-tag tag-both">Both</span>
       </div>
 
       <div class="item" data-owner="both">
         <label><input type="checkbox" class="cb"><span class="cb-box"></span>
-          <span class="item-text"><strong>7. Light up observability (closes the Phase 5 live verifies)</strong>
+          <span class="item-text"><strong>8. Light up observability (closes the Phase 5 live verifies)</strong>
             <div class="item-detail">Once deployed: trace in Grafana Tempo, logs in Loki, RED/cost-guard/product dashboards render, Sentry issue &rarr; trace, Grafana alerts reach a real channel, external uptime monitor, PostHog funnel events ingest (EU).
               <strong>verify:</strong> <code>planning/outstanding-work.md</code> §11 + <code>go-live-activation.md</code> §G.</div>
           </span></label><span class="owner-tag tag-both">Both</span>
@@ -155,26 +182,27 @@
     <div class="section-head"><div class="section-num green">&#9658;</div><div class="section-title">Copy-paste prompt for Kotlar's Claude Code (in the lengua repo)</div></div>
     <div class="section-body">
       <p style="font-size:.83rem; color:#475569;">Open Claude Code inside the cloned repo and paste this. It reads the runbook, verifies the live state, then walks you through the deploy one validated step at a time.</p>
-      <div class="promptbox" id="kotlarPrompt"><button class="copybtn" onclick="copyPrompt()">Copy</button>You are helping take the Lengua app LIVE so we can open it in a browser and use it. The app code is complete (Phases 1-5) and the CI/CD-as-code is landing now (Phase 6). All cloud accounts and secrets are already provisioned. What is left is to RUN the deploy and VALIDATE each step.
+      <div class="promptbox" id="kotlarPrompt"><button class="copybtn" onclick="copyPrompt()">Copy</button>You are helping take the Lengua app LIVE on the web. As of 2026-06-28, Ben already did the parts within his access: the STAGING Supabase DB has the schema + a seeded demo account; the API is deployed to Cloud Run staging (lengua-api-staging, /health+/ready = 200) and the full app loop is verified end-to-end against staging. He also fixed a CD auth bug (SUPABASE_JWKS_URL now set in both deploy workflows). What's LEFT needs MY (the owner's) account/admin rights.
 
-STEP 0 - Orient. Read planning/go-live-activation.md (the validated step-by-step runbook) and planning/owner-setup-checklist.html (current verified state). Then verify the live state yourself, READ-ONLY, before changing anything:
-  - staging DB schema:  psql "$SUPABASE_STAGING_DATABASE_URL" -c '\dt'        (expected: currently EMPTY)
-  - Cloud Run:          gcloud run services list --region europe-west1 --project lengua-prod   (expected: none)
-  - CD switch:          gh variable list                                       (expected: DEPLOY_ENABLED unset)
-Report what is actually missing vs already done.
+STEP 0 - Orient, READ-ONLY. Read planning/go-live-activation.md (esp. the "Progress update - 2026-06-28" block) and planning/owner-setup-checklist.html. Confirm the live state:
+  - Cloud Run exists:   gcloud run services describe lengua-api-staging --region europe-west1 --project lengua-prod --format='value(status.url)'
+  - API is PRIVATE:     curl -s -o /dev/null -w '%{http_code}\n' <that-url>/health     (expected today: 403 — that's the thing to fix)
+  - CD switch:          gh variable list                                                (expected: DEPLOY_ENABLED unset)
+Report what's missing vs done.
 
-STEPS 1..N - Guide me through go-live-activation.md IN ORDER, STAGING FIRST, ONE STEP AT A TIME. For each step: give the exact command, run it (or tell me to run it if it needs my account login), then run its verify and DO NOT advance until it passes. Order:
-  (1) apply the staging schema:  cd apps/api && uv run alembic -x db_url="$SUPABASE_STAGING_DATABASE_URL" upgrade head ; then seed the demo account ; confirm RLS.
-  (2) deploy the API to Cloud Run STAGING ; confirm /health and /ready return 200.
-  (3) deploy the web to Vercel STAGING ; confirm the URL serves and the full loop (generate to save to review to discover) works.
-  (4) wire Supabase Auth: redirect URLs, Resend SMTP (+ SPF/DKIM/DMARC), CORS allow-list.
-  (5) set DEPLOY_ENABLED=true so merge-to-main auto-ships staging.
-  (6) the GATED prod promotion - PAUSE for my explicit approval before any prod step.
-  (7) the Phase 5 observability live verifies (Tempo, Loki, Sentry, dashboards, alerts, uptime, PostHog).
+THEN guide me, one validated step at a time, through the OWNER items:
+  (1) MAKE THE API PUBLIC (required — the browser uses a Supabase token, not a Google one, so Cloud Run must allow public ingress; the app's own login still guards every route). Run:
+        gcloud run services add-iam-policy-binding lengua-api-staging --region=europe-west1 --project lengua-prod --member=allUsers --role=roles/run.invoker
+      verify: curl <url>/health returns 200 with NO auth header.
+  (2) DEPLOY THE WEB to Vercel staging (my account) with client-safe env only (VITE_API_BASE_URL=<Cloud Run url>, VITE_SUPABASE_URL/ANON_KEY staging — never a service-role/LLM key); set repo var STAGING_WEB_ORIGIN=<vercel url> for CORS. verify: the web URL serves and the full loop works.
+  (3) WIRE SUPABASE AUTH (staging): redirect/allow-list URLs = the web origin; Resend custom SMTP + SPF/DKIM/DMARC DNS. verify: a signup email arrives via Resend; the confirm link returns to the web origin.
+  (4) (optional but easiest) TURN ON CD: gh variable set DEPLOY_ENABLED -b true — then every merge to main auto-ships staging AND makes the API public automatically (the github-ci SA has run.admin), covering (1)+(2). Do this after a manual sanity pass.
+  (5) PROD promotion - GATED. Pause for my explicit approval before any prod step.
+  (6) observability live verifies (Tempo, Loki, Sentry, dashboards, alerts, uptime, PostHog).
 
-CONSTRAINTS: LLM is Groq llama-3.1-8b-instant (NOT gemma2-9b-it - it is decommissioned). Never put a service-role or LLM key in the web/Vercel client env (only VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL, VITE_SENTRY_DSN_WEB belong there). Never commit secrets. Work staging fully green before touching prod. Stop and ask me before any prod or destructive step. Do NOT re-enable branch protection on main until launch (it blocks the automated build).
+CONSTRAINTS: LLM is Groq llama-3.1-8b-instant (NOT gemma2-9b-it - decommissioned). Never put a service-role or LLM key in the web/Vercel client env (only VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL, VITE_SENTRY_DSN_WEB belong there). Never commit secrets. Staging fully green before prod. Stop and ask before any prod/destructive step. Do NOT re-enable branch protection on main until launch (it blocks the automated build).
 
-Start now: read the two planning files, verify the current state, and tell me the first concrete step.</div>
+Start now: read the two planning files, confirm the live state, and give me the first concrete step.</div>
     </div>
   </div>
 
@@ -183,7 +211,7 @@ Start now: read the two planning files, verify the current state, and tell me th
 </div>
 
 <script>
-  var KEY='lengua_deploy_checklist_v1';
+  var KEY='lengua_deploy_checklist_v2';
   function update(){
     var all=document.querySelectorAll('input.cb'), done=0;
     all.forEach(function(c){ if(c.checked) done++; });

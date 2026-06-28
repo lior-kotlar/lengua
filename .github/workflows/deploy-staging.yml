@@ -123,6 +123,10 @@ jobs:
             SUPABASE_URL=${{ secrets.SUPABASE_STAGING_URL }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
             SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_STAGING_JWT_SECRET }}
+            # The Supabase project signs access tokens with ASYMMETRIC keys (ES256/JWKS), not the
+            # legacy HS256 secret above — so the API MUST verify via JWKS or it 401s every real user
+            # token (app/auth.py prefers JWKS when this is set). Derived from the project URL secret.
+            SUPABASE_JWKS_URL=${{ secrets.SUPABASE_STAGING_URL }}/auth/v1/.well-known/jwks.json
             ENV=staging
             DEPLOYMENT_ENVIRONMENT=staging
             SENTRY_DSN_API=${{ secrets.SENTRY_DSN_API }}

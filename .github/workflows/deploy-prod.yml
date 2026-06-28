@@ -146,6 +146,9 @@ jobs:
             SUPABASE_URL=${{ secrets.SUPABASE_PROD_URL }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
             SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_PROD_JWT_SECRET }}
+            # Asymmetric (ES256/JWKS) token verification — see deploy-staging.yml. Without this the
+            # API falls back to the legacy HS256 secret and 401s every real user token.
+            SUPABASE_JWKS_URL=${{ secrets.SUPABASE_PROD_URL }}/auth/v1/.well-known/jwks.json
             ENV=prod
             DEPLOYMENT_ENVIRONMENT=prod
             SENTRY_DSN_API=${{ secrets.SENTRY_DSN_API }}

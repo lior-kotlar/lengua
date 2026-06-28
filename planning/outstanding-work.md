@@ -840,3 +840,38 @@ Cross-reference: [`go-live-activation.md`](go-live-activation.md) §E/§F (the s
    (`GLOBAL_DAILY_BUDGET` etc.) are sized for Groq's free RPD. To move prod to Gemini later: set
    `LLM_PROVIDER=gemini` + `GEMINI_API_KEY` in `deploy-prod.yml`'s prod runtime env and re-confirm the
    budget ceilings against Gemini's limits.
+
+---
+
+## 13. Go-live activation run — 2026-06-28 (Ben, local CLIs + `.env`)
+
+First execution of [`go-live-activation.md`](go-live-activation.md). What landed and what's newly
+surfaced. Owner board (copy-paste for Kotlar): [`owner-setup-checklist.html`](owner-setup-checklist.html).
+
+**Done this run (✅):**
+| | Item | Where | Evidence |
+|---|---|---|---|
+| ☑ | **§A1** Staging Supabase schema applied (`alembic -x env=staging upgrade head`, 0001→0005) | hosted staging DB | `\dt` = 10 tables; `current` == `heads` (0005) |
+| ☑ | **§A2** RLS + trigger confirmed | staging DB | RLS on all 9 user tables; `on_auth_user_created` present; 7 policies |
+| ☑ | **§A3** Demo/reviewer account seeded | staging DB | `demo@lengua.test` / `demo-password-123`; 1 language, 6 due cards |
+| ☑ | **§A4** `apps/web/.env` created (staging, client-safe) | `apps/web/.env` (gitignored) | `pnpm --filter web build` passes env validator |
+| ☑ | **§A5** Local fast-path runs the **full loop** against staging | localhost:8000 + :5173 | auth(JWKS)+`/languages`+`/review/due`+**Groq `/generate`** all 200 |
+| ☑ | **§B** API deployed to **Cloud Run staging** (`lengua-api-staging`, europe-west1) | Cloud Run rev `00002-8kg` | image built via Cloud Build; `/health`+`/ready` 200 (authed) |
+| ☑ | **Bug fix** `SUPABASE_JWKS_URL` added to `deploy-staging.yml` + `deploy-prod.yml` | `.github/workflows/` | see below |
+
+**🐞 Real bug found + fixed this run — asymmetric (ES256/JWKS) token verification:** the staging
+(and prod) Supabase projects sign access tokens with **asymmetric keys (ES256, via JWKS)**, not the
+legacy HS256 shared secret. `app/auth.py` supports JWKS but only when `SUPABASE_JWKS_URL` is set —
+and **neither deploy workflow set it** (only `ci.yml` did). A CD-deployed API would therefore have
+`401`'d *every real user token*. Fixed by deriving `SUPABASE_JWKS_URL` from the existing
+`SUPABASE_{STAGING,PROD}_URL` secret (no new secret). Local `.env` + the live Cloud Run revision also
+updated. Verified end-to-end locally (real GoTrue ES256 token → 200).
+
+**Newly outstanding (☐ / 🔒):**
+| | Item | Where | Status | Noticed |
+|---|---|---|---|---|
+| 🔒 | **Cloud Run staging is not public** — `allUsers`→`run.invoker` binding requires `run.services.setIamPolicy`; Ben is `roles/editor` (lacks it). The browser calls the API unauthenticated-by-GCP (it carries a Supabase JWT, not a GCP token), so the service MUST be public. | Cloud Run `lengua-api-staging` | owner — Kotlar (Owner) or grant Ben `run.admin`; the `github-ci` SA already has `run.admin` so the CD does it automatically | 2026-06-28 |
+| 🔒 | **Vercel web deploy** — canonical `lengua` project is on Kotlar's account; Ben's local Vercel CLI is his own personal account (no project). Deploys run via GH Actions using `VERCEL_*` secrets (Kotlar's). | Vercel | owner — Kotlar (or CD) | 2026-06-28 |
+| ☐ | **`seed_e2e.py` adds a *new* language each run** (Spanish, then Hebrew, …) — not fully idempotent on languages/cards despite the docstring's claim. Harmless for E2E; tidied staging to 1 language by hand. | `apps/api/scripts/seed_e2e.py` | low — dedupe/ON CONFLICT on language name per user | 2026-06-28 |
+| ☐ | **Manual staging Cloud Run revision omits `OTEL_*`** (not in local `.env`) — so traces/metrics aren't exported from the hand-deployed revision. The CD sets them from secrets; a CD redeploy (or `gcloud run services update --update-env-vars OTEL_*`) closes it. | Cloud Run `lengua-api-staging` | low — superseded by first CD deploy | 2026-06-28 |
+| ☐ | **Runtime SA hardening (§B4)** — the hand-deployed revision uses the default compute SA. Target: a dedicated runtime SA with `secretmanager.secretAccessor` only (and move secrets to Secret Manager refs). | Cloud Run | medium — owner/CD follow-up | 2026-06-28 |
