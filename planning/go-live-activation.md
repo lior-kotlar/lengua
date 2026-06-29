@@ -108,7 +108,7 @@ web locally against the hosted **staging** Supabase.
 
 ## E. Turn on CD: merge-to-main → staging auto-deploy · **Ben** (after the Phase 6 CD PR merges)
 
-- **E1 — Set repo variable `DEPLOY_ENABLED=true`** (`gh variable set DEPLOY_ENABLED -b true`) — the committed CD jobs are gated off until this flips. **verify:** a trivial merge to `main` triggers the staging deploy run → green smoke probes (`/health`, `/ready`, web 200).
+- **E1 — Set repo variable `DEPLOY_ENABLED=true`** (`gh variable set DEPLOY_ENABLED -b true`) — the committed CD jobs are gated off until this flips. **verify:** a trivial merge to `main` triggers the staging deploy run → green smoke probes (`/health`, `/ready`, web 200). ✅ **Done 2026-06-29:** `DEPLOY_ENABLED=true` is set; this merge is the trivial change that exercises the now-armed staging CD path (build → migrate → Cloud Run → Vercel-with-stable-alias → smoke).
 - **E2 — Discrete migrate + Vercel steps run.** **verify:** the run logs show a distinct "migrate-staging" (`alembic upgrade head`) job and a "vercel-staging" job; staging serves the new SHA.
   - The web job aliases the fresh Vercel deployment to the **stable** staging origin (repo var `STAGING_WEB_ORIGIN`, e.g. `lengua-staging.vercel.app`) and emits that stable origin as its output, so the public URL actually updates and the smoke probe hits the CORS-allowed origin (not a throwaway preview URL the API would reject).
 
