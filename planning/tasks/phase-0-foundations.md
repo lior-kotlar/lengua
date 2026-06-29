@@ -118,11 +118,13 @@ _Context: enforce trunk-based flow on `main` and encode the Definition of Done. 
 - [ ] **0.6.2** Document the required-status-checks list and branch-protection policy in the repo (e.g. `infra/branch-protection.md`) so the config is committed, not tribal.
       verify: the doc lists every required check name exactly as it appears in CI and matches the gate in ../09-testing-quality.md.
       depends: 0.5.10
-- [ ] **0.6.3** **OWNER (Kotlar):** Enable branch protection on `main` — require PR + 1 approval, required status checks, up-to-date branch, dismiss stale approvals. (Outstanding per ../owner-setup-checklist.html Task 1.)
+- [~] **0.6.3** **OWNER (Kotlar):** Enable branch protection on `main` — require PR + 1 approval, required status checks, up-to-date branch, dismiss stale approvals. (Outstanding per ../owner-setup-checklist.html Task 1.)
       verify: `gh api repos/lior-kotlar/lengua/branches/main/protection` returns without 404 and shows `required_pull_request_reviews.required_approving_review_count = 1`; a direct push to `main` is rejected.
       depends: 0.5.10
-- [ ] **0.6.4** **OWNER (Kotlar):** Enable Dependabot vulnerability alerts + automated security fixes. (Outstanding per ../owner-setup-checklist.html Task 2.)
+      status (verified 2026-06-29): protection is ON — `protected: true`, `enforce_admins: true`, `allow_force_pushes: false`. Owner chose to LEAVE THE REVIEW GATE LOOSE for now (`required_approving_review_count = 0`, no required status checks) so solo merges aren't blocked. Finish in Phase 0.5: set approval=1, `dismiss_stale_reviews`, and the required CI checks together once the workflow exists (required checks can't be added before then).
+- [x] **0.6.4** **OWNER (Kotlar):** Enable Dependabot vulnerability alerts + automated security fixes. (Outstanding per ../owner-setup-checklist.html Task 2.)
       verify: `gh api repos/lior-kotlar/lengua/vulnerability-alerts -i` returns HTTP 204 (not 404).
+      status (verified 2026-06-29): alerts → HTTP 204 (ON); automated-security-fixes → HTTP 200 (ON).
 
 ## 0.7 — Accounts & CI secrets  ·  S
 
@@ -140,14 +142,18 @@ _Context: every free-tier account already exists and is verified (2026-06-25): G
       verify: a Groq test call with `llama-3.1-8b-instant` returns 200; `GROQ_API_KEY` and `GEMINI_API_KEY` both present as CI secrets.
 - [x] **0.7.6** Grafana Cloud OTLP + Sentry (lengua-api + lengua-web DSNs) + Resend keys all set as CI secrets. (Verified 2026-06-25.)
       verify: `OTLP`, `SENTRY_DSN` (api + web), and Resend secrets all present in `gh secret list`.
-- [ ] **0.7.7** **OWNER (Kotlar):** Add the two missing CI secrets `GCP_REGION=europe-west1` and `SENTRY_ORG=kotlar-y7`. (Outstanding per ../owner-setup-checklist.html Task 3.)
+- [x] **0.7.7** **OWNER (Kotlar):** Add the two missing CI secrets `GCP_REGION=europe-west1` and `SENTRY_ORG=kotlar-y7`. (Outstanding per ../owner-setup-checklist.html Task 3.)
       verify: `gh secret list -R lior-kotlar/lengua` shows both `GCP_REGION` and `SENTRY_ORG`.
-- [ ] **0.7.8** **OWNER (Kotlar):** Confirm Resend custom SMTP is enabled and delivering in BOTH Supabase projects (staging auto-confirm is OFF, so sign-up emails must work). (Outstanding per ../owner-setup-checklist.html Task 5.)
+      status (verified 2026-06-29): both present (set 2026-06-25); 30 Actions secrets total.
+- [x] **0.7.8** **OWNER (Kotlar):** Confirm Resend custom SMTP is enabled and delivering in BOTH Supabase projects (staging auto-confirm is OFF, so sign-up emails must work). (Outstanding per ../owner-setup-checklist.html Task 5.)
       verify: a recovery/invite email sent from each project (staging + prod) actually arrives in an inbox.
-- [ ] **0.7.9** **OWNER (Kotlar):** Invite Ben (`benartzi4@gmail.com`) to Vercel (create a Team if it's a personal account, move the `lengua` project in, invite as Member+). (Outstanding per ../owner-setup-checklist.html Task 4.)
+      status: Kotlar confirmed delivery on both projects (2026-06-25). Not re-testable via `gh` (needs Supabase admin + a real send); revisit only if sign-up emails stop arriving.
+- [x] **0.7.9** **OWNER (Kotlar):** Invite Ben (`benartzi4@gmail.com`) to Vercel (create a Team if it's a personal account, move the `lengua` project in, invite as Member+). (Outstanding per ../owner-setup-checklist.html Task 4.)
       verify: Ben runs `vercel project ls` and `lengua` appears.
-- [ ] **0.7.10** **OWNER (Kotlar):** Invite Ben (`benartzi4@gmail.com`) to Grafana Cloud + Sentry, and Ben accepts. (Outstanding per ../owner-setup-checklist.html Task 6.)
+      status: DROPPED BY DESIGN — not possible on the free Hobby plan and not needed. Deploys run through GitHub Actions using `VERCEL_TOKEN`/`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` (all present). Phase-6 follow-up: confirm the Vercel `lengua` project is linked to the repo so the Actions deploy lands on it.
+- [x] **0.7.10** **OWNER (Kotlar):** Invite Ben (`benartzi4@gmail.com`) to Grafana Cloud + Sentry, and Ben accepts. (Outstanding per ../owner-setup-checklist.html Task 6.)
       verify: Ben can open the Grafana stack and both Sentry projects (lengua-api, lengua-web).
+      status: Ben accepted both invites (2026-06-25) — Grafana `joyfulmayfly1575`, Sentry org `kotlar-y7`.
 - [ ] **0.7.11** Note: paid store accounts (Apple Developer $99/yr, Google Play $25 one-time) are DEFERRED to Phase 7 and intentionally NOT part of Phase 0.
       verify: this deferral is recorded here and in ../08-open-questions-and-costs.md; no Phase 0 task requires a paid account.
 

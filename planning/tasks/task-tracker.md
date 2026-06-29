@@ -34,7 +34,7 @@ phase file to do the work.
 
 | Phase | File | Focus | Effort | Depends on | Tasks | Status |
 |------:|------|-------|:------:|------------|:-----:|--------|
-| 0 | [phase-0-foundations.md](phase-0-foundations.md) | Monorepo, tooling, CI quality gate, accounts | S–M | — | 45 | in progress (setup ~47/53 items done) |
+| 0 | [phase-0-foundations.md](phase-0-foundations.md) | Monorepo, tooling, CI quality gate, accounts | S–M | — | 45 | in progress (owner setup closed; 0.1–0.3 scaffolds done; 0.4/0.5 next) |
 | 1 | [phase-1-backend-core.md](phase-1-backend-core.md) | FastAPI + Postgres core loop, LLM seam, OpenAPI | L | 0 | 34 | not started |
 | 2 | [phase-2-auth-multitenancy.md](phase-2-auth-multitenancy.md) | Supabase Auth, per-user scoping, RLS, account lifecycle | M | 1 | 28 | not started |
 | 3 | [phase-3-llm-quota.md](phase-3-llm-quota.md) | LLM quota, rate-limit, cost-guard kill-switch | M | 2 | 26 | not started |
@@ -109,17 +109,19 @@ These run *across* phases rather than as a single block — track them continuou
 
 ## Setup readiness (pre-implementation)
 
-A readiness validation on **2026-06-25** verified **~47 account/infra items done** (GitHub
-repo + 28 Actions secrets, both Supabase projects, GCP `lengua-prod` + Artifact Registry +
-`github-ci` SA, Vercel project, Groq/Gemini/Resend/Grafana/Sentry keys as CI secrets,
-Ben's local `.env`/gcloud/Docker). **6 owner (Kotlar) items remain outstanding:**
+A readiness validation on **2026-06-25** verified the account/infra setup, and a live
+re-check on **2026-06-29** (via `gh`) confirmed the previously-"outstanding" owner items are
+now effectively **closed**:
 
-1. Branch protection on `main`.
-2. Dependabot vulnerability alerts + automated security fixes.
-3. Two CI secrets (`GCP_REGION`, `SENTRY_ORG`).
-4. Vercel invite for Ben.
-5. Resend custom-SMTP delivery confirmed in both Supabase projects.
-6. Grafana Cloud + Sentry invites for Ben.
+1. Branch protection on `main` — **ON** (`protected: true`, admins enforced, force-push
+   blocked). Owner chose to keep the review gate loose for now (0 approvals); approval=1 +
+   required CI checks land together in **Phase 0.5** (0.6.3).
+2. Dependabot alerts + automated security fixes — **ON** (alerts 204, auto-fixes 200).
+3. CI secrets `GCP_REGION` + `SENTRY_ORG` — **present** (30 secrets total).
+4. Vercel invite for Ben — **dropped by design** (not possible/needed on free Hobby; deploys
+   go through GitHub Actions with the `VERCEL_*` secrets).
+5. Resend custom-SMTP delivery — **confirmed by Kotlar** on both Supabase projects.
+6. Grafana Cloud + Sentry invites — **Ben accepted both**.
 
 See [../owner-setup-checklist.html](../owner-setup-checklist.html). **None of these block
 writing code** — implementation can start on Phase 0 in parallel. **Paid store accounts**
