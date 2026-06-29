@@ -1,13 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 5173;
+// In CI we exercise the production build (`pnpm preview` serving `dist`); locally we use
+// the dev server for fast feedback. The CI job runs `pnpm build` before the suite.
+const isCI = !!process.env.CI;
+const PORT = isCI ? 4173 : 5173;
 const baseURL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  forbidOnly: isCI,
+  retries: isCI ? 1 : 0,
   reporter: "html",
   use: {
     baseURL,
@@ -15,9 +18,11 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `pnpm dev --port ${PORT} --strictPort`,
+    command: isCI
+      ? `pnpm preview --port ${PORT} --strictPort`
+      : `pnpm dev --port ${PORT} --strictPort`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !isCI,
     timeout: 120_000,
   },
 });

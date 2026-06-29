@@ -1,0 +1,79 @@
+name: Advisory
+
+# Non-blocking signal on PRs: coverage deltas + a11y/perf budgets. Every job is
+# continue-on-error, so these never gate a merge (they are intentionally advisory).
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  coverage-comment:
+    name: coverage delta (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: Backend coverage
+        working-directory: apps/api
+        run: |
+          uv sync --frozen
+          uv run pytest --cov-report=xml --cov-report=term | tee pytest-coverage.txt
+      - name: Comment backend coverage
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: apps/api/pytest-coverage.txt
+          coverage-path-prefix: apps/api/
+          title: Backend coverage
+          unique-id-for-comment: backend-coverage
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: Frontend coverage
+        working-directory: apps/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary
+      - name: Comment frontend coverage
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          working-directory: apps/web
+          json-summary-path: apps/web/coverage/coverage-summary.json
+
+  a11y-perf:
+    name: a11y + perf budgets (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: Build web bundle
+        working-directory: apps/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      # Lighthouse's accessibility category is powered by axe-core, so this covers both
+      # the perf budget and a11y signal on the built home page.
+      - name: Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: apps/web/lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
