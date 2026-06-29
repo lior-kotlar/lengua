@@ -181,13 +181,29 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
           VITE_SENTRY_DSN_WEB: ${{ secrets.SENTRY_DSN_WEB }}
         run: vercel build --token="$VERCEL_TOKEN"
-      - name: Deploy prebuilt to Vercel (staging)
+      - name: Deploy prebuilt to Vercel (staging) + alias to the stable staging origin
         id: deploy
+        env:
+          STAGING_WEB_ORIGIN: ${{ vars.STAGING_WEB_ORIGIN }}
         run: |
           set -euo pipefail
-          url="$(vercel deploy --prebuilt --token="$VERCEL_TOKEN" | tail -n1)"
-          echo "Deployed web (staging) -> $url"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
+          deploy_url="$(vercel deploy --prebuilt --token="$VERCEL_TOKEN" | tail -n1)"
+          echo "Deployed web (staging) -> $deploy_url"
+          # Alias the fresh deployment to the STABLE staging origin (repo var STAGING_WEB_ORIGIN, e.g.
+          # https://lengua-staging.vercel.app). Without this the deploy only lands on a throwaway
+          # preview URL: the public URL never updates AND the API rejects it (its CORS_ALLOW_ORIGINS is
+          # exactly the stable origin), so the loop is broken even though `vercel deploy` succeeded.
+          # We then emit the STABLE origin as this job's `url` output, so the smoke job probes the real
+          # public URL (the one users hit + the one CORS allows), not the preview shell.
+          if [ -n "${STAGING_WEB_ORIGIN:-}" ]; then
+            alias_domain="${STAGING_WEB_ORIGIN#http://}"; alias_domain="${alias_domain#https://}"
+            vercel alias set "$deploy_url" "$alias_domain" --token="$VERCEL_TOKEN"
+            echo "Aliased $deploy_url -> https://$alias_domain"
+            echo "url=https://$alias_domain" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::STAGING_WEB_ORIGIN unset — leaving the deploy on its preview URL (no stable alias; CORS will reject it)."
+            echo "url=$deploy_url" >> "$GITHUB_OUTPUT"
+          fi
 
   # ── 6.6.5 — smoke-check the staging deploy (fail the run on any failed probe) ────────────────
   smoke-staging:
