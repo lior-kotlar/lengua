@@ -66,15 +66,19 @@ _Context: stand up the React + TS + Vite web shell with pnpm, eslint, prettier, 
 
 _Context: build the fixtures/factories, the deterministic LLM fake (provider-agnostic — stands in for Groq or Gemini), and a throwaway test Postgres so every later phase's tests are cheap and never burn real quota._
 
-- [ ] **0.4.1** Add backend fixtures/factories for users, languages, cards, reviews (factory-boy or simple builders) in `apps/api/tests`.
+- [x] **0.4.1** Add backend fixtures/factories for users, languages, cards, reviews (factory-boy or simple builders) in `apps/api/tests`.
       verify: `uv run pytest tests/test_factories.py` builds each entity and asserts required fields are populated.
-- [ ] **0.4.2** Implement the deterministic LLM fake (`FakeLLM`) behind the provider interface returning canned `GeneratedCard`/`WordNote`; shared by unit/integration/E2E.
+      done: `tests/factories.py` — dataclass builders (`make_user`/`make_language`/`make_card`/`make_review`) matching the 03-backend DDL, referentially consistent. 8 tests green. (ORM-backed swap is Phase 1.)
+- [x] **0.4.2** Implement the deterministic LLM fake (`FakeLLM`) behind the provider interface returning canned `GeneratedCard`/`WordNote`; shared by unit/integration/E2E.
       verify: `uv run pytest tests/test_fake_llm.py` asserts identical structured output across repeated calls (no nondeterminism, no network).
-- [ ] **0.4.3** Wire a throwaway test Postgres (Supabase CLI stack or testcontainers) into the pytest session with a fixture that gives a clean DB per test module.
+      done: `lengua_core/models.py` (ported GeneratedCard/WordNote), `lengua_core/llm/base.py` (LLMProvider Protocol), `lengua_core/llm/fake.py` (FakeLLM). 6 tests incl. a sockets-disabled no-network assertion; 100% cov.
+- [x] **0.4.3** Wire a throwaway test Postgres (Supabase CLI stack or testcontainers) into the pytest session with a fixture that gives a clean DB per test module.
       verify: `supabase start` (or testcontainers spin-up) runs in CI and `uv run pytest tests/test_db_fixture.py` connects, creates a temp table, and tears down.
-- [ ] **0.4.4** Add an E2E seed script + a reviewer/demo account fixture the Playwright stack consumes (reused later for store review).
+      done: `tests/conftest.py` — session `postgres_url` (testcontainers `postgres:16-alpine`, skips when Docker absent) + per-test clean `db_engine` (drops/recreates `public`). Verified locally against real Postgres 2026-06-29.
+- [x] **0.4.4** Add an E2E seed script + a reviewer/demo account fixture the Playwright stack consumes (reused later for store review).
       verify: running the seed against a fresh test DB produces the demo account and a non-empty card set, asserted by a seed-verification test.
       depends: 0.4.1, 0.4.3
+      done: `tests/seed.py` (`seed_demo` → demo account + N cards via the factories) + `demo_account` fixture. Verified against real Postgres. (Minimal stand-in schema; Phase 1 repoints it at the Alembic schema.)
 
 ## 0.5 — Per-PR quality gate (CI)  ·  L
 

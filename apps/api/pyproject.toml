@@ -18,6 +18,9 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.9",
     "mypy>=1.14",
+    "testcontainers[postgres]>=4.14.2",
+    "sqlalchemy>=2.0.51",
+    "psycopg[binary]>=3.3.4",
 ]
 
 [tool.uv]
@@ -34,15 +37,19 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.13"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests"]
+files = ["app", "lengua_core", "tests"]
+
+[[tool.mypy.overrides]]
+module = "testcontainers.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing"
+addopts = "--cov=app --cov=lengua_core --cov-branch --cov-fail-under=80 --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
-source = ["app"]
+source = ["app", "lengua_core"]
 
 [tool.coverage.report]
 exclude_also = [
