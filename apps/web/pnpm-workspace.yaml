@@ -1,0 +1,4 @@
+# Allow build scripts only for vetted dependencies (pnpm 10+ blocks them by default).
+# esbuild's postinstall just downloads its platform-native binary; it underlies Vite.
+allowBuilds:
+  esbuild: true

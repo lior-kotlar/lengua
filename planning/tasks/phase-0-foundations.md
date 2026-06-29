@@ -47,18 +47,18 @@ _Context: stand up the FastAPI service shell with `uv`, ruff, mypy, pytest, and 
 
 _Context: stand up the React + TS + Vite web shell with pnpm, eslint, prettier, tsc, vitest, and Playwright. UI stack is Tailwind + shadcn/ui (decision round 5)._
 
-- [ ] **0.3.1** Initialize `apps/web` with `pnpm` + Vite (React + TS template); app renders a placeholder home route via react-router.
+- [x] **0.3.1** Initialize `apps/web` with `pnpm` + Vite (React + TS template); app renders a placeholder home route via react-router.
       verify: `pnpm install && pnpm build` succeeds and `pnpm dev` serves the placeholder page locally.
-- [ ] **0.3.2** Add Tailwind CSS + shadcn/ui base config and one sample shadcn component on the home route.
+- [x] **0.3.2** Add Tailwind CSS + shadcn/ui base config and one sample shadcn component on the home route.
       verify: `pnpm build` succeeds; the home route renders the sample component with Tailwind classes applied (visible in `pnpm preview`).
       depends: 0.3.1
-- [ ] **0.3.3** Configure eslint + prettier + `tsc --noEmit` with shared config; clean the scaffold.
+- [x] **0.3.3** Configure eslint + prettier + `tsc --noEmit` with shared config; clean the scaffold.
       verify: `pnpm lint && pnpm exec prettier --check . && pnpm exec tsc --noEmit` all exit 0.
       depends: 0.3.1
-- [ ] **0.3.4** Configure vitest with v8 coverage and 80% thresholds; add a first component/render test.
+- [x] **0.3.4** Configure vitest with v8 coverage and 80% thresholds; add a first component/render test.
       verify: `pnpm test --coverage` passes with coverage ≥80% on the scaffold and fails if thresholds drop.
       depends: 0.3.1
-- [ ] **0.3.5** Add Playwright with a single smoke spec that loads the home page; add a `pnpm verify` script running lint+format+types+unit+build.
+- [x] **0.3.5** Add Playwright with a single smoke spec that loads the home page; add a `pnpm verify` script running lint+format+types+unit+build.
       verify: `pnpm exec playwright test` passes the home-page smoke headless; `pnpm verify` exits 0.
       depends: 0.3.3, 0.3.4
 
