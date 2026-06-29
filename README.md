@@ -8,6 +8,21 @@ It replaces the manual workflow of pasting words + a long "rules" prompt into a 
 the rules, the generation instruction, and your active language are attached
 automatically on every request, so you only ever supply the words.
 
+## Repository layout
+
+The app is being productionized from a single Streamlit app into a monorepo (FastAPI +
+React + Supabase, packaged to iOS/Android via Capacitor — see [`planning/`](planning/)).
+During the transition the legacy Streamlit app stays runnable at the repo root.
+
+| Path | What it holds |
+| --- | --- |
+| [`apps/`](apps/) | Deployable apps: [`apps/api/`](apps/api/) (FastAPI backend) and [`apps/web/`](apps/web/) (React web app, later wrapped to mobile). |
+| [`packages/`](packages/) | Shared code across apps (e.g. OpenAPI-generated TS types). |
+| [`infra/`](infra/) | CI/CD workflows and Supabase config (RLS policies, seed). |
+| [`docs/`](docs/) | Legal + ops docs (privacy policy, runbook). |
+| [`planning/`](planning/) | The productionization plan and per-phase task files. |
+| `app.py`, `pages/`, `lengua/` | The legacy Streamlit app (still runnable — see below). |
+
 ## How it works
 
 1. **Pick a language** in the sidebar (e.g. Spanish, Arabic). It's saved and stays active
