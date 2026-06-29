@@ -33,7 +33,8 @@ inputs:
     description: >-
       Runtime environment for the service, one KEY=VALUE per line. Passed via --set-env-vars with
       a custom '@@' delimiter so values containing commas (e.g. OTEL headers) survive intact.
-      Blank lines are skipped. This REPLACES the service's env on each deploy.
+      Blank lines and '#' comment lines are skipped (the block may document entries inline).
+      This REPLACES the service's env on each deploy.
     required: false
     default: ''
   extra_flags:
@@ -78,7 +79,12 @@ runs:
         if [ -n "$(printf '%s' "${ENV_VARS}" | tr -d '[:space:]')" ]; then
           joined=""
           while IFS= read -r line; do
-            [ -z "${line//[[:space:]]/}" ] && continue
+            # Skip blank lines AND '#' comment lines: the caller's env_vars block documents entries
+            # inline (e.g. why SUPABASE_JWKS_URL is set), and those comment lines must not be passed
+            # to --set-env-vars as bogus KEY=VALUE pairs (gcloud errors "Bad syntax for dict arg").
+            stripped="${line#"${line%%[![:space:]]*}"}"
+            [ -z "$stripped" ] && continue
+            case "$stripped" in '#'*) continue ;; esac
             if [ -z "$joined" ]; then joined="$line"; else joined="${joined}@@${line}"; fi
           done <<< "${ENV_VARS}"
           deploy_args+=( "--set-env-vars=^@@^${joined}" )
