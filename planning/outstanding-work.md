@@ -804,6 +804,15 @@ Cross-reference: [`go-live-activation.md`](go-live-activation.md) §E/§F (the s
    `if: ${{ vars.DEPLOY_ENABLED == 'true' }}`; while it is **unset** every job SKIPS, so each push to
    `main` is a green no-op and the prod approval is never requested. (To pause CD again later:
    `gh variable delete DEPLOY_ENABLED`.)
+   - ⚠️ **Live-discovered prerequisite (2026-06-29): the DB-URL secrets must use the IPv4 Session
+     pooler, not the direct host.** The first armed run failed at `migrate-staging` with
+     `OSError: [Errno 101] Network is unreachable` — `SUPABASE_STAGING_DATABASE_URL` pointed at the
+     Supabase **direct** host (`db.<ref>.supabase.co`, **IPv6-only**) and GitHub-hosted runners are
+     **IPv4-only**. Fix BEFORE re-flipping: set `SUPABASE_STAGING_DATABASE_URL` **and**
+     `SUPABASE_PROD_DATABASE_URL` to the **Session-mode pooler** string (Project Settings → Database →
+     "Session pooler"): `postgresql://postgres.<ref>:<pw>@aws-0-<region>.pooler.supabase.com:5432/postgres`
+     (port **5432** = session mode — NOT 6543/transaction, per the asyncpg prepared-statement caveat in
+     §Phase-2). It's a drop-in for the Cloud Run runtime too (same secret). No code change.
 2. **Add the prod approval reviewer (one owner action left for prod):** create the GitHub
    **`production` environment** (repo Settings → Environments → New environment → `production`) and add
    a **required reviewer**. `deploy-prod.yml`'s `approval` job targets that environment, so prod pauses
