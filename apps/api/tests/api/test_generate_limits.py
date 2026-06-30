@@ -6,8 +6,10 @@ Two cost-minimization guarantees on the generate path:
   the :class:`~app.schemas.generate.GenerateRequest` schema caps ``words`` at
   ``MAX_WORDS_PER_REQUEST`` (env-overridable via settings), so an oversized request never reaches
   the provider. It is a hard reject, **not** the silent ``cap_words`` truncation the providers still
-  apply defensively. Proven at the schema level (a ``pydantic.ValidationError``, which FastAPI
-  renders as HTTP 422) and end-to-end over HTTP.
+  apply defensively. The schema also enforces the lower bound — an empty ``words: []`` is likewise
+  rejected with 422 (``minItems: 1``, S11) so a no-op generate never reaches the body to burn a
+  daily count. Proven at the schema level (a ``pydantic.ValidationError``, which FastAPI renders as
+  HTTP 422) and end-to-end over HTTP.
 * **(b) Output-token cap.** Each allowed generate call passes the configured ``GENERATE_MAX_TOKENS``
   output cap to the vendor so an answer can't balloon in cost. Proven by driving the real
   :class:`~lengua_core.llm.groq.GroqProvider` with a recording fake vendor client and asserting it
@@ -75,6 +77,14 @@ def test_words_and_tokens_capped() -> None:
     assert client.create_kwargs[0]["max_tokens"] == GENERATE_MAX_TOKENS
 
 
+def test_empty_words_rejected_by_schema() -> None:
+    """S11: an empty ``words`` list is a schema rejection (FastAPI → HTTP 422); one word passes."""
+    with pytest.raises(ValidationError):
+        GenerateRequest(language_id=1, words=[])
+    # The lower bound is exactly one — a single word still validates.
+    assert GenerateRequest(language_id=1, words=["hola"]).words == ["hola"]
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_over_limit_words_http_422(api_client: AsyncClient) -> None:
@@ -87,6 +97,20 @@ async def test_over_limit_words_http_422(api_client: AsyncClient) -> None:
     resp = await api_client.post(
         "/generate", json={"language_id": language_id, "words": over_limit}
     )
+
+    assert resp.status_code == 422
+    assert FakeLLM.call_count == 0  # rejected at validation, before any provider call
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_empty_words_http_422(api_client: AsyncClient) -> None:
+    """End-to-end: POST /generate with an empty word list → HTTP 422, no provider call (S11)."""
+    lang = await api_client.post("/languages", json={"name": "Spanish", "code": "es"})
+    language_id = int(lang.json()["id"])
+    FakeLLM.reset_call_count()
+
+    resp = await api_client.post("/generate", json={"language_id": language_id, "words": []})
 
     assert resp.status_code == 422
     assert FakeLLM.call_count == 0  # rejected at validation, before any provider call

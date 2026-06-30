@@ -17,7 +17,9 @@ deterministic stub and never touch the network.
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import unicodedata
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -33,7 +35,7 @@ from app.repositories.proficiency import ProficiencyRepository
 from app.services.errors import NotFoundError
 from lengua_core import cards as core_cards
 from lengua_core import proficiency, scheduler
-from lengua_core.cards import BuiltCard
+from lengua_core.cards import BuiltCard, bare_word
 from lengua_core.llm.base import LLMProvider
 
 if TYPE_CHECKING:
@@ -42,6 +44,60 @@ if TYPE_CHECKING:
     # annotations`` keeps the ``QuotaGuard`` annotation a string, so the guard is passed in (for its
     # observability span) without importing the class at runtime.
     from app.quota import QuotaGuard
+
+
+def _fold(token: str) -> str:
+    """Case- and diacritic-folded bare form of ``token`` for insensitive whole-word matching.
+
+    Strips surrounding punctuation (:func:`~lengua_core.cards.bare_word`), decomposes to NFD and
+    drops combining marks (so diacritics and Arabic vowel marks don't block a match), then
+    case-folds — "Está", "esta", and "ESTÁ" all fold to ``esta``, and a vowelized surface matches
+    its bare vocabulary word. Returns ``""`` for an all-punctuation token (never matched).
+    """
+    decomposed = unicodedata.normalize("NFD", bare_word(token))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
+
+
+def _appears_as_run(sentence_tokens: list[str], needle: list[str]) -> bool:
+    """True when ``needle`` occurs as a contiguous run of whole tokens in ``sentence_tokens``.
+
+    Both are pre-folded token lists. A single-word ``needle`` reduces to whole-word membership; a
+    multi-word phrase (e.g. ``["buenos", "dias"]``) must appear as adjacent tokens — so matching is
+    word-boundary aware and never fires on a substring inside a larger word.
+    """
+    span = len(needle)
+    if span == 0:
+        return False
+    return any(
+        sentence_tokens[i : i + span] == needle
+        for i in range(len(sentence_tokens) - span + 1)
+    )
+
+
+def _verified_used_words(
+    used_words: list[str], sentence: str, vocab_folded: set[str]
+) -> list[str]:
+    """Keep only ``used_words`` that are requested vocab AND actually occur in ``sentence`` (S7).
+
+    The provider's ``used_words`` is advisory: a card can name a word that is missing from its own
+    sentence, which overstates coverage — the Generate chips show it and Discover's ``known_words``
+    is built from the saved ``used_words`` (so a phantom word would suppress that word as a future
+    suggestion). We trust the sentence over the label: a word survives only when its folded bare
+    form (case-/diacritic-insensitive) appears as a whole word — or contiguous phrase — in the
+    sentence *and* was one of the words the user asked for. Original surface form and order are
+    preserved; duplicates (by folded form) are dropped.
+    """
+    sentence_tokens = [_fold(tok) for tok in sentence.split()]
+    kept: list[str] = []
+    seen: set[str] = set()
+    for word in used_words:
+        folded = _fold(word)
+        if not folded or folded in seen or folded not in vocab_folded:
+            continue
+        if _appears_as_run(sentence_tokens, [_fold(part) for part in word.split()]):
+            kept.append(word)
+            seen.add(folded)
+    return kept
 
 
 class GenerateService:
@@ -107,9 +163,18 @@ class GenerateService:
             input_size=len(cleaned),
             kind=guard.kind if guard is not None else None,
         )
+        # Coverage guard (S7): the provider's ``used_words`` is advisory, so verify each one against
+        # the sentence it claims to use and the words actually requested before it reaches a card.
+        # The folded vocab set is built from ``cleaned`` (what we asked for); a phantom or
+        # never-requested word is dropped so chips + ``known_words`` never overstate coverage.
+        vocab_folded = {folded for w in cleaned if (folded := _fold(w))}
         built: list[BuiltCard] = []
         for card in generated:
-            built.extend(core_cards.build_cards(card, gen_level=score))
+            verified = _verified_used_words(card.used_words, card.sentence, vocab_folded)
+            built.extend(
+                dataclasses.replace(pair, used_words=verified)
+                for pair in core_cards.build_cards(card, gen_level=score)
+            )
         return built
 
     async def save(

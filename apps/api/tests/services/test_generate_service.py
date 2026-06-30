@@ -22,6 +22,7 @@ from app.repositories.proficiency import ProficiencyRepository
 from app.services.errors import NotFoundError
 from app.services.generate import GenerateService
 from lengua_core.llm.fake import FakeLLM
+from lengua_core.models import GeneratedCard
 from scripts.seed_e2e import SeedResult
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -93,3 +94,69 @@ async def test_generate_and_save_empty(db_session: AsyncSession, demo_account: S
     service = GenerateService(db_session, FakeLLM())
     assert await service.generate(user_id, language.id, []) == []
     assert await service.save(user_id, language.id, []) == []
+
+
+class _OverstatedCoverageProvider:
+    """A provider whose ``used_words`` overstates coverage — drives the S7 coverage filter.
+
+    Its one sentence genuinely uses only some requested words, yet labels ``used_words`` with a
+    phantom word (``taza``, absent from the sentence), a word it used but the learner never
+    requested (``bonita``), a case-/diacritic variant of a present requested word (``ESTA`` for
+    ``está``), and a folded duplicate (``Casa``). Implements the full
+    :class:`~lengua_core.llm.base.LLMProvider` Protocol so it type-checks where a provider is
+    expected; only :meth:`generate_cards` is exercised.
+    """
+
+    name = "overstated"
+    model = "overstated"
+
+    def generate_cards(
+        self,
+        words: list[str],
+        language: str,
+        vowelized: bool = False,
+        level_band: str | None = None,
+    ) -> list[GeneratedCard]:
+        return [
+            GeneratedCard(
+                sentence="Está la casa.",
+                translation="The house is here.",
+                used_words=["casa", "taza", "bonita", "ESTA", "Casa"],
+            )
+        ]
+
+    def suggest_new_words(
+        self,
+        language: str,
+        level_band: str,
+        known_words: list[str],
+        count: int = 5,
+        topic: str | None = None,
+    ) -> list[str]:
+        raise NotImplementedError
+
+    def explain_word(self, word: str, sentence: str, translation: str, language: str) -> str:
+        raise NotImplementedError
+
+
+async def test_generate_filters_used_words_to_real_coverage(
+    db_session: AsyncSession, demo_account: SeedResult
+) -> None:
+    """S7: ``used_words`` is filtered to requested vocab that actually occurs in the sentence.
+
+    The provider lists more words than its sentence supports; the service must keep only the words
+    the learner asked for whose bare form really appears, case- and diacritic-insensitively, once
+    each, preserving the original surface form. So the phantom ``taza`` and the never-requested
+    ``bonita`` are dropped, ``ESTA`` (matching ``está``/``Está``) is kept, and the folded duplicate
+    ``Casa`` collapses — both built directions carry ``["casa", "ESTA"]``.
+    """
+    user_id = uuid.UUID(demo_account.user_id)
+    language = await LanguagesRepository(db_session).create(user_id, "Español", code="es")
+    service = GenerateService(db_session, _OverstatedCoverageProvider())
+
+    built = await service.generate(user_id, language.id, ["casa", "taza", "está"])
+
+    assert len(built) == 2  # one sentence -> recognition + production
+    assert {card.direction for card in built} == {"recognition", "production"}
+    for card in built:
+        assert card.used_words == ["casa", "ESTA"]
