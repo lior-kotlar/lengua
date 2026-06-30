@@ -33,12 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.settings import SettingsRepository
 from app.schemas.discover import DiscoverRequest
 from app.services.errors import ValidationError
-from app.services.review import (
-    DAILY_NEW_LIMIT_KEY,
-    DAILY_TOTAL_LIMIT_KEY,
-    resolve_review_limit,
-)
-from lengua_core import config
+from app.services.review import DAILY_NEW_LIMIT_KEY, DAILY_TOTAL_LIMIT_KEY
 
 #: ``user_settings`` key for the Discover form's default word count.
 DISCOVER_COUNT_KEY = "discover_count"
@@ -60,21 +55,27 @@ NUMERIC_SETTING_BOUNDS: dict[str, tuple[int, int]] = {
 
 
 def validate_numeric_bound(key: str, value: str) -> None:
-    """Raise :class:`ValidationError` if a typed-numeric ``key``'s ``value`` is invalid (S9).
+    """Raise :class:`ValidationError` if a typed-numeric ``key``'s ``value`` is an out-of-range
+    integer (S9).
 
-    A no-op for any key not in :data:`NUMERIC_SETTING_BOUNDS` (the store stays generic). Otherwise
-    the value — always a string in this store — must parse to an ``int`` within the key's inclusive
-    bounds; surrounding whitespace is tolerated (parsed the same way the consumers read it). Pure,
-    so the parse/range rules are unit-tested directly.
+    A no-op for any key not in :data:`NUMERIC_SETTING_BOUNDS` (the store stays generic). For a typed
+    key the value is range-checked **only when it parses as an integer**; a blank or non-numeric
+    value passes through untouched. That tolerance is deliberate: every consumer of these keys
+    (:func:`app.services.review.resolve_review_limit`, the Discover form) already falls back to its
+    config default for a missing / blank / non-numeric / non-positive value, so such a value can
+    never produce the confusing state this guard exists to prevent — only an *in-range-looking but
+    too-large number* (e.g. ``daily_new_limit=100000``) is taken literally and silently capped by a
+    smaller total. Surrounding whitespace is tolerated. Pure, so the parse/range rules are
+    unit-tested directly.
     """
     bounds = NUMERIC_SETTING_BOUNDS.get(key)
     if bounds is None:
         return
-    low, high = bounds
     try:
         parsed = int(value.strip())
     except ValueError:
-        raise ValidationError(f"Setting '{key}' must be a whole number.") from None
+        return  # not an integer -> the consumer safely falls back to its default
+    low, high = bounds
     if not low <= parsed <= high:
         raise ValidationError(f"Setting '{key}' must be between {low} and {high}.")
 
@@ -132,27 +133,38 @@ class SettingsService:
     async def _check_review_limit_cross_field(
         self, user_id: uuid.UUID, cleaned: list[tuple[str, str | None]]
     ) -> None:
-        """Enforce ``daily_new_limit <= daily_total_limit`` over the post-merge limits (S9).
+        """Enforce ``daily_new_limit <= daily_total_limit`` over the *explicitly-set* limits (S9).
 
         Runs only when this write touches a review-limit key, so a PUT of unrelated settings is
-        never blocked by a pre-existing inconsistency. Each limit's effective value is the value
-        this write supplies (``None`` = deletion, which reverts it to the config default), else the
-        currently stored value — each resolved exactly as ``GET /review/due`` resolves it (the
-        ``lengua_core`` default for a missing / blank / non-numeric / non-positive value). Raises
-        :class:`ValidationError` (→ 422) when the new-card limit would exceed the total.
+        never blocked by a pre-existing inconsistency. It compares only values the user has actually
+        chosen — the incoming value (``None`` = deletion, i.e. cleared) if present, else the stored
+        value — and only when that value parses to a positive int. A limit with no explicit value
+        (so the review batch uses the ``lengua_core`` config default) is left unconstrained:
+        lowering only the *total* beneath the default new-card limit is a legitimate "cap my day"
+        edit, not the S9 footgun. The footgun is a user who explicitly sets a large new limit under
+        a small total — where the review batch silently lets the smaller total win, hiding the
+        surplus new cards. Only that case (both limits explicit, positive, ``new > total``) raises
+        :class:`ValidationError` (→ 422).
         """
         incoming = dict(cleaned)
         if DAILY_NEW_LIMIT_KEY not in incoming and DAILY_TOTAL_LIMIT_KEY not in incoming:
             return
         stored = await self._settings.get_all(user_id)
 
-        def effective(key: str, default: int) -> int:
+        def explicit(key: str) -> int | None:
+            """The positive int the user chose for ``key``, or ``None`` if unset/garbage."""
             raw = incoming[key] if key in incoming else stored.get(key)
-            return resolve_review_limit(raw, default)
+            if raw is None:
+                return None
+            try:
+                parsed = int(raw.strip())
+            except (ValueError, AttributeError):
+                return None
+            return parsed if parsed > 0 else None
 
-        new_limit = effective(DAILY_NEW_LIMIT_KEY, config.DAILY_NEW_LIMIT)
-        total_limit = effective(DAILY_TOTAL_LIMIT_KEY, config.DAILY_TOTAL_LIMIT)
-        if new_limit > total_limit:
+        new_limit = explicit(DAILY_NEW_LIMIT_KEY)
+        total_limit = explicit(DAILY_TOTAL_LIMIT_KEY)
+        if new_limit is not None and total_limit is not None and new_limit > total_limit:
             raise ValidationError(
                 f"daily_new_limit ({new_limit}) must not exceed daily_total_limit ({total_limit})."
             )

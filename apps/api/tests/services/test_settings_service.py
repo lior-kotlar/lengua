@@ -51,18 +51,32 @@ async def test_out_of_bounds_numeric_rejected(
 ) -> None:
     user_id = uuid.UUID(demo_account.user_id)
     service = SettingsService(db_session)
+    # An out-of-range *integer* is the S9 footgun (taken literally by the consumer) -> rejected.
     for bad in (
         {"daily_new_limit": "0"},  # below min 1
         {"daily_new_limit": "101"},  # above max 100
         {"daily_total_limit": "501"},  # above max 500
         {"discover_count": "21"},  # above the DiscoverRequest.count max (20)
-        {"daily_new_limit": "abc"},  # non-numeric
-        {"daily_total_limit": "1.5"},  # non-integer
     ):
         with pytest.raises(ValidationError):
             await service.set_many(user_id, bad)
     # A rejected write persists nothing.
     assert await service.get_all(user_id) == {}
+
+
+async def test_non_numeric_typed_value_is_stored_and_falls_back(
+    db_session: AsyncSession, demo_account: SeedResult
+) -> None:
+    # A blank/non-numeric typed-numeric value is NOT rejected: it is stored as-is, and every
+    # consumer falls back to its config default for it (so the review API's shipped "garbage ->
+    # default" contract holds). Only out-of-range integers are refused (see above).
+    user_id = uuid.UUID(demo_account.user_id)
+    service = SettingsService(db_session)
+    await service.set_many(user_id, {"daily_new_limit": "lots", "daily_total_limit": "   "})
+    assert await service.get_all(user_id) == {
+        "daily_new_limit": "lots",
+        "daily_total_limit": "   ",
+    }
 
 
 async def test_cross_field_new_exceeds_total_rejected(

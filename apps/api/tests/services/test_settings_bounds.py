@@ -42,10 +42,14 @@ def test_out_of_range_rejected(key: str) -> None:
         validate_numeric_bound(key, str(high + 1))
 
 
-@pytest.mark.parametrize("bad", ["abc", "1.5", "", "  ", "10x", "0x10", "five"])
-def test_non_integer_rejected(bad: str) -> None:
-    with pytest.raises(ValidationError):
-        validate_numeric_bound("daily_new_limit", bad)
+@pytest.mark.parametrize("value", ["abc", "1.5", "", "  ", "10x", "0x10", "five"])
+def test_non_integer_value_is_tolerated(value: str) -> None:
+    # A blank or non-numeric value is NOT a range error: it passes through here untouched, because
+    # every consumer (resolve_review_limit, the Discover form) safely falls back to its default for
+    # such a value. Only an in-range-looking-but-out-of-bounds *integer* is the S9 footgun. This
+    # also keeps the review API's shipped contract that a blank/garbage daily_*_limit reverts to the
+    # config default (tests/api/test_review.py) rather than 422-ing the whole write.
+    validate_numeric_bound("daily_new_limit", value)
 
 
 def test_discover_count_bound_tracks_request_schema() -> None:
