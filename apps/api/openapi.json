@@ -1030,11 +1030,18 @@
         "type": "object"
       },
       "SettingsUpdate": {
-        "description": "Request body for ``PUT /settings`` — upsert (merge) one or more settings.\n\nOnly the keys present are written; existing keys not listed are left untouched.",
+        "description": "Request body for ``PUT /settings`` — upsert (merge) one or more settings.\n\nOnly the keys present are written; keys not listed are left untouched. A key mapped\nto ``null`` is **removed** (finding S10), so a merge can clear a key, not only set\none — previously a written key could never be deleted through the API. At least one\nkey must be supplied.\n\nThe typed numeric keys (``daily_*_limit`` and ``discover_count``) are bounds-checked\nserver-side in the settings service, which also enforces\n``daily_new_limit <= daily_total_limit`` (finding S9); a violation returns **422**.\nThat check lives in the service, not this model, so the OpenAPI contract stays neutral.",
         "properties": {
           "values": {
             "additionalProperties": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "minProperties": 1,
             "title": "Values",

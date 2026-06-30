@@ -1,7 +1,9 @@
 """Settings router (task 1.5.9): read and upsert the user's key/value preferences.
 
-``GET /settings`` returns the full ``{key: value}`` map; ``PUT /settings`` upserts (merges) the
-supplied keys and returns the updated map, all scoped to ``current_user``.
+``GET /settings`` returns the full ``{key: value}`` map; ``PUT /settings`` merges the supplied keys
+(a ``null`` value removes a key — finding S10) and returns the updated map, all scoped to
+``current_user``. Out-of-bounds typed-numeric values and a ``daily_new_limit > daily_total_limit``
+cross-field violation (finding S9) are rejected with **422** by the service layer.
 """
 
 from __future__ import annotations
