@@ -26,7 +26,15 @@ class SettingsOut(BaseModel):
 class SettingsUpdate(BaseModel):
     """Request body for ``PUT /settings`` — upsert (merge) one or more settings.
 
-    Only the keys present are written; existing keys not listed are left untouched.
+    Only the keys present are written; keys not listed are left untouched. A key mapped
+    to ``null`` is **removed** (finding S10), so a merge can clear a key, not only set
+    one — previously a written key could never be deleted through the API. At least one
+    key must be supplied.
+
+    The typed numeric keys (``daily_*_limit`` and ``discover_count``) are bounds-checked
+    server-side in the settings service, which also enforces
+    ``daily_new_limit <= daily_total_limit`` (finding S9); a violation returns **422**.
+    That check lives in the service, not this model, so the OpenAPI contract stays neutral.
     """
 
-    values: dict[str, str] = Field(min_length=1)
+    values: dict[str, str | None] = Field(min_length=1)

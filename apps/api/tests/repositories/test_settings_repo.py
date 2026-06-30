@@ -40,3 +40,19 @@ async def test_upsert_then_read_back(db_session: AsyncSession, demo_account: See
 
     # Scoped: another user shares no settings.
     assert await repo.get_all(OTHER_USER) == {}
+
+
+async def test_delete_removes_row(db_session: AsyncSession, demo_account: SeedResult) -> None:
+    user_id = uuid.UUID(demo_account.user_id)
+    repo = SettingsRepository(db_session)
+
+    await repo.upsert(user_id, "discover_count", "8")
+    assert await repo.get(user_id, "discover_count") == "8"
+
+    # Delete removes the row; the key reads back as unset.
+    await repo.delete(user_id, "discover_count")
+    assert await repo.get(user_id, "discover_count") is None
+    assert await repo.get_all(user_id) == {}
+
+    # Deleting a key that was never set is a harmless no-op (no error).
+    await repo.delete(user_id, "never_set")
