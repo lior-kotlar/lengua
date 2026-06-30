@@ -143,3 +143,12 @@ Play $25 one-time) are **deferred to Phase 7** and are not part of Phase 0.
 | **M4** | Deployed to staging **and** prod (auto-staging + gated prod) | end of **P6** |
 | **M5** | Signed iOS + Android builds installable on real devices | end of **P7** |
 | **M6** | Coordinated web + iOS + Android launch (v1 live) | **P9** |
+
+> **Post-M3 staging hardening (2026-06-30).** Staging is live (web + API + DB). A 50-agent
+> live-staging validation found 25 correctness/UX/hardening items
+> ([`../staging-validation.md`](../staging-validation.md)); a multi-agent fix pass merged most
+> (S2/S4/S5/S6/S8/S13/S15/S19; S21 benign), left three PRs open (#88 S3/S12/S14, #89 S7/S11, #90
+> S9/S10), and **paused two for owner review** — **#91** (S1 right-to-erasure migration `0006`) and
+> **#83** (S16/S17 CORS/CSP). This hardens staging on the path to **M4** (P6 staging+prod). Resume
+> state + remaining steps: [`../staging-fix-handoff.md`](../staging-fix-handoff.md); owner items:
+> [`../owner-deferred-tasks.md`](../owner-deferred-tasks.md).
