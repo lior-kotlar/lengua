@@ -16,7 +16,7 @@ This **complements** — does not replace:
 
 ---
 
-## 0. Live-staging validation sweep (2026-06-30) · 25 findings · ☑ fixed + deployed + re-validated
+## 0. Live-staging validation sweep (2026-06-30) · 22 findings · ☑ ALL fixed/accepted + verified
 
 Full triage (repro/owner/fix per item) in [`staging-validation.md`](staging-validation.md) — a
 50-agent find-only workflow (35 candidates → 25 kept). The **core loop is verified working
@@ -25,16 +25,20 @@ end-to-end on live staging**; these were the open correctness/UX/hardening items
 
 **Fix pass (2026-06-30) — COMPLETE.** Ran as a multi-agent worktree workflow (one agent per
 file-disjoint group → PR; serial merge; pause on risky), finished by a driver pass that fixed +
-merged the last three PRs. **CD is armed (`DEPLOY_ENABLED=true`), so every merge auto-deployed to
-live staging**, and both validators were re-run green on the deployed revision (`main` @ `2c1bb67`):
-**API smoke 13/0/0**, **browser e2e-staging 6 passed**, **logs clean** (no WARNING+ in 1h). Details +
-the staging-validation re-validation block → [`staging-validation.md`](staging-validation.md). Live
-resume state → [`staging-fix-handoff.md`](staging-fix-handoff.md).
+merged the PRs. **CD is armed (`DEPLOY_ENABLED=true`), so every merge auto-deployed to live
+staging.** The owner then approved + landed the two paused PRs — **#91** (S1 erasure: migration
+`0006` applied to the staging DB; FK `profiles_id_fkey → auth.users` validated) and **#83** (S16/S17
+CORS/CSP + headers: verified live, app runs under the CSP with zero console violations) — and
+accepted **S20**. A post-fix adversarial study-flow audit found one further low item (**S22**,
+vowelized Discover dedup), fixed in **#97**. A live Playwright walkthrough of the whole study flow
+(generate→save→review→discover, Spanish + Hebrew RTL, settings, languages) passed with **zero console
+errors / all-200 network**; final `staging_smoke` 13/0/0, `e2e-staging` 6 passed. Detail →
+[`staging-validation.md`](staging-validation.md). **All 22 findings are now ☑ fixed or accepted.**
 
 | | Item | Sev | Status |
 |---|---|---|---|
-| ⏸ | **S1** `DELETE /account` orphans all user data | High | fix PR #91 — **paused for owner** (review the GDPR orphan-purge in migration `0006`, then merge; CD auto-applies `alembic upgrade head` to staging + prod — no manual step) |
-| ◐ | **S2** "Continue with Apple" dead-end | Med | ☑ code fixed (#85, Google-only default) + deployed; owner residual: `VITE_OAUTH_PROVIDERS` env + Apple enablement |
+| ☑ | **S1** `DELETE /account` orphans all user data | High | merged #91 + migration `0006` applied to staging (FK `profiles_id_fkey → auth.users` validated); erasure armed |
+| ◐ | **S2** "Continue with Apple" dead-end | Med | ☑ code fixed (#85, Google-only default) + deployed; owner residual: `VITE_OAUTH_PROVIDERS` env + Apple enablement (needs paid Apple acct) |
 | ☑ | **S3** re-add language resets CEFR (data loss) | Med | merged #88 + deployed |
 | ☑ | **S4** no CD seed step → empty deck | Med | #79 seed workflow (dispatched ✓ — 12 ES + 6 HE/RTL; re-validation `/review/due` = 10 new / 2 due) |
 | ☑ | **S5** Sentry env mistag + 100% sampling | Med | #82 |
@@ -42,10 +46,11 @@ resume state → [`staging-fix-handoff.md`](staging-fix-handoff.md).
 | ☑ | **S7 / S11** `used_words` trust · empty-words burns count | Low | merged #89 + deployed |
 | ☑ | **S9 / S10** settings server-side bounds · key delete | Low | merged #90 + deployed (driver reconciled the S9 bounds with the shipped review garbage→default contract) |
 | ☑ | **S12 / S14** add-language atomicity · RTL code editable | Low | merged #88 + deployed |
-| ⏸ | **S16 / S17** `Retry-After` CORS-expose · security headers + CSP | Low | fix PR #83 — **paused for owner** (review CSP/CORS; merging auto-deploys the CSP to staging) |
+| ☑ | **S16 / S17** `Retry-After` CORS-expose · security headers + CSP | Low | merged #83 + deployed; verified live (headers present on API+web; app runs under CSP, 0 console violations) |
 | ☑ | **S21** WARNING-log noise | Low | **benign** — Cloud Run 4xx access logs, not app warnings (no code change; 1h log spot-check clean) |
 | ☑ | **S18** stable Vercel alias | Low | resolved (PR #71 `vercel alias set` → stable origin; verified 2026-06-30 + e2e-staging green against `lengua-staging.vercel.app`) |
-| 🔒 | **S20** prod `/docs` gating | Info | owner (confirm intent to gate `/docs` in prod) |
+| ☑ | **S22** vowelized Discover dedup (post-fix audit) | Low | merged #97 + deployed — fold vowel marks in known-word dedup only for vowelized langs (Hebrew/Arabic); Spanish `esta`≠`está` preserved |
+| ◐ | **S20** prod `/docs` gating | Info | **accepted** (owner: keep in prod for now, remove before public launch) |
 
 ---
 
