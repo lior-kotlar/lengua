@@ -9,8 +9,13 @@
  *    small "coming soon" note;
  *  - if it is enabled but the backend provider is unconfigured, the click surfaces a friendly inline
  *    error instead of a raw GoTrue failure.
- * The committed default enables both so the buttons are present + actionable; the owner can narrow
- * (or empty) `VITE_OAUTH_PROVIDERS` per environment.
+ * The committed default enables ONLY Google (`enabledProviders()` → `['google']`). Apple is left out
+ * on purpose: Supabase has `external.apple=false`, so a real "Continue with Apple" navigation would
+ * leave the app and dead-end the user on a raw GoTrue 400 page (no in-app error branch can fire once
+ * the browser has navigated away). With Google-only, Apple instead renders DISABLED with the "(soon)"
+ * treatment. To re-enable Apple per environment once it's actually configured in Supabase, set
+ * `VITE_OAUTH_PROVIDERS=google,apple` (the override accepts any comma-separated subset, or empty to
+ * hide all OAuth buttons).
  */
 import { useState } from 'react';
 import type { Provider } from '@supabase/supabase-js';
@@ -65,11 +70,14 @@ const PROVIDERS: ProviderConfig[] = [
   { id: 'apple', label: 'Apple', icon: <AppleIcon /> },
 ];
 
-/** The providers enabled for this build (default: both). Owner narrows via `VITE_OAUTH_PROVIDERS`. */
+/** Providers enabled for this build (default: Google only). Override via `VITE_OAUTH_PROVIDERS`. */
 function enabledProviders(): ReadonlySet<string> {
   const raw = import.meta.env.VITE_OAUTH_PROVIDERS;
   if (raw === undefined) {
-    return new Set(['google', 'apple']);
+    // Google-only by default: Apple isn't configured in Supabase (external.apple=false), so a real
+    // Apple sign-in would dead-end on a raw 400 — it stays disabled "(soon)" until an env re-enables
+    // it via VITE_OAUTH_PROVIDERS=google,apple.
+    return new Set(['google']);
   }
   return new Set(
     raw

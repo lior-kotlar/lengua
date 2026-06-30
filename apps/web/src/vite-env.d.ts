@@ -9,8 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY: string;
   /**
    * Optional comma-separated OAuth providers to enable on the auth screens (e.g. "google,apple").
-   * Defaults to both when unset; set to a narrower list (or empty) per environment until live
-   * provider credentials are wired. See `oauth-buttons.tsx`.
+   * Defaults to "google" only when unset (Apple ships disabled "(soon)" until it's configured in
+   * Supabase); set a different list (or empty) per environment. See `oauth-buttons.tsx`.
    */
   readonly VITE_OAUTH_PROVIDERS?: string;
   /**
