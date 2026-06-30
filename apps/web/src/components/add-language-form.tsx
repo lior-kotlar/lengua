@@ -129,9 +129,9 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
           required={vowelized}
         />
         <p id="language-code-hint" className="text-xs text-muted-foreground">
-          Sets text direction and script font. Required for vowel marks — common right-to-left
-          codes: Hebrew <code className="font-mono">he</code>, Arabic{' '}
-          <code className="font-mono">ar</code>, Persian{' '}
+          Sets text direction and script font. Required for vowel marks — common
+          right-to-left codes: Hebrew <code className="font-mono">he</code>,
+          Arabic <code className="font-mono">ar</code>, Persian{' '}
           <code className="font-mono">fa</code>.
         </p>
       </div>
