@@ -29,9 +29,10 @@ all application data goes through the typed API client.
 - **Token refresh + 401 retry:** the API client (`lib/api-client.ts`) refreshes the session once on
   a 401 and retries the request (single-flight, at most one retry); if the refresh fails it signs
   out, which clears the cache and redirects to `/login`.
-- **OAuth:** Google + Apple buttons appear on both auth screens. Live credentials are owner-only, so
-  they degrade gracefully (a friendly error on click, or a disabled "(soon)" button when narrowed
-  via `VITE_OAUTH_PROVIDERS`).
+- **OAuth:** Google + Apple buttons appear on both auth screens. The committed default enables only
+  Google; Apple renders as a disabled "(soon)" button until it's configured in Supabase (re-enable
+  per env with `VITE_OAUTH_PROVIDERS=google,apple`). Live credentials are owner-only, so an enabled
+  provider whose backend is unconfigured surfaces a friendly error on click instead of a raw failure.
 
 ## Toolchain
 
@@ -61,12 +62,12 @@ Vite build-time vars (inlined into the bundle). Copy the example and fill in rea
 cp apps/web/.env.example apps/web/.env
 ```
 
-| Var                      | Purpose                                                               |
-| ------------------------ | --------------------------------------------------------------------- |
-| `VITE_API_BASE_URL`      | Base URL of the Lengua FastAPI backend                                |
-| `VITE_SUPABASE_URL`      | Supabase project URL (auth only)                                      |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key (auth only; safe in the browser)             |
-| `VITE_OAUTH_PROVIDERS`   | _optional_ — comma-separated OAuth providers to enable (default both) |
+| Var                      | Purpose                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | Base URL of the Lengua FastAPI backend                                                                        |
+| `VITE_SUPABASE_URL`      | Supabase project URL (auth only)                                                                              |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key (auth only; safe in the browser)                                                     |
+| `VITE_OAUTH_PROVIDERS`   | _optional_ — comma-separated OAuth providers to enable (default `google`; Apple is disabled until configured) |
 
 These are validated by `readEnv()` (`src/lib/env.ts`), which **fails fast with a clear error naming
 any missing var** the moment the env / Supabase client is loaded. The app still renders without env

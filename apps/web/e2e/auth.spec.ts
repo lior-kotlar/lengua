@@ -31,14 +31,15 @@ test('a logged-out visit to / redirects to the login screen', async ({
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('heading', { name: /log in/i })).toBeVisible();
   await expect(page.getByLabel('Email')).toBeVisible();
-  // Both OAuth buttons (Google + Apple) are present and enabled on the login screen (task 4.3.5;
-  // the committed default enables both via VITE_OAUTH_PROVIDERS) — part of the auth exit-gate.
+  // Both OAuth buttons render; the committed default (VITE_OAUTH_PROVIDERS unset → ['google']) leaves
+  // Google enabled and Apple DISABLED — Apple isn't configured in Supabase, so a real click would
+  // dead-end on a raw 400 (finding S2). Re-enable per env via VITE_OAUTH_PROVIDERS=google,apple.
   await expect(
     page.getByRole('button', { name: 'Continue with Google' }),
   ).toBeEnabled();
   await expect(
     page.getByRole('button', { name: 'Continue with Apple' }),
-  ).toBeEnabled();
+  ).toBeDisabled();
 });
 
 test.describe('auth flows (ephemeral stack)', () => {

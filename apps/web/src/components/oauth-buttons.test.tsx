@@ -19,24 +19,35 @@ afterEach(() => {
 });
 
 describe('OAuthButtons', () => {
-  it('renders both providers enabled by default', () => {
+  it('enables Google but disables Apple ("(soon)") by default', () => {
     render(<OAuthButtons />);
     expect(
       screen.getByRole('button', { name: 'Continue with Google' }),
     ).toBeEnabled();
-    expect(
-      screen.getByRole('button', { name: 'Continue with Apple' }),
-    ).toBeEnabled();
+    // Apple is off by default because Supabase has external.apple=false — an enabled Apple button
+    // would dead-end a real click on a raw 400 (finding S2). It renders disabled with "(soon)".
+    const apple = screen.getByRole('button', { name: 'Continue with Apple' });
+    expect(apple).toBeDisabled();
+    expect(apple).toHaveTextContent('(soon)');
   });
 
-  it.each([
-    ['Continue with Google', 'google'],
-    ['Continue with Apple', 'apple'],
-  ])('%s calls signInWithProvider(%s)', async (label, provider) => {
+  it('clicking the enabled Google button calls signInWithProvider(google)', async () => {
     const user = userEvent.setup();
     render(<OAuthButtons />);
-    await user.click(screen.getByRole('button', { name: label }));
-    expect(signInWithProvider).toHaveBeenCalledWith(provider);
+    await user.click(
+      screen.getByRole('button', { name: 'Continue with Google' }),
+    );
+    expect(signInWithProvider).toHaveBeenCalledWith('google');
+  });
+
+  it('VITE_OAUTH_PROVIDERS can re-enable Apple, whose click calls signInWithProvider(apple)', async () => {
+    vi.stubEnv('VITE_OAUTH_PROVIDERS', 'google,apple');
+    const user = userEvent.setup();
+    render(<OAuthButtons />);
+    const apple = screen.getByRole('button', { name: 'Continue with Apple' });
+    expect(apple).toBeEnabled();
+    await user.click(apple);
+    expect(signInWithProvider).toHaveBeenCalledWith('apple');
   });
 
   it('shows an inline error when the provider call fails', async () => {
