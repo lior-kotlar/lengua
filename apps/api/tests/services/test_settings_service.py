@@ -94,9 +94,7 @@ async def test_cross_field_within_total_ok(
     assert await service.get_all(user_id) == {"daily_total_limit": "100", "daily_new_limit": "30"}
 
 
-async def test_none_value_deletes_key(
-    db_session: AsyncSession, demo_account: SeedResult
-) -> None:
+async def test_none_value_deletes_key(db_session: AsyncSession, demo_account: SeedResult) -> None:
     user_id = uuid.UUID(demo_account.user_id)
     service = SettingsService(db_session)
     await service.set_many(user_id, {"discover_count": "8", "daily_total_limit": "40"})

@@ -154,6 +154,5 @@ class SettingsService:
         total_limit = effective(DAILY_TOTAL_LIMIT_KEY, config.DAILY_TOTAL_LIMIT)
         if new_limit > total_limit:
             raise ValidationError(
-                f"daily_new_limit ({new_limit}) must not exceed "
-                f"daily_total_limit ({total_limit})."
+                f"daily_new_limit ({new_limit}) must not exceed daily_total_limit ({total_limit})."
             )
