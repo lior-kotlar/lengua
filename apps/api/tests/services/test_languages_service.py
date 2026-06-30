@@ -47,18 +47,21 @@ async def test_update_edits_name_and_code_and_normalises(
     user_id = uuid.UUID(demo_account.user_id)
     service = LanguagesService(db_session)
 
-    created, _ = await service.add_language(user_id, "Ivrit")
+    # A distinct right-to-left language (NOT "Hebrew", which the demo_account seed already owns —
+    # renaming onto it would trip the per-user UNIQUE name guard). The scenario: a mistyped name
+    # with no code is fixed post-creation and given its RTL code (S14).
+    created, _ = await service.add_language(user_id, "Yidish")
     # name + code are editable post-creation (S14); inputs are trimmed.
     updated = await service.update_language(
-        user_id, created.id, {"name": "  Hebrew  ", "code": "  he  "}
+        user_id, created.id, {"name": "  Yiddish  ", "code": "  yi  "}
     )
-    assert updated.name == "Hebrew"
-    assert updated.code == "he"
+    assert updated.name == "Yiddish"
+    assert updated.code == "yi"
 
     # A blank code is normalised to NULL; an absent key leaves a field untouched.
     cleared = await service.update_language(user_id, created.id, {"code": "   "})
     assert cleared.code is None
-    assert cleared.name == "Hebrew"
+    assert cleared.name == "Yiddish"
 
 
 async def test_update_rejects_blank_and_duplicate_name(
