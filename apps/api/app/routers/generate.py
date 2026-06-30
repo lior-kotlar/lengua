@@ -35,8 +35,9 @@ async def generate(
     """Generate recognition+production card previews for ``words`` (nothing is persisted yet).
 
     The ``quota_guard`` dependency enforces the per-user daily ``generate`` cap before the provider
-    is called; on success we count the spend (cache-miss equivalent — generate always calls). The
-    provider call runs under the global concurrency cap (``limiter``).
+    is called; on success we count the spend — but only when the call produced cards, so a no-op
+    empty/blank-only request never burns a daily count (S11). The provider call runs under the
+    global concurrency cap (``limiter``).
     """
     try:
         built = await GenerateService(db, provider, limiter).generate(
@@ -44,5 +45,10 @@ async def generate(
         )
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    await guard.record_success()  # increments for the JWT user_id only (never client-supplied)
+    # Count the spend only when cards were actually built (S11): blank-only input clears to nothing
+    # service-side and yields zero cards, which must not consume a daily ``generate`` count. The
+    # per-call observability span is finalized regardless by the ``quota_guard`` dependency
+    # teardown. The increment always uses the JWT user_id only (never a client-supplied value).
+    if built:
+        await guard.record_success()
     return built

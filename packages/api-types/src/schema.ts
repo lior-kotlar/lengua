@@ -195,8 +195,9 @@ export interface paths {
          * @description Generate recognition+production card previews for ``words`` (nothing is persisted yet).
          *
          *     The ``quota_guard`` dependency enforces the per-user daily ``generate`` cap before the provider
-         *     is called; on success we count the spend (cache-miss equivalent — generate always calls). The
-         *     provider call runs under the global concurrency cap (``limiter``).
+         *     is called; on success we count the spend — but only when the call produced cards, so a no-op
+         *     empty/blank-only request never burns a daily count (S11). The provider call runs under the
+         *     global concurrency cap (``limiter``).
          */
         post: operations["generate_generate_post"];
         delete?: never;

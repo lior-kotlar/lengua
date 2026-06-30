@@ -186,6 +186,44 @@ async def test_failed_call_no_increment(quota_app: FastAPI, db_session: AsyncSes
     assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 1
 
 
+async def test_blank_only_words_no_increment(quota_app: FastAPI, db_session: AsyncSession) -> None:
+    """S11: a generate that yields zero cards (blank-only words) burns no daily/budget count.
+
+    Blank-only ``words`` (e.g. ``["   ", ""]``) satisfy the schema's ``min_length`` but clear to
+    nothing service-side, so the provider returns no cards and the router skips ``record_success`` —
+    NEITHER the per-user ``generate`` counter nor the global ``llm_budget`` moves. A following real
+    generate still increments both, proving the skip is specific to the zero-card result and the
+    counting machinery is otherwise intact.
+    """
+    authenticate_as(quota_app, DEV_USER_ID, email_verified=True)
+    quota_app.dependency_overrides[get_settings] = lambda: _budget_settings(1000)
+    quota_app.dependency_overrides[get_rate_limiter] = lambda: InProcessRateLimiter(limit=1000)
+
+    usage = UsageRepository(db_session)
+    today = _utc_today()
+    language = await LanguagesRepository(db_session).create(DEV_USER_ID, name="Spanish", code="es")
+
+    assert await usage.get_budget_count(today) == 0
+    assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 0
+
+    # Blank-only words clear to nothing → zero cards → no increment on either counter.
+    async with client_for(quota_app) as client:
+        empty = await client.post(
+            "/generate", json={"language_id": language.id, "words": ["   ", ""]}
+        )
+    assert empty.status_code == 200
+    assert empty.json() == []
+    assert await usage.get_budget_count(today) == 0
+    assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 0
+
+    # A real generate still counts — the skip is specific to the zero-card result.
+    async with client_for(quota_app) as client:
+        ok = await client.post("/generate", json={"language_id": language.id, "words": ["hola"]})
+    assert ok.status_code == 200
+    assert await usage.get_budget_count(today) == 1
+    assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 1
+
+
 async def test_discover_accept_counts_billed_call_even_if_save_fails(
     quota_app: FastAPI, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -442,6 +442,7 @@
               "type": "string"
             },
             "maxItems": 30,
+            "minItems": 1,
             "title": "Words",
             "type": "array"
           }
@@ -1423,7 +1424,7 @@
     },
     "/generate": {
       "post": {
-        "description": "Generate recognition+production card previews for ``words`` (nothing is persisted yet).\n\nThe ``quota_guard`` dependency enforces the per-user daily ``generate`` cap before the provider\nis called; on success we count the spend (cache-miss equivalent — generate always calls). The\nprovider call runs under the global concurrency cap (``limiter``).",
+        "description": "Generate recognition+production card previews for ``words`` (nothing is persisted yet).\n\nThe ``quota_guard`` dependency enforces the per-user daily ``generate`` cap before the provider\nis called; on success we count the spend — but only when the call produced cards, so a no-op\nempty/blank-only request never burns a daily count (S11). The provider call runs under the\nglobal concurrency cap (``limiter``).",
         "operationId": "generate_generate_post",
         "requestBody": {
           "content": {
