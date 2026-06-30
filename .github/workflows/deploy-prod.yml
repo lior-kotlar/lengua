@@ -201,6 +201,10 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PROD_ANON_KEY }}
           VITE_SENTRY_DSN_WEB: ${{ secrets.SENTRY_DSN_WEB }}
+          # Tag Sentry events `production` (not the MODE default, which is already production here)
+          # and sample only ~10% of performance transactions to cap volume/cost at real traffic.
+          VITE_SENTRY_ENVIRONMENT: production
+          VITE_SENTRY_TRACES_SAMPLE_RATE: '0.1'
         run: vercel build --prod --token="$VERCEL_TOKEN"
       - name: Deploy prebuilt to Vercel (production)
         id: deploy

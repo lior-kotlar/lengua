@@ -2,11 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEBUG_ERROR_MESSAGE,
+  DEFAULT_TRACES_SAMPLE_RATE,
   SENTRY_TEST_CAPTURES_KEY,
   type SentryLike,
   captureException,
   debugToolsEnabled,
   errorTrackingDsn,
+  errorTrackingEnvironment,
+  errorTrackingTracesSampleRate,
   initErrorTracking,
   resetErrorTracking,
   triggerDebugError,
@@ -76,6 +79,67 @@ describe('debugToolsEnabled', () => {
   });
 });
 
+describe('errorTrackingEnvironment', () => {
+  it('prefers VITE_SENTRY_ENVIRONMENT over MODE (the S5 fix)', () => {
+    // `vercel build` always reports MODE='production'; the explicit var must still win so a
+    // staging build tags `staging`, not `production`.
+    expect(
+      errorTrackingEnvironment({
+        VITE_SENTRY_ENVIRONMENT: 'staging',
+        MODE: 'production',
+      }),
+    ).toBe('staging');
+  });
+
+  it('falls back to MODE when VITE_SENTRY_ENVIRONMENT is unset or blank', () => {
+    expect(errorTrackingEnvironment({ MODE: 'production' })).toBe('production');
+    expect(
+      errorTrackingEnvironment({
+        VITE_SENTRY_ENVIRONMENT: '   ',
+        MODE: 'development',
+      }),
+    ).toBe('development');
+  });
+
+  it('is undefined when neither is set', () => {
+    expect(errorTrackingEnvironment({})).toBeUndefined();
+  });
+
+  it('reads import.meta.env by default (no override configured in tests)', () => {
+    // Vitest sets MODE='test'; no VITE_SENTRY_ENVIRONMENT → the MODE fallback is returned.
+    expect(errorTrackingEnvironment()).toBe(import.meta.env.MODE);
+  });
+});
+
+describe('errorTrackingTracesSampleRate', () => {
+  it('parses VITE_SENTRY_TRACES_SAMPLE_RATE as a float', () => {
+    expect(
+      errorTrackingTracesSampleRate({ VITE_SENTRY_TRACES_SAMPLE_RATE: '0.1' }),
+    ).toBe(0.1);
+    expect(
+      errorTrackingTracesSampleRate({ VITE_SENTRY_TRACES_SAMPLE_RATE: '0' }),
+    ).toBe(0);
+  });
+
+  it('defaults to 1.0 when unset or blank', () => {
+    expect(errorTrackingTracesSampleRate({})).toBe(DEFAULT_TRACES_SAMPLE_RATE);
+    expect(DEFAULT_TRACES_SAMPLE_RATE).toBe(1.0);
+    expect(
+      errorTrackingTracesSampleRate({ VITE_SENTRY_TRACES_SAMPLE_RATE: '  ' }),
+    ).toBe(1.0);
+  });
+
+  it('defaults to 1.0 when not a finite number', () => {
+    expect(
+      errorTrackingTracesSampleRate({ VITE_SENTRY_TRACES_SAMPLE_RATE: 'abc' }),
+    ).toBe(DEFAULT_TRACES_SAMPLE_RATE);
+  });
+
+  it('reads import.meta.env by default (default rate in tests)', () => {
+    expect(errorTrackingTracesSampleRate()).toBe(DEFAULT_TRACES_SAMPLE_RATE);
+  });
+});
+
 describe('initErrorTracking', () => {
   it('does not initialise without a DSN (no-op, zero egress)', () => {
     const sentry = fakeSentry();
@@ -102,6 +166,24 @@ describe('initErrorTracking', () => {
     expect(sentry.initOptions?.integrations).toEqual([
       { name: 'BrowserTracing' },
     ]);
+  });
+
+  it('tags environment + sample rate from the build-time Sentry vars (over MODE)', () => {
+    const sentry = fakeSentry();
+    initErrorTracking({
+      env: {
+        VITE_SENTRY_DSN_WEB: DSN,
+        VITE_SENTRY_ENVIRONMENT: 'staging',
+        VITE_SENTRY_TRACES_SAMPLE_RATE: '0.1',
+        // MODE is 'production' under `vercel build`; the explicit vars must override it.
+        MODE: 'production',
+      },
+      sentry,
+    });
+    expect(sentry.initOptions).toMatchObject({
+      environment: 'staging',
+      tracesSampleRate: 0.1,
+    });
   });
 
   it('initialises at most once', () => {

@@ -180,6 +180,10 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_STAGING_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_STAGING_ANON_KEY }}
           VITE_SENTRY_DSN_WEB: ${{ secrets.SENTRY_DSN_WEB }}
+          # Tag Sentry events `staging` — `vercel build` always reports MODE=production, so without
+          # this explicit override staging would mistag as production. Trace sample rate is left at
+          # the 1.0 default (low staging traffic → full performance visibility).
+          VITE_SENTRY_ENVIRONMENT: staging
         run: vercel build --token="$VERCEL_TOKEN"
       - name: Deploy prebuilt to Vercel (staging) + alias to the stable staging origin
         id: deploy

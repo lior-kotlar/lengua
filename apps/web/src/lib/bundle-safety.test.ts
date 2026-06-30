@@ -21,14 +21,17 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * The COMPLETE client-safe `VITE_*` surface that may appear in the bundle. Every one is a public
- * value (backend URL, Supabase project URL + anon key, public Sentry DSN, public PostHog key,
- * OAuth-provider toggle, dev-only debug flag) — never a server secret.
+ * value (backend URL, Supabase project URL + anon key, public Sentry DSN + environment tag +
+ * trace-sample rate, public PostHog key, OAuth-provider toggle, dev-only debug flag) — never a
+ * server secret.
  */
 const CLIENT_SAFE_ENV = [
   'VITE_API_BASE_URL',
   'VITE_SUPABASE_URL',
   'VITE_SUPABASE_ANON_KEY',
   'VITE_SENTRY_DSN_WEB',
+  'VITE_SENTRY_ENVIRONMENT',
+  'VITE_SENTRY_TRACES_SAMPLE_RATE',
   'VITE_POSTHOG_KEY',
   'VITE_OAUTH_PROVIDERS',
   'VITE_ENABLE_DEBUG_TOOLS',
@@ -134,6 +137,8 @@ describe('web bundle secret-leak audit (6.3.4)', () => {
         'VITE_OAUTH_PROVIDERS',
         'VITE_POSTHOG_KEY',
         'VITE_SENTRY_DSN_WEB',
+        'VITE_SENTRY_ENVIRONMENT',
+        'VITE_SENTRY_TRACES_SAMPLE_RATE',
         'VITE_SUPABASE_ANON_KEY',
         'VITE_SUPABASE_URL',
       ].sort(),
