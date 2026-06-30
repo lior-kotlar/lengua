@@ -1,4 +1,0 @@
-deploy-check: ben-staging-cd-verify-20260630
-This static file is served from apps/web/public/ to confirm that a merge to main
-rebuilds the web bundle and the staging CD aliases it onto the stable origin
-(https://lengua-staging.vercel.app). Safe to delete once verified.
