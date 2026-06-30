@@ -16,6 +16,24 @@ This **complements** — does not replace:
 
 ---
 
+## 0. Live-staging validation sweep (2026-06-30) · 25 findings · ☐ open
+
+Full triage (repro/owner/fix per item) in [`staging-validation.md`](staging-validation.md) — a
+50-agent find-only workflow (35 candidates → 25 kept). The **core loop is verified working
+end-to-end on live staging**; these are the open correctness/UX/hardening items, scoped to
+"live-staging correctness now":
+
+| | Item | Sev | Owner |
+|---|---|---|---|
+| ☐ | **S1** `DELETE /account` orphans all user data (no `profiles → auth.users` FK; cascade never fires) | High | agent |
+| ☐ | **S2** "Continue with Apple" live but provider disabled → raw 400 dead-end (see 2.1.3) | Med | Ben |
+| ☐ | **S3** Re-adding an existing language resets its CEFR score (data loss) | Med | agent |
+| ☐ | **S4** No CD seed step → empty staging demo deck, no Hebrew/RTL deck | Med | Ben |
+| ☐ | **S5** Web Sentry mistags staging as `environment=production` at 100% sampling | Med | agent |
+| ☐ | **S6–S21** review order, `used_words` trust, discover reroll/empty cache, client-only settings validation, missing security headers, `Retry-After` not CORS-exposed, public `/docs`, WARNING-log noise, … (16 low/info) | Low/Info | agent ×14 / Ben ×2 |
+
+---
+
 ## 1. Active phase — Phase 2 (Auth & multi-tenancy) · 🛠 in progress
 
 Driven by workflow `wf_9f3d03f7-0e5` (sequential per-group PRs). 2.3 done; 24 task boxes + 8

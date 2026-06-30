@@ -1,0 +1,52 @@
+# Seed the STAGING demo account — manual dispatch only (finding S4 / F1).
+#
+# Idempotent, DEMO-ACCOUNT-ONLY seed of the staging Supabase DB so a reviewer opening
+# https://lengua-staging.vercel.app lands on a non-empty deck (6 Spanish + 6 Hebrew/RTL cards)
+# and review + RTL/diacritics parity are actually testable. Re-running is safe:
+# `apps/api/scripts/seed_e2e.py` finds the EXISTING demo auth user (by email) and uses
+# `ON CONFLICT` / existence checks for the language + cards — it never duplicates rows and never
+# touches another user's data. It only runs when an operator dispatches it (no push/PR trigger),
+# and it is independent of CD arming (`DEPLOY_ENABLED`) — populating staging for review is a
+# manual operator action, not part of the deploy pipeline.
+#
+# Maps the existing staging secrets to the env `scripts/seed_e2e.py` reads:
+#   SUPABASE_STAGING_URL               -> SUPABASE_URL               (Auth Admin API base)
+#   SUPABASE_STAGING_SERVICE_ROLE_KEY  -> SUPABASE_SERVICE_ROLE_KEY  (Admin API auth)
+#   SUPABASE_STAGING_DATABASE_URL      -> DATABASE_URL               (psycopg conn; session pooler, IPv4)
+name: seed-staging
+
+on:
+  workflow_dispatch:
+
+# Never run two seeds at once (the seed is idempotent, but serialize to keep logs clean).
+concurrency:
+  group: seed-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: '0.11.22'
+
+jobs:
+  seed:
+    name: Seed staging demo account (idempotent, demo-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: api deps
+        working-directory: apps/api
+        run: uv sync --frozen
+      - name: Seed demo account (Spanish + Hebrew/RTL decks)
+        working-directory: apps/api
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_STAGING_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STAGING_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.SUPABASE_STAGING_DATABASE_URL }}
+        run: uv run python scripts/seed_e2e.py
