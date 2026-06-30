@@ -59,3 +59,73 @@ describe('DailyLimitPanel', () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe('DailyLimitPanel — copy adapts to which limit was hit (S19)', () => {
+  /** A per-user `daily_cap_reached` 429 carrying the offending `kind` in its body. */
+  function capError(kind: string): ApiError {
+    return new ApiError({
+      status: 429,
+      code: 'daily_cap_reached',
+      message: 'x',
+      body: { code: 'daily_cap_reached', kind },
+    });
+  }
+
+  it('names the generating action for a generate cap', () => {
+    render(<DailyLimitPanel error={capError('generate')} />);
+    expect(
+      screen.getByText(/daily limit for generating sentences/i),
+    ).toBeInTheDocument();
+  });
+
+  it('names the discover action for a discover cap (never "generation")', () => {
+    render(<DailyLimitPanel error={capError('discover')} />);
+    expect(
+      screen.getByText(/daily limit for discovering words/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/generation|generating/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('frames the global kill-switch as affecting everyone (never "generation")', () => {
+    render(
+      <DailyLimitPanel
+        error={
+          new ApiError({
+            status: 429,
+            code: 'daily_limit_reached',
+            message: 'x',
+          })
+        }
+      />,
+    );
+    expect(screen.getByText(/daily limit for everyone/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/generation|generating/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('falls back to kind-agnostic copy when the kind is unknown or absent', () => {
+    // A `daily_cap_reached` with no body (kind unknown) and the pre-gated no-error render both use
+    // the neutral copy — never the generate-specific wording.
+    const { rerender } = render(
+      <DailyLimitPanel
+        error={
+          new ApiError({ status: 429, code: 'daily_cap_reached', message: 'x' })
+        }
+      />,
+    );
+    expect(
+      screen.getByText(/you have reached the daily limit\./i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/generation|generating/i),
+    ).not.toBeInTheDocument();
+
+    rerender(<DailyLimitPanel />);
+    expect(
+      screen.getByText(/you have reached the daily limit\./i),
+    ).toBeInTheDocument();
+  });
+});

@@ -184,6 +184,37 @@ describe('Review — RTL & vowel marks (4.9)', () => {
     await user.click(toggle); // marks on → restored
     expect(screen.getByText('שָׁלוֹם עוֹלָם')).toBeInTheDocument();
   });
+
+  it('renders a recognition answer (English) as plain text, not the RTL target script (S13)', async () => {
+    const user = userEvent.setup();
+    get.mockReturnValue(
+      okResult(
+        due([makeCard(1, 'recognition', 'مرحبا بالعالم', 'hello world')], []),
+      ),
+    );
+    renderReview(
+      makeValue({
+        languages: [ARABIC],
+        activeLanguageId: 5,
+        activeLanguage: ARABIC,
+      }),
+    );
+
+    // The Arabic PROMPT is target text, so it keeps the RTL script font.
+    const prompt = await screen.findByText('مرحبا بالعالم');
+    expect(prompt).toHaveClass('font-arabic');
+
+    await user.click(screen.getByRole('button', { name: 'Show translation' }));
+
+    // The English ANSWER must NOT inherit the script font / explicit dir="rtl" that LanguageText
+    // applies to target text — that treatment hid the translation on an RTL deck. It is plain text,
+    // exactly like a production card's English front.
+    const answer = screen.getByTestId('card-answer');
+    expect(answer).toHaveTextContent('hello world');
+    const english = screen.getByText('hello world');
+    expect(english).not.toHaveClass('font-arabic');
+    expect(english).not.toHaveAttribute('dir', 'rtl');
+  });
 });
 
 describe('Review — language gating', () => {
@@ -276,10 +307,12 @@ describe('Review — batch loading states (4.6.1)', () => {
     expect(counts).toHaveTextContent('1 new');
     expect(counts).toHaveTextContent('2 due');
     expect(counts).toHaveTextContent('Card 1 of 3');
-    // First card front (new cards come first).
-    expect(screen.getByText('Hola')).toBeInTheDocument();
+    // First card front: DUE cards are walked before new ones, so the first due card ('Adiós')
+    // leads and the new card ('Hola') is buried at the back of the batch.
+    expect(screen.getByText('Adiós')).toBeInTheDocument();
+    expect(screen.queryByText('Hola')).not.toBeInTheDocument();
     // Its answer is not shown yet.
-    expect(screen.queryByText('Hello')).not.toBeInTheDocument();
+    expect(screen.queryByText('Goodbye')).not.toBeInTheDocument();
   });
 });
 
@@ -354,7 +387,7 @@ describe('Review — rating (4.6.3)', () => {
     );
     post.mockReturnValue(
       okResult({
-        card_id: 11,
+        card_id: 22,
         due: '2026-07-01T00:00:00Z',
         score: 1,
         score_changed: false,
@@ -362,17 +395,18 @@ describe('Review — rating (4.6.3)', () => {
     );
     renderReview();
 
-    await screen.findByText('Hola');
+    // Due cards come first, so the due card ('Adiós', id 22) is graded before the new one.
+    await screen.findByText('Adiós');
     await user.click(screen.getByRole('button', { name: 'Show translation' }));
     await user.click(ratingButton(3)); // Good
 
     expect(post).toHaveBeenCalledWith('/review/{card_id}/grade', {
-      params: { path: { card_id: 11 } },
+      params: { path: { card_id: 22 } },
       body: { rating: 3 },
     });
-    // Advanced to the second card (front shown, answer hidden again).
-    expect(await screen.findByText('Adiós')).toBeInTheDocument();
-    expect(screen.queryByText('Goodbye')).not.toBeInTheDocument();
+    // Advanced to the new card (front shown, answer hidden again).
+    expect(await screen.findByText('Hola')).toBeInTheDocument();
+    expect(screen.queryByText('Hello')).not.toBeInTheDocument();
   });
 
   it('reaches the done state after the last card and can check for more', async () => {
