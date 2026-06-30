@@ -54,6 +54,30 @@ errors / all-200 network**; final `staging_smoke` 13/0/0, `e2e-staging` 6 passed
 
 ---
 
+## 0b. Full-loop staging validation (2026-07-01) · ☑ loop validated · 🔒 1 owner blocker
+
+Ran the **FULL learning loop on live staging for 2+ languages incl. account lifecycle** (Tier B —
+service-role present). Built a reusable Playwright harness
+(`apps/web/e2e-staging/{full-flow,fresh-user-lifecycle,signup}.spec.ts` + `admin-users.ts`,
+`tsconfig.e2e-staging.json`) + a `GET /proficiency/{id}` smoke probe — landed in **PR #100**. Report:
+[`staging-validation/VALIDATION-REPORT.md`](staging-validation/VALIDATION-REPORT.md); rounds in
+`staging-validation/FAILURES-{1,2}.md`.
+
+**Result:** Layer B smoke 14/0/0 (exit 0); full Playwright suite **9 passed / 1 failed**. Everything
+green — login/out/back-in, add language+CEFR, generate→save, study recognition+production (reveal,
+rate-to-advance, tap-a-word), 2+ languages + switching (CEFR flip, RTL/nikkud), discover, settings,
+account export, **UI account-delete**, fresh users full 2-language loop end-to-end — **except public
+sign-up**. Zero test data left on staging (harness self-cleans). **Verdict: NO-GO** until the one
+blocker below is fixed + redeployed.
+
+| | Item | Sev | Status |
+|---|---|---|---|
+| 🔒 | **Public email sign-up returns HTTP 500** "Error sending confirmation email" — Supabase staging Auth `POST /auth/v1/signup`, sustained 5/5 over ~2h; a brand-new user **cannot register through the website** | **High / NO-GO** | OWNER: Supabase Auth email/SMTP config (verify custom SMTP + verified sender domain, e.g. wire `RESEND_API_KEY`; read Auth → Logs for the exact SMTP error) + redeploy + re-run `signup.spec.ts`. Detail → VALIDATION-REPORT.md §4 |
+| ☐ | `mapAuthError` renders an empty `{}` alert for unexpected auth errors (`apps/web/src/lib/auth.ts:49`) | Low/UX | add a friendly fallback message — normal PR (deliberately not done by the validation) |
+| ◐ | SYNTHESIS missing-`data-testid` hardening (Languages rows + active marker, success toasts, `app-shell`, per-page route markers) | Info | non-blocking; the harness uses working role/text fallbacks today |
+
+---
+
 ## 1. Active phase — Phase 2 (Auth & multi-tenancy) · 🛠 in progress
 
 Driven by workflow `wf_9f3d03f7-0e5` (sequential per-group PRs). 2.3 done; 24 task boxes + 8

@@ -35,12 +35,16 @@ export type { Page };
 
 /**
  * Sign in the seeded demo user through the real login form and wait for the authenticated shell.
- * Structure-only: it asserts the Dashboard heading renders, never any seeded content.
+ * Structure-only: it asserts the Primary navigation (the authenticated shell) renders, never any
+ * seeded content. We wait for the shell — not the "Dashboard" heading — because a login that follows
+ * a sign-out from another screen is correctly returned to that originally-requested route
+ * (`RequireAuth` stores `from`; `RedirectIfAuthed` restores it), so it does NOT always land on the
+ * Dashboard. The Primary nav renders on every signed-in screen, so it is the reliable shell marker.
  */
 export async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('Email').fill(DEMO_EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(DEMO_PASSWORD);
   await page.getByRole('button', { name: 'Log in' }).click();
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
 }

@@ -336,6 +336,27 @@ class StagingSmoke:
         else:
             self._record(name, Status.FAIL, _http_detail(resp))
 
+    def check_proficiency(self) -> None:
+        name = "GET /proficiency/{id}"
+        if self.language_id is None:
+            self._record(name, Status.SKIP, "no language available")
+            return
+        resp = self._get(f"/proficiency/{self.language_id}", name)
+        if resp is None:
+            return
+        body = self._json(resp)
+        ok = (
+            resp.status_code == 200
+            and isinstance(body, dict)
+            and isinstance(body.get("band"), str)
+            and isinstance(body.get("score"), (int, float))
+            and isinstance(body.get("progress"), (int, float))
+        )
+        if ok:
+            self._record(name, Status.PASS, f"HTTP 200, band={body['band']}")
+        else:
+            self._record(name, Status.FAIL, _http_detail(resp))
+
     def check_settings(self) -> None:
         name = "GET /settings"
         resp = self._get("/settings", name)
@@ -462,6 +483,7 @@ class StagingSmoke:
         self.check_me()
         self.check_languages()
         self.check_review_due()
+        self.check_proficiency()
         self.check_settings()
         self.check_account_export()
         self.check_language_round_trip()
