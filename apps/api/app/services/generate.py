@@ -69,14 +69,11 @@ def _appears_as_run(sentence_tokens: list[str], needle: list[str]) -> bool:
     if span == 0:
         return False
     return any(
-        sentence_tokens[i : i + span] == needle
-        for i in range(len(sentence_tokens) - span + 1)
+        sentence_tokens[i : i + span] == needle for i in range(len(sentence_tokens) - span + 1)
     )
 
 
-def _verified_used_words(
-    used_words: list[str], sentence: str, vocab_folded: set[str]
-) -> list[str]:
+def _verified_used_words(used_words: list[str], sentence: str, vocab_folded: set[str]) -> list[str]:
     """Keep only ``used_words`` that are requested vocab AND actually occur in ``sentence`` (S7).
 
     The provider's ``used_words`` is advisory: a card can name a word that is missing from its own

@@ -29,9 +29,7 @@ class GenerateRequest(BaseModel):
     # (see the import-time comment above). Blank-only entries (e.g. ``["  "]``) still satisfy this
     # count check and are dropped service-side — the router then skips the success increment when
     # that leaves zero cards, so neither path spends quota on nothing.
-    words: list[str] = Field(
-        default_factory=list, min_length=1, max_length=_MAX_WORDS_PER_REQUEST
-    )
+    words: list[str] = Field(default_factory=list, min_length=1, max_length=_MAX_WORDS_PER_REQUEST)
 
 
 class GeneratedCardModel(BaseModel):

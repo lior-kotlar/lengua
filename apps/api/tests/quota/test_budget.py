@@ -186,9 +186,7 @@ async def test_failed_call_no_increment(quota_app: FastAPI, db_session: AsyncSes
     assert await usage.get_user_daily_count(DEV_USER_ID, "generate", today) == 1
 
 
-async def test_blank_only_words_no_increment(
-    quota_app: FastAPI, db_session: AsyncSession
-) -> None:
+async def test_blank_only_words_no_increment(quota_app: FastAPI, db_session: AsyncSession) -> None:
     """S11: a generate that yields zero cards (blank-only words) burns no daily/budget count.
 
     Blank-only ``words`` (e.g. ``["   ", ""]``) satisfy the schema's ``min_length`` but clear to
