@@ -38,6 +38,7 @@ from app.routers import (
     review,
     settings,
 )
+from app.security_headers import configure_security_headers
 from app.settings import get_settings
 
 
@@ -68,9 +69,15 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     # per request in app.deps.get_current_user) so a Sentry issue links to its Grafana Tempo trace.
     configure_error_tracking(get_settings())
 
+    # Security response headers (finding S17): X-Content-Type-Options / X-Frame-Options /
+    # Referrer-Policy / HSTS on every response. Added BEFORE CORS on purpose so CORS stays the
+    # outermost layer and its preflight short-circuit is untouched (see app.security_headers).
+    configure_security_headers(application)
+
     # CORS allowlist (Phase 2.3.4): only the configured browser/app origins may make cross-origin
     # requests; an unlisted origin gets no Access-Control-Allow-Origin. Added last so it is the
-    # outermost layer (preflight OPTIONS short-circuit before auth/route handling).
+    # outermost layer (preflight OPTIONS short-circuit before auth/route handling). expose_headers
+    # lets the cross-origin SPA read Retry-After on 429/503 so the backoff countdown is exact (S16).
     cors_origins = get_settings().cors_allow_origins
     application.add_middleware(
         CORSMiddleware,
@@ -78,6 +85,7 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Retry-After"],
     )
 
     @application.get("/health")
