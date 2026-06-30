@@ -29,7 +29,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ['e2e/**/*.{ts,tsx}', '**/*.config.{ts,js}', 'vitest.setup.ts'],
+    files: [
+      'e2e/**/*.{ts,tsx}',
+      'e2e-staging/**/*.{ts,tsx}',
+      '**/*.config.{ts,js}',
+      'vitest.setup.ts',
+    ],
     languageOptions: {
       globals: { ...globals.node },
     },

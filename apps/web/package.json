@@ -15,6 +15,7 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "test:e2e-staging": "playwright test --config playwright.staging.config.ts",
     "verify": "eslint . && prettier --check . && tsc --noEmit && vitest run --coverage && vite build"
   },
   "dependencies": {

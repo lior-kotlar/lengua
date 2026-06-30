@@ -107,7 +107,17 @@ and `CORS_ALLOW_ORIGINS` all set — error tracking + trace export are live.
 ---
 
 ## Re-validation (after fixes)
-Create reusable validators if not present: `apps/api/scripts/staging_smoke.py` (API smoke, all
-endpoints, non-destructive) and `apps/web/e2e-staging/` + `apps/web/playwright.staging.config.ts`
-(resilient browser pass). After each fix merges, re-run both + spot-check `gcloud` logs, and update the
-item's **Status** to `fixed` in the table above.
+Two reusable validators exist (both hit LIVE staging, so both are kept OUT of CI / the default test
+runs):
+
+- **API smoke** — `apps/api/scripts/staging_smoke.py`: non-destructively exercises every endpoint as
+  the demo user and prints a PASS/FAIL/SKIP table. Run: `cd apps/api && uv run python
+  scripts/staging_smoke.py` (set `STAGING_SUPABASE_ANON_KEY`; `SMOKE_INCLUDE_LLM=0` skips the
+  real-Groq probes).
+- **Browser pass** — `apps/web/e2e-staging/*.spec.ts` + `apps/web/playwright.staging.config.ts`:
+  resilient, structure-only Playwright checks (login → dashboard, review deck/empty, generate,
+  languages, settings). Run: `npm --prefix apps/web run test:e2e-staging` (override the origin with
+  `PLAYWRIGHT_TEST_BASE_URL`).
+
+After each fix merges, re-run both + spot-check `gcloud` logs, and update the item's **Status** to
+`fixed` in the table above.
