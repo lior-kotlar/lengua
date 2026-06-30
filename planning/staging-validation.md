@@ -67,12 +67,14 @@ and `CORS_ALLOW_ORIGINS` all set — error tracking + trace export are live.
 
 **Status legend:** `fixed` = code merged to `main` **and auto-deployed to live staging** (CD
 `DEPLOY_ENABLED=true`) **and re-validated green** on 2026-06-30 (see Re-validation results at the
-bottom). `paused (PR #n)` = fix PR open, held for owner review (merging it auto-deploys). `owner` =
-owner action required.
+bottom). `accepted` = owner reviewed and chose to keep as-is for now. **All 21 findings are now
+`fixed` or `accepted`** — the owner approved + merged the two paused PRs (#91 erasure, #83 CORS/CSP)
+and accepted S20. A post-fix adversarial audit of the study flow surfaced one further low item
+(vowelized Discover dedup), fixed in #97.
 
 | ID | Area | Severity | Status | Repro (short) | Owner | Suggested fix |
 |----|------|----------|--------|---------------|-------|---------------|
-| S1 | Account export/delete | High | paused (PR #91) | `DELETE /account` deletes only auth.users; profiles has no auth.users FK on the Alembic-built DB, so cascade never fires — all user data orphaned, 204 returned | agent | Add guarded Alembic migration `profiles.id → auth.users(id) ON DELETE CASCADE`; also delete profiles row in service; add erasure integration test |
+| S1 | Account export/delete | High | fixed | `DELETE /account` deletes only auth.users; profiles has no auth.users FK on the Alembic-built DB, so cascade never fires — all user data orphaned, 204 returned | agent | **Merged #91 + applied to staging:** guarded Alembic `0006` (`profiles.id → auth.users(id) ON DELETE CASCADE`, NOT VALID+VALIDATE, orphan-purge) + profiles-first two-step delete + erasure test. Verified on the live staging DB: `profiles_id_fkey → auth.users, validated=true`. |
 | S2 | Auth & session | Medium | fixed | "Continue with Apple" is clickable but Supabase `external.apple=false`; full-nav lands user on raw 400 JSON, no error branch fires | Ben | Set `VITE_OAUTH_PROVIDERS=google` on staging+prod and redeploy (or enable Apple in Supabase / default `enabledProviders()` to `['google']`) |
 | S3 | Languages / CEFR | Medium | fixed | Re-add existing language name with non-A1 starting level: idempotent POST returns existing, then PUT /proficiency resets score (e.g. B2→B1), silent "Language added" toast | agent | Detect idempotent add (200 vs 201/flag) and skip the proficiency PUT for a pre-existing language; warn "you already have X" |
 | S4 | Infra / cold-start | Medium | fixed | No `seed` step in CD; live `/languages` = only Spanish(code:null), deck empty — reviewer can't validate review or RTL/Hebrew parity | Ben | Run `uv run python apps/api/scripts/seed_e2e.py` against staging DB; add idempotent `workflow_dispatch` seed job |
@@ -87,12 +89,13 @@ owner action required.
 | S13 | Review / FSRS | Low | fixed | Recognition card's English answer rendered via `<LanguageText language>` → RTL deck shows it dir=rtl in script font; not visible (Spanish-only staging) | agent | Render recognition `back` (English) as plain text, like the production card's English front; only target text gets direction/font |
 | S14 | RTL / diacritics | Low | fixed | Adding "Hebrew"/"Arabic" with blank code + vowel-marks renders LTR/Latin font with mispositioned nikkud; code is immutable after creation (PATCH only toggles vowelized) | agent | Require/infer a code when vowel-marks enabled; add `code`/`name` to LanguageUpdate; inline help for RTL codes |
 | S15 | Discover | Low | fixed | Suggestions returned verbatim (`[:count]`), filtered against known_words only by prompt; weak dev model can surface already-known words | agent | Filter suggestions case-insensitively against known_words (+dedup) before caching; over-request and trim to count |
-| S16 | Cost guard / 429 UX | Low | paused (PR #83) | API never sends `Access-Control-Expose-Headers`, so cross-origin SPA can't read `Retry-After`; 429/503 backoff countdown degrades to generic copy | agent | Add `expose_headers=['Retry-After']` to CORSMiddleware in app/main.py |
-| S17 | Security headers | Low | paused (PR #83) | Neither API (Cloud Run) nor web (Vercel) sends X-Frame-Options/CSP/X-Content-Type-Options; `/docs` is framable; SPA clickjackable | agent | Add header middleware (HSTS, nosniff, X-Frame-Options DENY, Referrer-Policy) on API; add `apps/web/vercel.json` headers + baseline CSP |
+| S16 | Cost guard / 429 UX | Low | fixed | API never sends `Access-Control-Expose-Headers`, so cross-origin SPA can't read `Retry-After`; 429/503 backoff countdown degrades to generic copy | agent | **Merged #83 + deployed:** `expose_headers=['Retry-After']` on CORS. Verified live: `access-control-expose-headers: Retry-After` on the API. |
+| S17 | Security headers | Low | fixed | Neither API (Cloud Run) nor web (Vercel) sends X-Frame-Options/CSP/X-Content-Type-Options; `/docs` is framable; SPA clickjackable | agent | **Merged #83 + deployed:** API security-headers middleware + `vercel.json` headers + baseline CSP. Verified live: headers present on API + web; the app loads + logs in + runs the study flow under the CSP with **zero console violations** (all requests 200). |
 | S18 | Infra / config drift | Low | fixed | Staging web CD `vercel deploy` (no `--prod`) ships an ephemeral preview URL; smoke checks that hash URL while stable `lengua-staging.vercel.app` may update out-of-band | Ben | **Resolved:** PR #71 added a `vercel alias set` step pointing each fresh deploy at the stable origin (`STAGING_WEB_ORIGIN`) + emitting it as the smoke target; PR #70 added the `vercel.json` SPA rewrite. Verified 2026-06-30 (deploy-check marker served fresh on the stable origin), and the 2026-06-30 e2e-staging pass ran green against `lengua-staging.vercel.app`. |
 | S19 | Cost guard / 429 UX | Info | fixed | Shared DailyLimitPanel hardcodes "daily generation limit" even for a Discover/global kill-switch 429 (kind ignored) | agent | Make copy kind-agnostic or parametrize by `error.body.kind` (generate/discover) |
-| S20 | Security / surface | Info | owner | `/docs`, `/redoc`, `/openapi.json` are anonymous 200 on staging and openapi lists the dark word-of-the-day route; same code ships to prod | Ben | Acceptable on staging; gate docs in prod (`docs_url=None` unless env in {local,staging}); confirm intent with owner |
+| S20 | Security / surface | Info | accepted | `/docs`, `/redoc`, `/openapi.json` are anonymous 200 on staging and openapi lists the dark word-of-the-day route; same code ships to prod | Ben | **Owner decision (2026-06-30): keep `/docs` in prod for now, remove later.** No code change; revisit before public launch. |
 | S21 | Observability | Low | fixed (benign) | Recurring WARNING-severity logs during normal operation (CLI, 05:39–05:42Z 2026-06-30); message not in default projection | agent | Pull full entries (`severity=WARNING --format=json`), identify source, fix or downgrade noise |
+| S22 | Discover | Low | fixed | **(post-fix audit)** Discover's S15 known-word dedup folded only case (`str.lower`), not diacritics, while the Generate path folds vowel marks — so for a **vowelized** language (Hebrew/Arabic) a bare-vs-niqqud/harakat surface of a known word was re-suggested as new, and accepting it made a near-duplicate card | agent | **Merged #97 + deployed:** single-sourced `fold_word` in `lengua_core.cards`; Discover folds **only when `language.vowelized`** (Spanish `esta`≠`está` stays distinct). Unit-tested both directions. |
 
 ### Fix-pass outcomes (2026-06-30)
 
@@ -179,6 +182,33 @@ live deployed revision:
   returned **no entries** (the all-200 smoke generated no 4xx WARNING noise) — consistent with S21
   being benign.
 
-**Conclusion:** the 16 code/data findings (S2–S15, S19) + S21 + S18 are fixed and verified live on
-staging. Remaining: **S1** (#91) and **S16/S17** (#83) paused for owner review (merging auto-deploys);
-**S2** OAuth env/Apple enablement and **S20** (prod `/docs` gating) are owner calls.
+**Conclusion (first pass):** the 16 code/data findings (S2–S15, S19) + S21 + S18 are fixed and
+verified live on staging. **S1** (#91) and **S16/S17** (#83) were then owner-approved.
+
+### Re-validation results — 2026-06-30 (final, revision deployed from `main` @ `d153f6a`)
+
+The owner approved + landed the two paused PRs and a follow-up audit fix; all auto-deployed:
+
+- **#91 (S1 erasure)** — merged; the deploy's `alembic upgrade head` applied migration `0006` to the
+  staging DB (`success`). Confirmed directly on the live DB: `profiles_id_fkey → auth.users,
+  validated=true` — the erasure cascade is armed (no account deleted to verify; the CI erasure
+  integration test proves all domain rows are removed on a DB even without the FK).
+- **#83 (S16/S17 CORS/CSP + headers)** — merged; deployed. Verified live: the API returns
+  `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, HSTS, and
+  `Access-Control-Expose-Headers: Retry-After`; the web tier serves the CSP + the same headers.
+- **Post-fix adversarial audit** (8-slice study-flow sweep, find → adversarially verify): **1**
+  confirmed low item — **S22** (vowelized Discover dedup), fixed in **#97** (deployed).
+- **Live study-flow walkthrough** (Playwright, demo user, `lengua-staging.vercel.app`): login →
+  dashboard → **Review** (Spanish: reveal + grade a card → advances to the production card) →
+  **Hebrew RTL** deck (nikkud renders right-to-left in a Hebrew font, screenshot-verified) →
+  **Settings** (loads values, save → `PUT /settings` 200) → **Generate** (typed 2 words → real Groq
+  produced 3 sentences with correct used-word chips → **Saved 6 cards**) → **Languages** (lists +
+  add form with RTL code hints). **Zero console errors, every network call 200, under the new CSP.**
+- **Final API smoke** (`staging_smoke.py`, real Groq): **13 passed / 0 failed / 0 skipped.**
+  **Browser** `e2e-staging`: **6 passed.** `gcloud` WARNING+ logs in the last hour: **none.**
+
+**Conclusion (final): all 22 findings are `fixed` or `accepted`, and the full study flow is verified
+working on live staging with no bugs or errors.** Owner follow-ups (non-blocking, deferred by choice):
+**S2** Apple OAuth enablement (needs paid Apple Developer acct; Google-only default is live), **S20**
+removing `/docs` from prod before public launch, and arming the **prod** deploy (`deploy-prod`) when
+ready.
