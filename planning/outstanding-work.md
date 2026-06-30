@@ -16,21 +16,31 @@ This **complements** — does not replace:
 
 ---
 
-## 0. Live-staging validation sweep (2026-06-30) · 25 findings · ☐ open
+## 0. Live-staging validation sweep (2026-06-30) · 25 findings · 🛠 fix pass run
 
 Full triage (repro/owner/fix per item) in [`staging-validation.md`](staging-validation.md) — a
 50-agent find-only workflow (35 candidates → 25 kept). The **core loop is verified working
-end-to-end on live staging**; these are the open correctness/UX/hardening items, scoped to
-"live-staging correctness now":
+end-to-end on live staging**; these were the open correctness/UX/hardening items, scoped to
+"live-staging correctness now".
 
-| | Item | Sev | Owner |
+**Fix pass (2026-06-30)** ran as a multi-agent worktree workflow (one agent per file-disjoint group →
+PR; serial merge; pause on risky). Live resume state + exact remaining steps →
+[`staging-fix-handoff.md`](staging-fix-handoff.md).
+
+| | Item | Sev | Status |
 |---|---|---|---|
-| ☐ | **S1** `DELETE /account` orphans all user data (no `profiles → auth.users` FK; cascade never fires) | High | agent |
-| ☐ | **S2** "Continue with Apple" live but provider disabled → raw 400 dead-end (see 2.1.3) | Med | Ben |
-| ☐ | **S3** Re-adding an existing language resets its CEFR score (data loss) | Med | agent |
-| ☐ | **S4** No CD seed step → empty staging demo deck, no Hebrew/RTL deck | Med | Ben |
-| ☐ | **S5** Web Sentry mistags staging as `environment=production` at 100% sampling | Med | agent |
-| ☐ | **S6–S21** review order, `used_words` trust, discover reroll/empty cache, client-only settings validation, missing security headers, `Retry-After` not CORS-exposed, public `/docs`, WARNING-log noise, … (16 low/info) | Low/Info | agent ×14 / Ben ×2 |
+| ⏸ | **S1** `DELETE /account` orphans all user data | High | fix PR #91 — **paused** (owner reviews + applies migration `0006` to staging/prod) |
+| ◐ | **S2** "Continue with Apple" dead-end | Med | code fixed (#85, Google-only default); owner: `VITE_OAUTH_PROVIDERS` env + Apple enablement |
+| 🛠 | **S3** re-add language resets CEFR (data loss) | Med | fix PR #88 (open) |
+| ☑ | **S4** no CD seed step → empty deck | Med | #79 seed workflow (dispatched ✓ — 12 ES + 6 HE/RTL) |
+| ☑ | **S5** Sentry env mistag + 100% sampling | Med | #82 |
+| ☑ | **S6 / S8 / S13 / S15 / S19** review order · discover cache+filter · RTL recognition answer · suggestion filter · limit copy | Low/Info | merged #84 / #86 |
+| 🛠 | **S7 / S11** `used_words` trust · empty-words burns count | Low | fix PR #89 (open) |
+| 🛠 | **S9 / S10** settings server-side bounds · key delete | Low | fix PR #90 (open) |
+| 🛠 | **S12 / S14** add-language atomicity · RTL code editable | Low | fix PR #88 (open) |
+| ⏸ | **S16 / S17** `Retry-After` CORS-expose · security headers + CSP | Low | fix PR #83 — **paused** (owner reviews CSP/CORS) |
+| ☑ | **S21** WARNING-log noise | Low | **benign** — Cloud Run 4xx access logs, not app warnings (no code change) |
+| 🔒 | **S18 / S20** stable Vercel alias · prod `/docs` gating | Low/Info | owner |
 
 ---
 
