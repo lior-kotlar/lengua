@@ -22,7 +22,7 @@ import pytest_asyncio
 from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
 
-from app.deps import get_account_deletion_service
+from app.deps import get_account_deletion_service, get_usage_db
 from app.main import create_app
 from app.routers.account import router as account_router
 from tests.auth_helpers import auth_header, install_test_auth
@@ -74,12 +74,16 @@ def test_openapi_exposes_no_user_id_parameter() -> None:
 
 
 class _RecordingDeletion:
-    """Stand-in for the deletion service that records which user id it was asked to delete."""
+    """Stand-in for the deletion service that records which user id it was asked to delete.
+
+    ``delete_user`` takes the privileged ``db`` session the real service uses (and ignores it —
+    these tests assert *which user* is targeted, not the DB erasure), matching the real signature.
+    """
 
     def __init__(self) -> None:
         self.deleted: list[uuid.UUID] = []
 
-    async def delete_user(self, user_id: uuid.UUID) -> None:
+    async def delete_user(self, user_id: uuid.UUID, *, db: object) -> None:
         self.deleted.append(user_id)
 
 
@@ -88,7 +92,14 @@ async def authz_client() -> AsyncIterator[tuple[AsyncClient, _RecordingDeletion]
     """An app whose deletion service is an offline recorder; auth verifies minted test tokens."""
     app = create_app(include_test_routes=False)
     recorder = _RecordingDeletion()
+
+    async def _fake_usage_db() -> AsyncIterator[object]:
+        # The recorder ignores it; override so the route resolves with no real DB (these are
+        # offline tests — the privileged session is never opened).
+        yield object()
+
     app.dependency_overrides[get_account_deletion_service] = lambda: recorder
+    app.dependency_overrides[get_usage_db] = _fake_usage_db
     install_test_auth(app)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:

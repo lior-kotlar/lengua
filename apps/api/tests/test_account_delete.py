@@ -23,13 +23,18 @@ failure (asserted in the unit tests via a ``500``) deletes nothing — there is 
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from typing import cast
+from unittest.mock import AsyncMock
 
 import httpx
 import psycopg
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
+from app.db.session import UsageSession, async_dsn
 from app.services.account import AccountAdminError, AccountDeletionService
 from app.settings import Settings
 from tests.conftest import database_url
@@ -49,6 +54,33 @@ def _admin_settings(*, url: str = _ADMIN_URL, key: str = _SERVICE_KEY) -> Settin
     )
 
 
+def _offline_db() -> AsyncSession:
+    """An offline stand-in for the privileged ``profiles``-delete session.
+
+    The unit tests exercise the **Auth Admin** half of ``delete_user`` (offline, no real DB), so the
+    profile hard-delete is driven against an :class:`AsyncMock` that records ``execute``/``commit``
+    without connecting. Cast to :class:`AsyncSession` purely to satisfy the typed signature.
+    """
+    return cast(AsyncSession, AsyncMock(spec=AsyncSession))
+
+
+async def _fresh_usage_db() -> AsyncIterator[UsageSession]:
+    """A privileged session on a fresh, immediately-disposed engine (a ``get_usage_db`` override).
+
+    The HTTP-driven integration tests below each run in their own event loop, but the process-wide
+    engine pools asyncpg connections across loops — so reusing it makes a later test pick up a
+    connection bound to an earlier test's *closed* loop ("Event loop is closed" on Windows). A
+    per-request fresh engine keeps every connection inside the test's own loop. Mirrors the
+    fresh-engine isolation ``tests.conftest.db_session`` already uses.
+    """
+    engine = create_async_engine(async_dsn(database_url()))
+    try:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            yield UsageSession(session)
+    finally:
+        await engine.dispose()
+
+
 @pytest.mark.asyncio
 async def test_delete_user_calls_auth_admin_api_with_service_role() -> None:
     """It DELETEs ``/auth/v1/admin/users/{id}`` with the service-role key in both auth headers."""
@@ -63,7 +95,7 @@ async def test_delete_user_calls_auth_admin_api_with_service_role() -> None:
 
     service = AccountDeletionService(_admin_settings(), transport=httpx.MockTransport(handler))
     user_id = uuid.uuid4()
-    await service.delete_user(user_id)
+    await service.delete_user(user_id, db=_offline_db())
 
     assert captured["method"] == "DELETE"
     assert captured["url"] == f"{_ADMIN_URL}/auth/v1/admin/users/{user_id}"
@@ -78,7 +110,7 @@ async def test_delete_user_treats_success_and_missing_as_done(status_code: int) 
     service = AccountDeletionService(
         _admin_settings(), transport=httpx.MockTransport(lambda _req: httpx.Response(status_code))
     )
-    await service.delete_user(uuid.uuid4())  # must not raise
+    await service.delete_user(uuid.uuid4(), db=_offline_db())  # must not raise
 
 
 @pytest.mark.asyncio
@@ -89,7 +121,7 @@ async def test_delete_user_raises_on_admin_error_status(status_code: int) -> Non
         _admin_settings(), transport=httpx.MockTransport(lambda _req: httpx.Response(status_code))
     )
     with pytest.raises(AccountAdminError):
-        await service.delete_user(uuid.uuid4())
+        await service.delete_user(uuid.uuid4(), db=_offline_db())
 
 
 @pytest.mark.asyncio
@@ -101,7 +133,7 @@ async def test_delete_user_wraps_network_errors() -> None:
 
     service = AccountDeletionService(_admin_settings(), transport=httpx.MockTransport(handler))
     with pytest.raises(AccountAdminError):
-        await service.delete_user(uuid.uuid4())
+        await service.delete_user(uuid.uuid4(), db=_offline_db())
 
 
 @pytest.mark.asyncio
@@ -116,29 +148,33 @@ async def test_delete_user_fails_closed_without_admin_credentials(url: str, key:
         _admin_settings(url=url, key=key), transport=httpx.MockTransport(handler)
     )
     with pytest.raises(AccountAdminError):
-        await service.delete_user(uuid.uuid4())
+        await service.delete_user(uuid.uuid4(), db=_offline_db())
 
 
 @pytest.mark.asyncio
 async def test_delete_endpoint_maps_admin_failure_to_502() -> None:
     """When the deletion service fails, ``DELETE /account`` returns ``502`` (retryable), not 500."""
-    from app.deps import get_account_deletion_service
+    from app.deps import get_account_deletion_service, get_usage_db
     from app.main import create_app
     from tests.auth_helpers import auth_header, install_test_auth
 
     class _FailingDeletion:
-        async def delete_user(self, _user_id: uuid.UUID) -> None:
+        async def delete_user(self, _user_id: uuid.UUID, *, db: object) -> None:
             raise AccountAdminError("admin api unavailable")
+
+    async def _fake_usage_db() -> AsyncIterator[object]:
+        yield object()  # offline: the failing service raises before touching the session
 
     app = create_app(include_test_routes=False)
     app.dependency_overrides[get_account_deletion_service] = _FailingDeletion
+    app.dependency_overrides[get_usage_db] = _fake_usage_db
     install_test_auth(app)
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://testserver") as client:
             resp = await client.delete("/account", headers=auth_header(uuid.uuid4()))
         assert resp.status_code == 502, resp.text
-        assert "no data was removed" in resp.json()["detail"].lower()
+        assert "did not complete" in resp.json()["detail"].lower()
     finally:
         app.dependency_overrides.clear()
 
@@ -226,7 +262,7 @@ def _real_stack_settings() -> Settings:
 @pytest.mark.asyncio
 async def test_delete_account_cascades_and_invalidates_session() -> None:
     """End to end: DELETE /account removes A entirely, leaves B intact, and kills A's session."""
-    from app.deps import get_llm_provider
+    from app.deps import get_llm_provider, get_usage_db
     from app.main import create_app
     from app.settings import get_settings
     from lengua_core.llm.fake import FakeLLM
@@ -253,6 +289,7 @@ async def test_delete_account_cascades_and_invalidates_session() -> None:
             app = create_app(include_test_routes=False)
             app.dependency_overrides[get_settings] = _real_stack_settings
             app.dependency_overrides[get_llm_provider] = lambda: FakeLLM()
+            app.dependency_overrides[get_usage_db] = _fresh_usage_db  # fresh-engine privileged sess
             FakeLLM.reset_call_count()
             try:
                 transport = ASGITransport(app=app)
@@ -316,6 +353,7 @@ async def test_delete_account_twice_is_idempotent_over_http() -> None:
     still inside its ``exp``, so it re-verifies (JWKS) even though GoTrue has revoked the session —
     exactly the double-tap a client could trigger by retrying a slow/networky first request.
     """
+    from app.deps import get_usage_db
     from app.main import create_app
     from app.settings import get_settings
     from tests.supabase_auth import create_confirmed_user, delete_user, login
@@ -328,6 +366,7 @@ async def test_delete_account_twice_is_idempotent_over_http() -> None:
 
             app = create_app(include_test_routes=False)
             app.dependency_overrides[get_settings] = _real_stack_settings
+            app.dependency_overrides[get_usage_db] = _fresh_usage_db  # fresh-engine privileged sess
             try:
                 transport = ASGITransport(app=app)
                 async with AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -340,3 +379,62 @@ async def test_delete_account_twice_is_idempotent_over_http() -> None:
                 app.dependency_overrides.clear()
         finally:
             delete_user(http, user.id)  # already gone (404 tolerated) — defensive
+
+
+# ── Defense-in-depth: the explicit profiles delete erases data without the auth cascade ───────
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_delete_user_erases_all_domain_data_without_the_auth_cascade() -> None:
+    """The privileged ``profiles`` delete erases EVERY domain table even when the
+    ``auth.users → profiles`` cascade never fires — the no-FK staging/prod case behind S1.
+
+    A real auth user is seeded (its trigger-made profile + a row in every domain table), then the
+    REAL :class:`AccountDeletionService` runs with an **offline GoTrue mock that returns 204 but
+    deletes nothing** — so ``auth.users`` (and therefore its cascade) is left intact. The only thing
+    that can erase the domain graph is the explicit, privileged ``profiles`` delete. We assert the
+    profiles row and every dependent row are gone while ``auth.users`` still exists, proving erasure
+    no longer depends on the FK cascade (defense-in-depth for a DB that lacks the FK).
+    """
+    from tests.supabase_auth import create_confirmed_user, delete_user
+
+    with httpx.Client(timeout=30.0) as http:
+        user = create_confirmed_user(http, email=f"erase-{uuid.uuid4().hex[:8]}@lengua.test")
+        try:
+            _seed_committed_graph(user.id, "Erasure-Spanish")
+
+            with psycopg.connect(database_url()) as conn:
+                before = _domain_counts(conn, user.id)
+            assert before["profiles"] == 1
+            assert all(v >= 1 for v in before.values()), f"seed incomplete: {before}"
+
+            # The GoTrue DELETE is intercepted by an offline mock: it returns 204 but never touches
+            # the real auth.users row, so the auth→profiles cascade cannot run.
+            service = AccountDeletionService(
+                _admin_settings(),
+                transport=httpx.MockTransport(lambda _req: httpx.Response(204)),
+            )
+            # A privileged (RLS-bypassing) session on a fresh engine bound to this test's own loop.
+            engine = create_async_engine(async_dsn(database_url()))
+            try:
+                async with AsyncSession(engine, expire_on_commit=False) as session:
+                    await service.delete_user(uuid.UUID(user.id), db=UsageSession(session))
+            finally:
+                await engine.dispose()
+
+            with psycopg.connect(database_url()) as conn:
+                after = _domain_counts(conn, user.id)
+                auth_row = conn.execute(
+                    "SELECT count(*) FROM auth.users WHERE id = %s", (user.id,)
+                ).fetchone()
+            # Every domain table AND the profiles row are empty — erased by the profiles delete.
+            assert after == {k: 0 for k in after}, f"defense-in-depth left rows: {after}"
+            # auth.users is still present (GoTrue mocked) → the cascade did NOT run; the explicit
+            # profiles delete is what erased the whole graph.
+            assert auth_row is not None and auth_row[0] == 1, (
+                "auth.users must remain (GoTrue mocked) — erasure came from the profiles delete, "
+                "not the auth→profiles cascade"
+            )
+        finally:
+            delete_user(http, user.id)  # real cleanup: removes the lingering auth.users row
