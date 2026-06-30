@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import unicodedata
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -35,7 +34,12 @@ from app.repositories.proficiency import ProficiencyRepository
 from app.services.errors import NotFoundError
 from lengua_core import cards as core_cards
 from lengua_core import proficiency, scheduler
-from lengua_core.cards import BuiltCard, bare_word
+
+# ``fold_word`` (NFD + strip combining marks + casefold) is aliased to the historical local name
+# ``_fold`` so the call sites below read unchanged. Single-sourcing it with Discover's vowelized
+# known-word dedup keeps the two paths from drifting on what "the same word" means.
+from lengua_core.cards import BuiltCard
+from lengua_core.cards import fold_word as _fold
 from lengua_core.llm.base import LLMProvider
 
 if TYPE_CHECKING:
@@ -44,18 +48,6 @@ if TYPE_CHECKING:
     # annotations`` keeps the ``QuotaGuard`` annotation a string, so the guard is passed in (for its
     # observability span) without importing the class at runtime.
     from app.quota import QuotaGuard
-
-
-def _fold(token: str) -> str:
-    """Case- and diacritic-folded bare form of ``token`` for insensitive whole-word matching.
-
-    Strips surrounding punctuation (:func:`~lengua_core.cards.bare_word`), decomposes to NFD and
-    drops combining marks (so diacritics and Arabic vowel marks don't block a match), then
-    case-folds — "Está", "esta", and "ESTÁ" all fold to ``esta``, and a vowelized surface matches
-    its bare vocabulary word. Returns ``""`` for an all-punctuation token (never matched).
-    """
-    decomposed = unicodedata.normalize("NFD", bare_word(token))
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
 
 
 def _appears_as_run(sentence_tokens: list[str], needle: list[str]) -> bool:
