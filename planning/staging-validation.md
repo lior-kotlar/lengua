@@ -89,6 +89,30 @@ and `CORS_ALLOW_ORIGINS` all set — error tracking + trace export are live.
 | S20 | Security / surface | Info | confirmed | `/docs`, `/redoc`, `/openapi.json` are anonymous 200 on staging and openapi lists the dark word-of-the-day route; same code ships to prod | Ben | Acceptable on staging; gate docs in prod (`docs_url=None` unless env in {local,staging}); confirm intent with owner |
 | S21 | Observability | Low | needs-verify | Recurring WARNING-severity logs during normal operation (CLI, 05:39–05:42Z 2026-06-30); message not in default projection | agent | Pull full entries (`severity=WARNING --format=json`), identify source, fix or downgrade noise |
 
+### Fix-pass outcomes (2026-06-30)
+
+The live-staging correctness fix pass ran as a multi-agent worktree workflow (one agent per
+file-disjoint group → PR; serial merge; pause on risky). Outcomes:
+
+- **Merged to `main`:** **S2** (code default → Google-only, #85) · **S4** (seed workflow #79,
+  dispatched ✓ — demo deck = 12 ES + 6 HE/RTL) · **S5** (#82) · **S6** (#86) · **S8** (#84) ·
+  **S13** (#86) · **S15** (#84) · **S19** (#86). **S21** = **benign** (the recurring WARNINGs are
+  Cloud Run *platform request logs* auto-tagged WARNING for expected 4xx — unauthenticated probes →
+  401, malformed `OPTIONS` preflight → 400; **no application defect, no code change**).
+- **Fix PR open (awaiting CI / merge):** **S3·S12·S14** (#88 languages) · **S7·S11** (#89 generate) ·
+  **S9·S10** (#90 settings). All MEDIUM-ish; contract-regenerating PRs.
+- **Fix PR PAUSED for owner review:** **S1** (#91 — guarded Alembic `0006` adding
+  `profiles.id → auth.users(id) ON DELETE CASCADE` + a profiles-first defensive delete + an erasure
+  test; owner reviews then applies `alembic -x env=staging|prod upgrade head`) · **S16·S17** (#83 —
+  CORS `expose_headers=[Retry-After]` + API security-headers middleware + `vercel.json` headers +
+  baseline CSP; the auto-mode classifier held this for owner per the pause-on-security/CORS boundary).
+- **Owner (not done by agents):** **S2** env (`VITE_OAUTH_PROVIDERS`) + Apple enablement · **S18**
+  (stable Vercel alias) · **S20** (confirm prod `/docs` gating) — plus the Deferred list below.
+
+Per-row `Status` cells above stay `confirmed` (the original triage record); flip them to `fixed`
+after the final re-validation pass (per the convention at the bottom of this file). Live resume state
++ exact remaining steps: [`staging-fix-handoff.md`](staging-fix-handoff.md).
+
 ### Deferred / owner-gated (not fixed now)
 
 - **CD arming + config-drift reconciliation:** flip `DEPLOY_ENABLED`, reconcile the Alembic-built
