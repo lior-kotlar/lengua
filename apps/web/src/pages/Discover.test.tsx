@@ -247,7 +247,7 @@ describe('Discover — preview (4.7.1)', () => {
     expect(within(suggestions).getByText('water')).toBeInTheDocument();
     expect(within(suggestions).getByText('friend')).toBeInTheDocument();
     expect(post).toHaveBeenCalledWith('/discover', {
-      body: { language_id: 1, count: 5, topic: null },
+      body: { language_id: 1, count: 5, topic: null, fresh: false },
     });
   });
 
@@ -262,7 +262,7 @@ describe('Discover — preview (4.7.1)', () => {
 
     await screen.findByTestId('discover-suggestions');
     expect(post).toHaveBeenCalledWith('/discover', {
-      body: { language_id: 1, count: 5, topic: 'food' },
+      body: { language_id: 1, count: 5, topic: 'food', fresh: false },
     });
   });
 
@@ -356,6 +356,14 @@ describe('Discover — reroll + accept (4.7.2)', () => {
     expect(await screen.findByText('music')).toBeInTheDocument();
     expect(screen.queryByText('house')).not.toBeInTheDocument();
     expect(post).toHaveBeenCalledTimes(2);
+    // The initial discover is a normal (cacheable) request; the reroll sends fresh:true so the
+    // backend bypasses its reuse cache instead of replaying the identical set (finding S8).
+    expect(post).toHaveBeenNthCalledWith(1, '/discover', {
+      body: { language_id: 1, count: 5, topic: null, fresh: false },
+    });
+    expect(post).toHaveBeenNthCalledWith(2, '/discover', {
+      body: { language_id: 1, count: 5, topic: null, fresh: true },
+    });
   });
 
   it('shows a pending state and disables actions while a reroll is in flight', async () => {

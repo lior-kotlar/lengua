@@ -56,15 +56,22 @@ export interface DiscoverInput {
   languageId: number;
   count: number;
   topic: string | null;
+  /**
+   * An explicit reroll ("Try different words" / "Try again"). When true, the backend bypasses its
+   * short-window reuse cache so an unchanged request returns a freshly generated set instead of the
+   * identical cached preview it would otherwise replay (finding S8). Defaults to `false` for a
+   * first/normal discover, where an immediate exact repeat can still reuse the cached set for free.
+   */
+  fresh?: boolean;
 }
 
 /**
  * `POST /discover`: preview up to `count` new words for the active language (nothing persisted).
  *
- * Returns just the suggested word list (the screen only needs the words). A repeat with the same
- * `(language, topic, count)` may be served from the backend's short-window reuse cache — so a
- * "reroll" with identical inputs can legitimately return the same set; the screen still refetches
- * and replaces whatever comes back.
+ * Returns just the suggested word list (the screen only needs the words). A normal repeat with the
+ * same `(language, topic, count)` may be served from the backend's short-window reuse cache; an
+ * explicit reroll passes `fresh: true` to bypass that cache and fetch a genuinely new set. The
+ * screen replaces whatever comes back either way.
  */
 export function useDiscover() {
   return useMutation({
@@ -75,6 +82,9 @@ export function useDiscover() {
             language_id: input.languageId,
             count: input.count,
             topic: input.topic,
+            // Always sent (the contract types it required, default false); true only on an explicit
+            // reroll, which makes the backend bypass its reuse cache for a genuinely new set (S8).
+            fresh: input.fresh ?? false,
           },
         }),
       ).then((response) => response.words),

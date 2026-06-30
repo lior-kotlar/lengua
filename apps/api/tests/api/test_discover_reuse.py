@@ -77,3 +77,36 @@ async def test_distinct_topic_or_count_misses(api_client: AsyncClient) -> None:
     # The original (food, 5) is still cached → reuse, no further provider call.
     assert (await api_client.post("/discover", json=food5)).status_code == 200
     assert FakeLLM.call_count == 3
+
+
+async def test_fresh_reroll_bypasses_cache_and_counts(
+    api_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """An explicit reroll (``fresh=true``) bypasses the reuse cache: a fresh, *counted* call (S8).
+
+    The cache would otherwise pin an identical reroll to the same words and — worse — serve it for
+    free, hiding the real (billed) call behind the cache. ``fresh`` skips the lookup, so the
+    provider runs again and the per-user daily ``discover`` cap is charged for it.
+    """
+    language_id = await _new_language(api_client)
+    day = datetime.now(UTC).date()
+    usage = UsageRepository(db_session)
+    FakeLLM.reset_call_count()
+
+    body = {"language_id": language_id, "count": 5, "topic": "food"}
+
+    # Prime the cache: first discover is a miss → provider invoked once → counted.
+    assert (await api_client.post("/discover", json=body)).status_code == 200
+    assert FakeLLM.call_count == 1
+    assert await usage.get_user_daily_count(DEV_USER_ID, "discover", day) == 1
+
+    # A plain repeat reuses the cache → no provider call, no further count (the existing behaviour).
+    assert (await api_client.post("/discover", json=body)).status_code == 200
+    assert FakeLLM.call_count == 1
+    assert await usage.get_user_daily_count(DEV_USER_ID, "discover", day) == 1
+
+    # The same body with ``fresh=true`` bypasses the cache → the LLM runs again, and it IS counted.
+    reroll = await api_client.post("/discover", json={**body, "fresh": True})
+    assert reroll.status_code == 200
+    assert FakeLLM.call_count == 2  # cache bypassed — a real provider call happened
+    assert await usage.get_user_daily_count(DEV_USER_ID, "discover", day) == 2  # and it was charged

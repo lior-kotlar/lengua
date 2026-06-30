@@ -17,6 +17,10 @@ class DiscoverRequest(BaseModel):
     # (mirrors the words-per-request cap on generation in task 1.2.5).
     count: int = Field(default=5, ge=1, le=20)
     topic: str | None = None
+    # An explicit reroll ("Try different words"): bypass the short-window reuse cache so the learner
+    # gets a freshly generated — billed and counted — set instead of the identical cached preview an
+    # unchanged request would otherwise replay (finding S8). A normal first request leaves it false.
+    fresh: bool = False
 
 
 class DiscoverResponse(BaseModel):
