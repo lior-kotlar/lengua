@@ -1,5 +1,13 @@
 # Live-staging fix pass — handoff / resume state (2026-06-30)
 
+> **✅ UPDATE (2026-06-30, later): PASS COMPLETE.** #88/#89/#90 were fixed + squash-merged; main CI
+> green. **CD is ARMED (`DEPLOY_ENABLED=true`) — the merges auto-deployed to live staging** and both
+> validators re-ran green (API smoke 13/0/0, browser e2e-staging 6 passed, logs clean). The
+> "CD is gated off" / "can't reach live staging" notes below are **stale** — disregard them; merging
+> the paused PRs (#91 S1, #83 CORS/CSP) will auto-deploy. Final statuses live in
+> [`staging-validation.md`](staging-validation.md) (re-validation block) + [`outstanding-work.md`](outstanding-work.md) §0.
+> Only **owner** items remain: review+merge #91 and #83; S2 OAuth env/Apple; S18 alias; S20 prod `/docs`.
+
 **What this is:** the resume point for the live-staging correctness fix pass (the 25-finding triage in
 [`staging-validation.md`](staging-validation.md)). The multi-agent fix workflow ran; this captures
 exactly what merged, what's open, and the **light driver-only steps that remain**.

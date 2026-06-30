@@ -16,31 +16,36 @@ This **complements** — does not replace:
 
 ---
 
-## 0. Live-staging validation sweep (2026-06-30) · 25 findings · 🛠 fix pass run
+## 0. Live-staging validation sweep (2026-06-30) · 25 findings · ☑ fixed + deployed + re-validated
 
 Full triage (repro/owner/fix per item) in [`staging-validation.md`](staging-validation.md) — a
 50-agent find-only workflow (35 candidates → 25 kept). The **core loop is verified working
 end-to-end on live staging**; these were the open correctness/UX/hardening items, scoped to
 "live-staging correctness now".
 
-**Fix pass (2026-06-30)** ran as a multi-agent worktree workflow (one agent per file-disjoint group →
-PR; serial merge; pause on risky). Live resume state + exact remaining steps →
-[`staging-fix-handoff.md`](staging-fix-handoff.md).
+**Fix pass (2026-06-30) — COMPLETE.** Ran as a multi-agent worktree workflow (one agent per
+file-disjoint group → PR; serial merge; pause on risky), finished by a driver pass that fixed +
+merged the last three PRs. **CD is armed (`DEPLOY_ENABLED=true`), so every merge auto-deployed to
+live staging**, and both validators were re-run green on the deployed revision (`main` @ `2c1bb67`):
+**API smoke 13/0/0**, **browser e2e-staging 6 passed**, **logs clean** (no WARNING+ in 1h). Details +
+the staging-validation re-validation block → [`staging-validation.md`](staging-validation.md). Live
+resume state → [`staging-fix-handoff.md`](staging-fix-handoff.md).
 
 | | Item | Sev | Status |
 |---|---|---|---|
-| ⏸ | **S1** `DELETE /account` orphans all user data | High | fix PR #91 — **paused** (owner reviews + applies migration `0006` to staging/prod) |
-| ◐ | **S2** "Continue with Apple" dead-end | Med | code fixed (#85, Google-only default); owner: `VITE_OAUTH_PROVIDERS` env + Apple enablement |
-| 🛠 | **S3** re-add language resets CEFR (data loss) | Med | fix PR #88 (open) |
-| ☑ | **S4** no CD seed step → empty deck | Med | #79 seed workflow (dispatched ✓ — 12 ES + 6 HE/RTL) |
+| ⏸ | **S1** `DELETE /account` orphans all user data | High | fix PR #91 — **paused for owner** (review the GDPR orphan-purge in migration `0006`, then merge; CD auto-applies `alembic upgrade head` to staging + prod — no manual step) |
+| ◐ | **S2** "Continue with Apple" dead-end | Med | ☑ code fixed (#85, Google-only default) + deployed; owner residual: `VITE_OAUTH_PROVIDERS` env + Apple enablement |
+| ☑ | **S3** re-add language resets CEFR (data loss) | Med | merged #88 + deployed |
+| ☑ | **S4** no CD seed step → empty deck | Med | #79 seed workflow (dispatched ✓ — 12 ES + 6 HE/RTL; re-validation `/review/due` = 10 new / 2 due) |
 | ☑ | **S5** Sentry env mistag + 100% sampling | Med | #82 |
 | ☑ | **S6 / S8 / S13 / S15 / S19** review order · discover cache+filter · RTL recognition answer · suggestion filter · limit copy | Low/Info | merged #84 / #86 |
-| 🛠 | **S7 / S11** `used_words` trust · empty-words burns count | Low | fix PR #89 (open) |
-| 🛠 | **S9 / S10** settings server-side bounds · key delete | Low | fix PR #90 (open) |
-| 🛠 | **S12 / S14** add-language atomicity · RTL code editable | Low | fix PR #88 (open) |
-| ⏸ | **S16 / S17** `Retry-After` CORS-expose · security headers + CSP | Low | fix PR #83 — **paused** (owner reviews CSP/CORS) |
-| ☑ | **S21** WARNING-log noise | Low | **benign** — Cloud Run 4xx access logs, not app warnings (no code change) |
-| 🔒 | **S18 / S20** stable Vercel alias · prod `/docs` gating | Low/Info | owner |
+| ☑ | **S7 / S11** `used_words` trust · empty-words burns count | Low | merged #89 + deployed |
+| ☑ | **S9 / S10** settings server-side bounds · key delete | Low | merged #90 + deployed (driver reconciled the S9 bounds with the shipped review garbage→default contract) |
+| ☑ | **S12 / S14** add-language atomicity · RTL code editable | Low | merged #88 + deployed |
+| ⏸ | **S16 / S17** `Retry-After` CORS-expose · security headers + CSP | Low | fix PR #83 — **paused for owner** (review CSP/CORS; merging auto-deploys the CSP to staging) |
+| ☑ | **S21** WARNING-log noise | Low | **benign** — Cloud Run 4xx access logs, not app warnings (no code change; 1h log spot-check clean) |
+| ☑ | **S18** stable Vercel alias | Low | resolved (PR #71 `vercel alias set` → stable origin; verified 2026-06-30 + e2e-staging green against `lengua-staging.vercel.app`) |
+| 🔒 | **S20** prod `/docs` gating | Info | owner (confirm intent to gate `/docs` in prod) |
 
 ---
 
