@@ -599,6 +599,47 @@
         "title": "LanguageCreate",
         "type": "object"
       },
+      "LanguageCreateOut": {
+        "description": "``POST /languages`` response: the language plus whether THIS request created it.\n\n``created`` is ``True`` when a new language was inserted and ``False`` when the name already\nexisted — an idempotent add, where the existing row is returned **unchanged**. It lets the\nclient tell a fresh add from a re-add, so re-adding an existing language never resets its\nrecorded proficiency (finding S3). Returned with HTTP 200 (the API's convention for ``POST``),\nso the flag — not the status code — carries the created/existing signal.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "vowelized": {
+            "title": "Vowelized",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "code",
+          "vowelized",
+          "created"
+        ],
+        "title": "LanguageCreateOut",
+        "type": "object"
+      },
       "LanguageExport": {
         "description": "One language the user studies.",
         "properties": {
@@ -722,16 +763,43 @@
         "type": "object"
       },
       "LanguageUpdate": {
-        "description": "Request body for ``PATCH /languages/{id}`` — toggle the ``vowelized`` flag.",
+        "description": "Request body for ``PATCH /languages/{id}`` — a partial update of the editable fields.\n\nEvery field is optional; only the ones actually present in the request body are applied (the\nroute reads ``model_dump(exclude_unset=True)``), so a client can rename a language, set or clear\nits ``code``, or toggle ``vowelized`` independently. ``code`` may be sent as ``null`` to clear\nit. Making ``name``/``code`` editable lets a user fix a mistyped name or a missing/blank code\nafter creation — e.g. to give a right-to-left language its ``he``/``ar`` code so its script\nrenders (direction + diacritic-correct font) correctly.",
         "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
           "vowelized": {
-            "title": "Vowelized",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vowelized"
           }
         },
-        "required": [
-          "vowelized"
-        ],
         "title": "LanguageUpdate",
         "type": "object"
       },
@@ -1458,7 +1526,7 @@
         ]
       },
       "post": {
-        "description": "Add a language (idempotent on the per-user ``UNIQUE (user_id, name)``).",
+        "description": "Add a language (idempotent on the per-user ``UNIQUE (user_id, name)``).\n\nThe response ``created`` flag is ``True`` when a new language was inserted and ``False`` when\nthe name already existed — in which case the existing row is returned unchanged, so a client\ncan tell a fresh add from a re-add (and skip resetting an existing language's proficiency).\nStatus stays 200 (the API's ``POST`` convention); the flag carries the signal.",
         "operationId": "add_language_languages_post",
         "requestBody": {
           "content": {
@@ -1475,7 +1543,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LanguageOut"
+                  "$ref": "#/components/schemas/LanguageCreateOut"
                 }
               }
             },
@@ -1544,8 +1612,8 @@
         ]
       },
       "patch": {
-        "description": "Toggle a language's ``vowelized`` flag.",
-        "operationId": "set_vowelized_languages__language_id__patch",
+        "description": "Edit a language's fields (``name`` / ``code`` / ``vowelized``); a partial update.\n\nOnly the fields present in the body are changed (``code`` may be sent as ``null`` to clear it).",
+        "operationId": "update_language_languages__language_id__patch",
         "parameters": [
           {
             "in": "path",
@@ -1594,7 +1662,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Set Vowelized",
+        "summary": "Update Language",
         "tags": [
           "languages"
         ]

@@ -8,7 +8,7 @@ owns the transaction boundary (it commits its writes). It emits no SQL of its ow
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,8 +35,13 @@ class LanguagesService:
         *,
         code: str | None = None,
         vowelized: bool = False,
-    ) -> Language:
-        """Add a language (idempotent: returns the existing one if the name already exists).
+    ) -> tuple[Language, bool]:
+        """Add a language; return ``(language, created)``.
+
+        Idempotent on the per-user ``UNIQUE (user_id, name)``: when the name already exists the
+        **existing** row is returned untouched with ``created=False`` — so a re-add never disturbs
+        the learner's recorded proficiency (the caller skips the starting-band write on a re-add).
+        ``created=True`` only when a new row was inserted.
 
         Raises :class:`ValidationError` when ``name`` is blank.
         """
@@ -45,16 +50,38 @@ class LanguagesService:
             raise ValidationError("Language name must not be empty.")
         existing = await self._languages.get_by_name(user_id, clean_name)
         if existing is not None:
-            return existing
+            return existing, False
         language = await self._languages.create(user_id, clean_name, code=code, vowelized=vowelized)
         await self._session.commit()
-        return language
+        return language, True
 
-    async def set_vowelized(
-        self, user_id: uuid.UUID, language_id: int, vowelized: bool
+    async def update_language(
+        self, user_id: uuid.UUID, language_id: int, changes: Mapping[str, object]
     ) -> Language:
-        """Toggle a language's ``vowelized`` flag. Raises :class:`NotFoundError` if not owned."""
-        language = await self._languages.set_vowelized(user_id, language_id, vowelized)
+        """Apply a partial update (``name`` / ``code`` / ``vowelized``) to the user's language.
+
+        Normalises inputs (trims ``name``/``code``; an empty ``code`` becomes ``NULL``) and guards
+        the per-user unique name. Only keys present in ``changes`` are touched. Raises
+        :class:`ValidationError` on a blank or duplicate name, and :class:`NotFoundError` when the
+        language isn't the user's.
+        """
+        clean: dict[str, object] = {}
+        if "name" in changes:
+            raw_name = changes["name"]
+            new_name = raw_name.strip() if isinstance(raw_name, str) else ""
+            if not new_name:
+                raise ValidationError("Language name must not be empty.")
+            conflict = await self._languages.get_by_name(user_id, new_name)
+            if conflict is not None and conflict.id != language_id:
+                raise ValidationError(f"You already have a language named {new_name!r}.")
+            clean["name"] = new_name
+        if "code" in changes:
+            raw_code = changes["code"]
+            clean["code"] = (raw_code.strip() or None) if isinstance(raw_code, str) else raw_code
+        if "vowelized" in changes:
+            clean["vowelized"] = bool(changes["vowelized"])
+
+        language = await self._languages.update(user_id, language_id, clean)
         if language is None:
             raise NotFoundError(f"Language {language_id} not found.")
         await self._session.commit()

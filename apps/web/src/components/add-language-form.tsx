@@ -1,13 +1,17 @@
 /**
  * Add-language form (task 4.4.2).
  *
- * Collects name (required), an optional code, a starting CEFR band, and the vowel-marks flag, then
- * creates the language via {@link useAddLanguage} (which also `PUT`s the starting band when it isn't
- * the default A1 — see the hook for the create-vs-proficiency reconciliation). On success it resets,
- * toasts, and hands the new language back via `onCreated` so the caller can make it active.
+ * Collects name (required), a code, a starting CEFR band, and the vowel-marks flag, then creates the
+ * language via {@link useAddLanguage} (which also `PUT`s the starting band for a brand-new language
+ * when it isn't the default A1 — see the hook for the create-vs-proficiency reconciliation). On
+ * success it resets, toasts, and hands the language back via `onCreated` so the caller can make it
+ * active.
  *
- * Note: text direction is derived from the language `code` (group 4.9), so there is no manual
- * "direction" field here — reconciling the plan's "name + CEFR starting level/direction" wording.
+ * Text direction + script font are DERIVED from the language `code` (group 4.9) — there is no manual
+ * "direction" field. Because of that, vowel marks (harakat / nikkud) only render correctly when a
+ * code is set, so the code is REQUIRED whenever vowel marks are enabled (with inline help for the
+ * common right-to-left codes). A blank-code + vowelized language would otherwise fall back to an
+ * LTR Latin font with mispositioned diacritics (finding S14).
  */
 import { useState } from 'react';
 
@@ -19,7 +23,7 @@ import { isApiError } from '@/lib/api-client';
 import { useAddLanguage, type LanguageOut } from '@/lib/languages';
 
 export interface AddLanguageFormProps {
-  /** Called with the created language after a successful add (e.g. to select it as active). */
+  /** Called with the created (or already-existing) language after a successful add. */
   onCreated?: (language: LanguageOut) => void;
 }
 
@@ -29,30 +33,63 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
   const [band, setBand] = useState<string>(CEFR_BANDS[0]);
   const [vowelized, setVowelized] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   const addLanguage = useAddLanguage();
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const trimmed = name.trim();
-    if (trimmed === '') {
+    const trimmedName = name.trim();
+    const trimmedCode = code.trim();
+
+    let invalid = false;
+    if (trimmedName === '') {
       setNameError('Enter a language name.');
+      invalid = true;
+    } else {
+      setNameError(null);
+    }
+    // S14: vowel marks render in a script-correct font + direction derived from the code, so a code
+    // is required when they're on. Without one the text would render LTR/Latin with broken nikkud.
+    if (vowelized && trimmedCode === '') {
+      setCodeError(
+        'Enter a language code (e.g. he, ar, fa) so vowel marks render correctly.',
+      );
+      invalid = true;
+    } else {
+      setCodeError(null);
+    }
+    if (invalid) {
       return;
     }
-    setNameError(null);
 
     addLanguage.mutate(
-      { name: trimmed, code, vowelized, band },
+      { name: trimmedName, code: trimmedCode, vowelized, band },
       {
-        onSuccess: (language) => {
+        onSuccess: ({ language, created, bandError }) => {
           setName('');
           setCode('');
           setBand(CEFR_BANDS[0]);
           setVowelized(false);
-          toast({
-            title: 'Language added',
-            description: `${language.name} is ready to use.`,
-          });
+          if (!created) {
+            // S3: idempotent re-add — the existing language (and its CEFR level) is untouched.
+            toast({
+              title: 'Already in your languages',
+              description: `You already have ${language.name}.`,
+            });
+          } else if (bandError) {
+            // S12: created, but the starting-level write failed — flag it without claiming failure.
+            toast({
+              variant: 'destructive',
+              title: 'Added, but the starting level wasn’t set',
+              description: `${language.name} was added at the default level — set its level from the level panel.`,
+            });
+          } else {
+            toast({
+              title: 'Language added',
+              description: `${language.name} is ready to use.`,
+            });
+          }
           onCreated?.(language);
         },
         onError: (error) => {
@@ -80,14 +117,24 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
         error={nameError}
         required
       />
-      <FormField
-        id="language-code"
-        label="Code (optional)"
-        placeholder="es"
-        autoComplete="off"
-        value={code}
-        onChange={(event) => setCode(event.target.value)}
-      />
+      <div className="space-y-1.5">
+        <FormField
+          id="language-code"
+          label={vowelized ? 'Code' : 'Code (optional)'}
+          placeholder="es"
+          autoComplete="off"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          error={codeError}
+          required={vowelized}
+        />
+        <p id="language-code-hint" className="text-xs text-muted-foreground">
+          Sets text direction and script font. Required for vowel marks — common
+          right-to-left codes: Hebrew <code className="font-mono">he</code>,
+          Arabic <code className="font-mono">ar</code>, Persian{' '}
+          <code className="font-mono">fa</code>.
+        </p>
+      </div>
 
       <div className="space-y-1.5">
         <label htmlFor="language-band" className="text-sm font-medium">

@@ -1,7 +1,7 @@
 """Integration tests for :class:`app.repositories.languages.LanguagesRepository` (task 1.3.3).
 
-Covers create / list / get / get_by_name / set_vowelized / delete, and proves every method is
-scoped by ``user_id`` (a second user can neither see nor mutate the first user's languages).
+Covers create / list / get / get_by_name / update / set_vowelized / delete, and proves every method
+is scoped by ``user_id`` (a second user can neither see nor mutate the first user's languages).
 """
 
 from __future__ import annotations
@@ -43,7 +43,17 @@ async def test_create_get_list_update_delete_scoped(
     assert await repo.get(OTHER_USER, alpha.id) is None
     assert len(await repo.list_for_user(OTHER_USER)) == 0
 
-    # set_vowelized: owned succeeds, scoped/absent returns None.
+    # update: a partial write touches only the present keys; absent keys are left untouched.
+    edited = await repo.update(user_id, alpha.id, {"name": "Lang Alpha 2", "code": "a2"})
+    assert edited is not None
+    assert edited.name == "Lang Alpha 2"
+    assert edited.code == "a2"
+    assert edited.vowelized is False  # not in the change set -> unchanged
+    # update is scoped/absent-safe (returns None) just like the other writers.
+    assert await repo.update(OTHER_USER, alpha.id, {"code": "xx"}) is None
+    assert await repo.update(user_id, 10**9, {"code": "xx"}) is None
+
+    # set_vowelized (a thin wrapper over update): owned succeeds, scoped/absent returns None.
     updated = await repo.set_vowelized(user_id, alpha.id, True)
     assert updated is not None and updated.vowelized is True
     assert await repo.set_vowelized(OTHER_USER, alpha.id, True) is None
