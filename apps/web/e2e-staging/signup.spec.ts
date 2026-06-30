@@ -17,7 +17,9 @@ import { expect, test } from './fixtures';
 // Unique disposable email so repeat runs never collide; module-scoped so `afterAll` can clean it up.
 const signupEmail = `lengua-signup-${crypto.randomUUID()}@lengua.test`;
 // A policy-valid password (>= 8 chars, lower + upper + digit), mirroring `src/lib/auth-validation.ts`.
-const signupPassword = 'Lengua-Signup-123';
+// Fixed FAKE test-fixture password (not a real credential); the inline directive stops the secrets
+// scanner's generic high-entropy heuristic from flagging this known test value.
+const signupPassword = 'Lengua-Signup-123'; // gitleaks:allow
 
 test('a visitor can submit the sign-up form and see the verification notice', async ({
   page,
