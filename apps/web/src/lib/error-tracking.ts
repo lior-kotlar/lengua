@@ -29,7 +29,20 @@ interface ErrorTrackingEnv {
   VITE_SENTRY_DSN_WEB?: string;
   /** `'1'`/`'true'` enables the hidden debug-error button + capture recording (dev/test only). */
   VITE_ENABLE_DEBUG_TOOLS?: string;
-  /** Vite mode (`development` / `production`), used as the Sentry `environment`. */
+  /**
+   * Explicit Sentry `environment` tag (e.g. `'staging'` / `'production'`). CD sets it per
+   * environment; falls back to {@link ErrorTrackingEnv.MODE} when unset/blank. Needed because a
+   * `vercel build` always reports `MODE === 'production'`, so without it staging events mistag as
+   * production.
+   */
+  VITE_SENTRY_ENVIRONMENT?: string;
+  /**
+   * Sentry `tracesSampleRate` as a string float (e.g. `'0.1'`), parsed at init. Falls back to
+   * {@link DEFAULT_TRACES_SAMPLE_RATE} (1.0) when unset/blank/unparseable. CD sets a lower rate for
+   * prod to cap transaction volume/cost.
+   */
+  VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
+  /** Vite mode (`development` / `production`), the fallback Sentry `environment`. */
   MODE?: string;
 }
 
@@ -62,6 +75,46 @@ export function debugToolsEnabled(
   return flag === '1' || flag === 'true';
 }
 
+/**
+ * The Sentry `environment` tag for this build.
+ *
+ * Prefers the explicit build-time `VITE_SENTRY_ENVIRONMENT` (CD sets it to `staging` / `production`
+ * so events tag correctly), falling back to Vite's `MODE` when it is unset or blank. Under
+ * `vercel build` `MODE` is ALWAYS `production`, so this explicit override is what keeps staging
+ * events from mistagging as production (finding S5).
+ */
+export function errorTrackingEnvironment(
+  env: ErrorTrackingEnv = import.meta.env,
+): string | undefined {
+  const explicit = env.VITE_SENTRY_ENVIRONMENT;
+  if (explicit !== undefined && explicit.trim() !== '') {
+    return explicit;
+  }
+  return env.MODE;
+}
+
+/** Sentry `tracesSampleRate` when `VITE_SENTRY_TRACES_SAMPLE_RATE` is unset/blank/unparseable. */
+export const DEFAULT_TRACES_SAMPLE_RATE = 1.0;
+
+/**
+ * The Sentry `tracesSampleRate` (0.0–1.0) for this build — the fraction of performance/Web-Vitals
+ * transactions sampled.
+ *
+ * Parsed as a float from the build-time `VITE_SENTRY_TRACES_SAMPLE_RATE`; falls back to
+ * {@link DEFAULT_TRACES_SAMPLE_RATE} (1.0 — capture everything) when unset, blank, or not a finite
+ * number. CD sets a low rate (~0.1) for prod to cap transaction volume/cost; dev/staging keep 1.0.
+ */
+export function errorTrackingTracesSampleRate(
+  env: ErrorTrackingEnv = import.meta.env,
+): number {
+  const raw = env.VITE_SENTRY_TRACES_SAMPLE_RATE;
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_TRACES_SAMPLE_RATE;
+  }
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : DEFAULT_TRACES_SAMPLE_RATE;
+}
+
 let client: SentryLike | null = null;
 let initialized = false;
 
@@ -92,11 +145,12 @@ export function initErrorTracking({
   }
   sentry.init({
     dsn,
-    environment: env.MODE,
-    // Captures performance transactions + Web Vitals (LCP/CLS/INP/…). The owner tunes the volume
-    // for prod via the Sentry project / a later env when the live DSN is wired (Phase 6).
+    environment: errorTrackingEnvironment(env),
+    // Captures performance transactions + Web Vitals (LCP/CLS/INP/…). The sample rate is build-time
+    // tunable via VITE_SENTRY_TRACES_SAMPLE_RATE (CD sets ~0.1 for prod to cap volume/cost) and
+    // defaults to 1.0 (capture everything) for dev/staging.
     integrations: [sentry.browserTracingIntegration()],
-    tracesSampleRate: 1.0,
+    tracesSampleRate: errorTrackingTracesSampleRate(env),
     sendDefaultPii: false,
   });
   client = sentry;

@@ -27,6 +27,19 @@ interface ImportMetaEnv {
    */
   readonly VITE_SENTRY_DSN_WEB?: string;
   /**
+   * Optional Sentry `environment` tag (e.g. "staging" / "production"). CD sets it per environment so
+   * events tag correctly; falls back to Vite's MODE when unset — and `vercel build` always reports
+   * MODE="production", so this explicit override is what keeps staging from mistagging as production.
+   * See `lib/error-tracking.ts`.
+   */
+  readonly VITE_SENTRY_ENVIRONMENT?: string;
+  /**
+   * Optional Sentry `tracesSampleRate` as a string float in [0, 1] (e.g. "0.1"): the fraction of
+   * performance/Web-Vitals transactions sampled. Defaults to 1.0 (capture everything) when unset; CD
+   * sets a lower rate for prod to cap volume/cost. See `lib/error-tracking.ts`.
+   */
+  readonly VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
+  /**
    * Optional dev/test-only flag (`"1"`/`"true"`). Enables the hidden Sentry debug-error button and
    * records captures on `window` for the E2E assertion. A production build NEVER sets it, so the
    * button can never render/trigger in a deployed app. See `components/debug-error-button.tsx`.
