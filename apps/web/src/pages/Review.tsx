@@ -106,9 +106,11 @@ function ReviewSession({ language, showVowels }: ReviewSessionProps) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
-  // New cards first, then due — a stable snapshot the session walks (grading doesn't refetch).
+  // Due cards first, then new — a stable snapshot the session walks (grading doesn't refetch).
+  // Due-before-new matches the scheduler/legacy order, so quitting mid-session never buries the
+  // reviews that are actually due behind a stack of brand-new cards.
   const batch = useMemo<CardOut[]>(
-    () => (due.data !== undefined ? [...due.data.new, ...due.data.due] : []),
+    () => (due.data !== undefined ? [...due.data.due, ...due.data.new] : []),
     [due.data],
   );
   const current = index < batch.length ? batch[index] : null;
@@ -345,12 +347,14 @@ function ReviewCard({
                   showVowels={showVowels}
                 />
               ) : (
-                <LanguageText
-                  className="text-xl font-medium leading-relaxed"
-                  text={card.back}
-                  language={language}
-                  showVowels={showVowels}
-                />
+                // A recognition card's answer is the ENGLISH translation, so render it as plain
+                // text — exactly like a production card's English front (`card.front`) above. Only
+                // target-language text gets LanguageText's direction/script-font/diacritics; passing
+                // English through it forced an RTL deck's answer into the script font + dir="rtl",
+                // which hid it. The recognition PROMPT (target text) keeps its LanguageText.
+                <p className="text-xl font-medium leading-relaxed">
+                  {card.back}
+                </p>
               )}
               {production && (
                 <p className="mt-1 text-xs text-muted-foreground">
