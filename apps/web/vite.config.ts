@@ -15,9 +15,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     css: true,
-    // Playwright specs under e2e/ are run by Playwright, not vitest.
+    // Playwright specs under e2e/ (and the live-staging specs under e2e-staging/) are run by
+    // Playwright, not vitest. The src-only include already excludes them; this is belt-and-braces.
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', 'dist', 'e2e/**'],
+    exclude: ['node_modules', 'dist', 'e2e/**', 'e2e-staging/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'lcov'],
