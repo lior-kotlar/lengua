@@ -72,6 +72,40 @@ are **not** part of this "do at the end" set, but listing them here for one owne
 - **`0.7.8` — confirm Resend custom SMTP delivers in both Supabase projects.** Needed for auth
   sign-up / recovery emails (Phase 2); staging auto-confirm is OFF.
 
+## Live-staging fix-pass review items (2026-06-30) — owner review/apply
+
+Surfaced by the live-staging validation + fix pass (full triage
+[`staging-validation.md`](staging-validation.md); resume state
+[`staging-fix-handoff.md`](staging-fix-handoff.md)). These need **owner judgment** and so were NOT
+self-merged by the build:
+
+- **Review + merge PR #91 (S1 — right-to-erasure), THEN apply migration `0006`.** `DELETE /account`
+  orphaned all of a user's data because the **Alembic-built** staging/prod DB lacks the
+  `profiles → auth.users` FK the canonical `supabase/migrations` SQL declares. #91 adds a guarded,
+  idempotent migration `0006` (adds the FK + cascade) + a defensive profiles-row delete in the
+  service + an erasure integration test. **After merge, apply to the live DBs:**
+  `cd apps/api && uv run alembic -x env=staging upgrade head` then `-x env=prod`. ⚠ `0006` deletes
+  pre-existing orphan `profiles` rows (`WHERE NOT EXISTS auth.users`) before `VALIDATE` — correct
+  GDPR remediation, but it IS a data deletion inside a migration (flagged in the file). Unblocks the
+  privacy/right-to-erasure compliance text (Phase 8).
+- **Review + merge PR #83 (S16/S17 — security headers).** CORS `expose_headers=[Retry-After]` + an
+  API security-headers middleware (nosniff / X-Frame-Options DENY / Referrer-Policy / HSTS) +
+  `apps/web/vercel.json` headers + a **baseline CSP**. CI is green; the auto-build held it for owner
+  review per the pause-on-security/CORS rule. **Sanity-check the CSP `connect-src`** (self,
+  `*.supabase.co`, `*.run.app`, `*.sentry.io`, PostHog) against what the live SPA actually calls
+  before it ships (it only reaches the browser once CD is armed / on the next web deploy).
+- **S2 — set `VITE_OAUTH_PROVIDERS` per env + enable Apple** (Supabase external provider; needs a
+  paid Apple Developer acct) **only if Apple is wanted.** The merged code default is Google-only, so
+  the broken Apple button is hidden today; setting `VITE_OAUTH_PROVIDERS=google,apple` re-enables it
+  once Apple is configured.
+- **S18 — confirm the stable Vercel staging alias** (`lengua-staging.vercel.app`) update path
+  (overlaps §C of [`go-live-activation.md`](go-live-activation.md)).
+- **S20 — confirm intent to gate prod `/docs` `/redoc` `/openapi.json`** (`docs_url=None` unless env
+  in {local,staging}). Acceptable on staging; decide for prod.
+
+(Still deferred + tracked elsewhere: arm `DEPLOY_ENABLED` for CD — go-live §E; Phase-5 observability
+live-verify — §G; Google OAuth creds; Resend SMTP + SPF/DKIM/DMARC.)
+
 ## Resolved owner items (for the record)
 
 - **`0.7.9` Vercel access — RESOLVED (2026-06-25).** On the **free** tier a project has a single

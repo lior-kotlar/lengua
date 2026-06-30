@@ -61,6 +61,34 @@
 
 ---
 
+## Progress update — 2026-06-30 (live-staging validation + fix pass · Claude)
+
+A 50-agent **live-staging validation** exercised the deployed stack (web + API + DB) as the demo user
+and found **25** correctness/UX/hardening items (triage:
+[`staging-validation.md`](staging-validation.md)). **The core loop is verified working end-to-end on
+live staging** — login → generate → save → review → discover against real Groq, with CORS + ES256-JWT
+verification + the feature-flag kill-switch all correct and no cross-tenant leakage. A multi-agent fix
+pass then landed most fixes (resume state: [`staging-fix-handoff.md`](staging-fix-handoff.md)):
+
+- **Merged to `main`:** S2 (OAuth → Google-only so the dead-ending Apple button is hidden), **S4** (an
+  idempotent `seed-staging.yml` — **dispatched**, demo deck now 12 ES + 6 HE/RTL cards, so review +
+  RTL are testable), **S5** (Sentry per-env tag + trace sample rate), S6/S8/S13/S15/S19
+  (review/discover/RTL/limit-copy). **S21** = benign (Cloud Run 4xx access logs, not app warnings).
+- **Open fix PRs (CI → merge):** #88 (S3/S12/S14 languages), #89 (S7/S11 generate), #90 (S9/S10 settings).
+- **⏸ Paused for OWNER review** (details in [`owner-deferred-tasks.md`](owner-deferred-tasks.md)):
+  - **#91 — S1 right-to-erasure.** `DELETE /account` orphaned all user data because the
+    Alembic-built staging/prod DB lacks the `profiles → auth.users` FK. Guarded migration `0006` +
+    defensive delete + erasure test. **Owner: review, merge, then apply `0006`** to staging+prod
+    (`alembic -x env=staging|prod upgrade head`) — gates §F prod promotion + the erasure/privacy text.
+  - **#83 — S16/S17.** Security headers + CORS `Retry-After` expose + `vercel.json` baseline CSP. CI
+    green; **owner sanity-checks the CSP `connect-src`** before it ships (feeds §C/§E web deploys).
+- **Owner follow-ups:** S2 env (`VITE_OAUTH_PROVIDERS`)/Apple, **S18** (stable Vercel alias — overlaps
+  §C), S20 (gate prod `/docs`).
+
+Net: staging is hardened on the path to **§E (CD arming)** → **§F (prod promotion)** → **M4**.
+
+---
+
 ## A. Watch it locally NOW (fast path, ~10 min) — staging Supabase + local servers · **Ben** · ✅ DONE 2026-06-28 (full loop green)
 
 The quickest way to *see and click* the real app today, before any deploy. Runs the real API +
