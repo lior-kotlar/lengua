@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lengua — Architecture</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --panel-3: #212a38;
+    --border: #2b3340;
+    --border-2: #3a4658;
+    --text: #e6edf3;
+    --muted: #9aa7b4;
+    --muted-2: #6e7b8a;
+    --accent: #6ea8fe;
+
+    --c-client: #79c0ff;
+    --c-backend: #7ee787;
+    --c-llm: #d2a8ff;
+    --c-data: #f0b860;
+    --c-obs: #56d4dd;
+    --c-cicd: #ff9f5a;
+    --c-test: #ff8ec5;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(1100px 620px at 88% -8%, #1b2a44 0%, rgba(27,42,68,0) 60%),
+      radial-gradient(900px 600px at -5% 10%, #261c3a 0%, rgba(38,28,58,0) 55%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text); overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  code, .mono { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  a { color: inherit; }
+
+  /* ── shell ────────────────────────────────────────────────────── */
+  .app { display: grid; grid-template-columns: 1fr 400px; height: 100vh; }
+  .left { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+  /* ── shared topbar ────────────────────────────────────────────── */
+  .topbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 15px 26px 13px; border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: baseline; gap: 11px; }
+  .brand .em { font-size: 23px; }
+  .brand h1 { font-size: 21px; margin: 0; letter-spacing: -.01em; }
+  .brand .sub { color: var(--muted); font-size: 13px; }
+  .viewswitch { display: inline-flex; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 3px; margin-left: auto; }
+  .viewswitch button { cursor: pointer; font: inherit; font-size: 12.5px; color: var(--muted); background: transparent; border: none;
+                       padding: 6px 15px; border-radius: 999px; transition: all .14s; }
+  .viewswitch button.on { color: #0e1116; background: var(--accent); font-weight: 600; }
+  .viewswitch button:not(.on):hover { color: var(--text); }
+
+  .views { position: relative; flex: 1; min-height: 0; }
+  .view { position: absolute; inset: 0; }
+  #view-map { overflow-y: auto; padding: 18px 30px 70px; display: none; }
+  #view-map.active { display: block; }
+  #view-graph { display: none; flex-direction: column; }
+  #view-graph.active { display: flex; }
+  #view-map::-webkit-scrollbar { width: 10px; }
+  #view-map::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9px; }
+
+  /* ── toolbar (shared by both views) ───────────────────────────── */
+  .toolbar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  #view-map .toolbar { margin: 4px 0 22px; }
+  #view-graph .toolbar { padding: 12px 22px 4px; }
+  .search { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+            padding: 8px 13px; font-size: 13.5px; width: 215px; outline: none; transition: border-color .15s, box-shadow .15s; }
+  .search::placeholder { color: var(--muted-2); }
+  .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(110,168,254,.18); }
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; }
+  .chip { cursor: pointer; user-select: none; font-size: 12px; color: var(--muted); background: var(--panel);
+          border: 1px solid var(--border); padding: 6px 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; transition: all .14s; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cat, var(--muted)); }
+  .chip:hover { border-color: var(--border-2); color: var(--text); }
+  .chip.active { color: var(--text); border-color: var(--cat, var(--accent)); background: color-mix(in srgb, var(--cat, var(--accent)) 15%, var(--panel)); }
+
+  /* ── MAP VIEW: swimlanes + node cards ─────────────────────────── */
+  .layer { position: relative; margin-bottom: 14px; }
+  .layer-head { display: flex; align-items: center; gap: 10px; margin: 0 0 11px; }
+  .layer-idx { width: 24px; height: 24px; border-radius: 7px; font-size: 12px; font-weight: 700; display: grid; place-items: center;
+               color: #0e1116; background: var(--cat, var(--accent)); box-shadow: 0 0 14px -2px var(--cat, var(--accent)); }
+  .layer-title { font-size: 14px; font-weight: 650; letter-spacing: .02em; }
+  .layer-desc { font-size: 12.5px; color: var(--muted-2); }
+  .nodes { display: flex; flex-wrap: wrap; gap: 11px; }
+  .node { cursor: pointer; text-align: left; position: relative; background: linear-gradient(180deg, var(--panel-2), var(--panel));
+          border: 1px solid var(--border); border-radius: 13px; padding: 13px 14px; width: 196px; color: var(--text); font: inherit;
+          transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease, opacity .18s ease; }
+  .node::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--cat, var(--accent)); }
+  .node:hover { transform: translateY(-3px); border-color: var(--cat, var(--border-2)); box-shadow: 0 12px 28px -16px var(--cat, #000), 0 2px 0 rgba(255,255,255,.02) inset; }
+  .node:focus-visible { outline: 2px solid var(--cat, var(--accent)); outline-offset: 2px; }
+  .node .n-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .node .ic { font-size: 16px; line-height: 1; filter: saturate(1.1); }
+  .node .n-title { font-size: 13.5px; font-weight: 640; letter-spacing: -.01em; }
+  .node .n-tag { font-size: 11.8px; color: var(--muted); line-height: 1.4; }
+  .node .n-badge { position: absolute; top: 10px; right: 11px; font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+                   color: var(--muted-2); border: 1px solid var(--border); padding: 2px 6px; border-radius: 5px; }
+  .node.planned { border-style: dashed; opacity: .82; }
+  .node.dimmed { opacity: .22; filter: saturate(.5); }
+  .node.selected { border-color: var(--cat, var(--accent)); box-shadow: 0 0 0 1px var(--cat, var(--accent)), 0 16px 34px -18px var(--cat, #000); transform: translateY(-3px); }
+  .node.related { border-color: var(--cat, var(--border-2)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--cat) 55%, transparent); }
+  .layer-flow { text-align: center; color: var(--border-2); font-size: 15px; margin: 2px 0 12px; letter-spacing: 6px; }
+  .credit { text-align: center; color: var(--muted-2); font-size: 11.5px; margin-top: 28px; }
+  .credit code { color: var(--muted); }
+
+  /* ── GRAPH VIEW: static svg network ───────────────────────────── */
+  .canvas { flex: 1; min-height: 0; position: relative; }
+  svg#graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .colhead { fill: var(--cat); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-anchor: middle; text-transform: uppercase; opacity: .9; }
+  .edge { fill: none; stroke: #46506173; stroke-width: 1.4; transition: stroke .15s, stroke-opacity .15s, stroke-width .15s; }
+  .edge.hot { stroke-width: 2.4; }
+  .edge.fade { stroke-opacity: .06; }
+  .gnode { cursor: pointer; }
+  .gnode .box { fill: #161d29; stroke: var(--cat); stroke-width: 1.6; transition: stroke-width .14s, fill .14s, filter .14s; }
+  .gnode .ico { font-size: 16px; dominant-baseline: central; pointer-events: none; user-select: none; }
+  .gnode .lbl { fill: var(--text); font-size: 12px; font-weight: 600; dominant-baseline: central; pointer-events: none; user-select: none; }
+  .gnode.planned .box { stroke-dasharray: 4 3; }
+  .gnode.planned .lbl { fill: var(--muted); }
+  .gnode:hover .box, .gnode.sel .box { stroke-width: 2.6; fill: #1b2433; }
+  .gnode.sel .box { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--cat) 60%, transparent)); }
+  .gnode.faded { opacity: .22; }
+  .hint-fade { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); color: var(--muted-2); font-size: 11.5px;
+               background: rgba(14,17,22,.7); border: 1px solid var(--border); padding: 5px 12px; border-radius: 999px; pointer-events: none; }
+
+  /* ── shared detail panel ──────────────────────────────────────── */
+  .aside { border-left: 1px solid var(--border); background: linear-gradient(180deg, rgba(28,35,48,.65), rgba(22,27,34,.92));
+           display: flex; flex-direction: column; height: 100vh; }
+  .aside-inner { padding: 22px 22px 26px; overflow-y: auto; flex: 1; }
+  .aside-inner::-webkit-scrollbar { width: 9px; }
+  .aside-inner::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9px; }
+  .d-empty { color: var(--muted); }
+  .d-empty h3 { color: var(--text); font-size: 16px; margin: 0 0 8px; }
+  .d-empty p { font-size: 13.5px; line-height: 1.55; margin: 0 0 12px; }
+  .d-empty .hint { font-size: 12.5px; color: var(--muted-2); border-left: 2px solid var(--border-2); padding-left: 11px; }
+  .d-empty .hint a { color: var(--accent); text-decoration: none; }
+  .legend { margin-top: 18px; display: grid; gap: 7px; }
+  .legend .lg { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); }
+  .legend .lg .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .detail { animation: fade .22s ease; position: relative; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .d-cat { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; color: var(--cat); }
+  .d-cat .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cat); }
+  .d-title { font-size: 21px; margin: 9px 0 3px; letter-spacing: -.01em; display: flex; align-items: center; gap: 9px; }
+  .d-title .ic { font-size: 22px; }
+  .d-sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .d-section { margin: 16px 0; }
+  .d-label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); margin: 0 0 8px; font-weight: 600; }
+  .d-charge { font-size: 14px; line-height: 1.62; color: var(--text); margin: 0; }
+  .d-charge strong { color: var(--cat); font-weight: 600; }
+  .tagrow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-size: 11.5px; color: var(--text); background: var(--panel-3); border: 1px solid var(--border); padding: 3px 9px; border-radius: 7px; }
+  .files { display: grid; gap: 5px; }
+  .file { font-size: 11.8px; color: var(--muted); background: rgba(255,255,255,.025); border: 1px solid var(--border); border-radius: 7px; padding: 6px 9px; word-break: break-all; }
+  .file b { color: var(--text); font-weight: 600; }
+  .conns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .conn { cursor: pointer; font: inherit; font-size: 11.8px; color: var(--muted); background: var(--panel); border: 1px solid var(--border);
+          border-radius: 999px; padding: 4px 11px 4px 8px; display: inline-flex; align-items: center; gap: 6px; transition: all .14s; }
+  .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cc, var(--muted)); }
+  .conn:hover { color: var(--text); border-color: var(--cc, var(--border-2)); transform: translateY(-1px); }
+  .d-close { position: absolute; top: -2px; right: 0; cursor: pointer; background: var(--panel); border: 1px solid var(--border);
+             color: var(--muted); width: 30px; height: 30px; border-radius: 8px; font-size: 15px; line-height: 1; transition: all .14s; }
+  .d-close:hover { color: var(--text); border-color: var(--border-2); }
+
+  /* ── responsive ───────────────────────────────────────────────── */
+  @media (max-width: 940px) {
+    .app { grid-template-columns: 1fr; }
+    .aside { position: fixed; inset: auto 0 0 0; height: 70vh; z-index: 40; border-left: none; border-top: 1px solid var(--border-2);
+             border-radius: 16px 16px 0 0; transform: translateY(100%); transition: transform .3s cubic-bezier(.2,.7,.2,1); box-shadow: 0 -20px 50px -20px #000; }
+    .aside.open { transform: translateY(0); }
+    .node { width: calc(50% - 6px); }
+  }
+  @media (max-width: 520px) { #view-map { padding: 16px 16px 60px; } .node { width: 100%; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="left">
+    <header class="topbar">
+      <div class="brand">
+        <span class="em">🗣️</span>
+        <h1>Lengua — Architecture</h1>
+        <span class="sub" id="view-sub">how the whole system fits together</span>
+      </div>
+      <nav class="viewswitch">
+        <button id="tab-map" class="on">◫ Layered map</button>
+        <button id="tab-graph">🕸 Software map</button>
+      </nav>
+    </header>
+
+    <div class="views">
+      <!-- ════════════ LAYERED MAP ════════════ -->
+      <section id="view-map" class="view active">
+        <div class="toolbar">
+          <input id="map-search" class="search" type="text" placeholder="Search components…" autocomplete="off" />
+          <div class="chips" id="map-chips"></div>
+        </div>
+        <div id="map-layers"></div>
+        <div class="credit">
+          One self-contained file · two views. Generated from <code>README.md</code>, <code>.github/workflows/</code> and the repo.
+        </div>
+      </section>
+
+      <!-- ════════════ SOFTWARE MAP ════════════ -->
+      <section id="view-graph" class="view">
+        <div class="toolbar">
+          <input id="graph-search" class="search" type="text" placeholder="Find a tool… (Enter)" autocomplete="off" />
+          <div class="chips" id="graph-chips"></div>
+        </div>
+        <div class="canvas">
+          <svg id="graph" preserveAspectRatio="xMidYMid meet">
+            <g id="graph-heads"></g>
+            <g id="graph-edges"></g>
+            <g id="graph-nodes"></g>
+          </svg>
+          <div class="hint-fade">Hover a tool to trace its links · click for what it is &amp; why it's here</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <aside class="aside" id="aside">
+    <div class="aside-inner" id="detail"></div>
+  </aside>
+</div>
+
+<script>
+const detailEl = document.getElementById("detail");
+const asideEl  = document.getElementById("aside");
+
+/* ═══════════════════════════════════════════════════════════════════
+   VIEW 1 — LAYERED MAP  (modules, routes, the full architecture)
+   ═══════════════════════════════════════════════════════════════════ */
+const MapView = (function () {
+  const CATS = {
+    client:   { label: "Client / Frontend", color: "var(--c-client)" },
+    backend:  { label: "Backend / API",     color: "var(--c-backend)" },
+    llm:      { label: "LLM Providers",     color: "var(--c-llm)" },
+    data:     { label: "Data / Auth",       color: "var(--c-data)" },
+    obs:      { label: "Observability",     color: "var(--c-obs)" },
+    cicd:     { label: "CI / CD & Hosting", color: "var(--c-cicd)" },
+  };
+  const LAYERS = [
+    { id:"clients", cat:"client",  idx:1, title:"Clients",            desc:"what the user touches" },
+    { id:"api",     cat:"backend", idx:2, title:"Backend · apps/api", desc:"FastAPI service + pure domain core" },
+    { id:"llm",     cat:"llm",     idx:3, title:"LLM Providers",      desc:"swappable behind one seam" },
+    { id:"data",    cat:"data",    idx:4, title:"Data & Auth",        desc:"Supabase Postgres, RLS, migrations" },
+    { id:"obs",     cat:"obs",     idx:5, title:"Observability",      desc:"traces, metrics, logs, errors, analytics" },
+    { id:"cicd",    cat:"cicd",    idx:6, title:"CI / CD & Hosting",  desc:"GitHub Actions → Cloud Run + Vercel" },
+  ];
+  const NODES = [
+    /* 1 · CLIENTS */
+    { id:"web", layer:"clients", cat:"client", title:"React Web App", icon:"💻", tag:"apps/web — the primary UI",
+      charge:"The user-facing single-page app. Owns every screen — <strong>Generate, Review, Discover, Settings, Account</strong>, auth (signup / login / reset / OAuth), language + CEFR management — plus RTL/diacritics rendering, shared loading/empty/error states, and the consent-gated analytics banner. Calls the backend <strong>exclusively</strong> through the typed API client; uses Supabase for auth only.",
+      tech:["React 18","TypeScript","Vite","Tailwind","shadcn/ui","TanStack Query","pnpm"],
+      files:["<b>apps/web/</b> — app shell, pages, components","apps/web/src/lib/api-client.ts — authed singleton","apps/web/src/lib/supabase — auth client"],
+      links:["api-types","supabase-auth","fastapi","posthog","sentry","vercel"] },
+    { id:"api-types", layer:"clients", cat:"client", title:"Typed API Client", icon:"🔌", tag:"packages/api-types",
+      charge:"The single contract between web and API. <strong>OpenAPI-generated TS types + an openapi-fetch client</strong> (createApiClient) plus <code>schemaLimits</code> runtime constants the types can't carry (e.g. the word cap). Two CI drift checks keep it locked to <code>apps/api/openapi.json</code>, so a backend route change that isn't regenerated fails the PR.",
+      tech:["openapi-fetch","OpenAPI","TypeScript","codegen"],
+      files:["<b>packages/api-types/</b>","packages/api-types/src/schema.ts (generated)","packages/api-types/src/constants.ts — schemaLimits"],
+      links:["web","fastapi","lint"] },
+    { id:"mobile", layer:"clients", cat:"client", title:"Mobile (Capacitor)", icon:"📱", planned:true, tag:"planned — Phase 7",
+      charge:"A future Capacitor wrapper of the React app for the App Store / Play Store. Already accounted for in the auth redirect allow-list (<code>capacitor://localhost</code>) and the <code>app.lengua://</code> deep-link scheme, but not built yet.",
+      tech:["Capacitor","iOS","Android"], files:["(Phase 7 — not yet in repo)"], links:["web","supabase-auth"] },
+    { id:"legacy", layer:"clients", cat:"client", title:"Legacy Streamlit", icon:"🧪", planned:true, tag:"apps/api/legacy_streamlit — deprecated",
+      charge:"The original single-user Streamlit app and its local SQLite store. Now at <strong>full feature parity</strong> with the React app, so it is deprecated — but kept runnable as a reference implementation and fallback until the React app ships to production.",
+      tech:["Streamlit","SQLite","Python"],
+      files:["<b>apps/api/legacy_streamlit/</b>","apps/api/legacy_streamlit/pages/ — Generate/Review/Discover/Settings","apps/api/data/lengua.db (git-ignored)"],
+      links:["core","scheduler"] },
+
+    /* 2 · BACKEND */
+    { id:"fastapi", layer:"api", cat:"backend", title:"FastAPI Service", icon:"⚡", tag:"app.main — the HTTP surface",
+      charge:"The web service that serves the whole <strong>Generate → Save → Review → Discover</strong> loop over HTTP. Fronts everything with a strict <strong>CORS allow-list</strong> and exposes only <code>GET /health</code> (liveness) and <code>GET /ready</code> (DB readiness) unauthenticated; every other route requires a verified token.",
+      tech:["FastAPI","Uvicorn","Python 3.12","uv","Pydantic"],
+      files:["<b>apps/api/app/main.py</b> — create_app()","apps/api/app/deps.py — get_db / current_user","apps/api/Dockerfile — multi-stage uv image"],
+      links:["routers","auth-dep","cost-guard","core","rls-session","cloud-run","api-types"] },
+    { id:"routers", layer:"api", cat:"backend", title:"API Endpoints", icon:"🛣️", tag:"the full-loop routes",
+      charge:"All HTTP endpoints: <code>/generate</code>, <code>/cards/save</code>, <code>/review/due</code>, <code>/review/{id}/grade</code>, <code>/discover</code> (+ <code>/accept</code>), <code>/explain</code>, <code>/languages</code>, <code>/proficiency</code>, <code>/settings</code>, <code>/me</code>, <code>/account/export</code> + <code>DELETE /account</code>, and the public <code>/feature-flags</code> map. Each is scoped to the authenticated user.",
+      tech:["FastAPI routers","REST","JWT-scoped"],
+      files:["apps/api/app/routers/ — one module per surface","apps/api/openapi.json — the checked-in contract"],
+      links:["fastapi","auth-dep","cost-guard","cards","scheduler","proficiency","feature-flags"] },
+    { id:"auth-dep", layer:"api", cat:"backend", title:"JWT Verification", icon:"🔑", tag:"current_user dependency",
+      charge:"Verifies a <strong>Supabase access token (JWT) on every request</strong> — checks signature, <code>exp</code> and <code>aud</code>, derives the user id from <code>sub</code>. <strong>HS256</strong> against <code>SUPABASE_JWT_SECRET</code> by default, or <strong>RS256/ES256</strong> via a configured <code>SUPABASE_JWKS_URL</code>. A missing/invalid token gets <code>401</code>.",
+      tech:["JWT","HS256 / RS256 / ES256","JWKS"],
+      files:["apps/api/app/auth.py — current_user dependency","(verifies tokens minted by Supabase Auth)"],
+      links:["supabase-auth","fastapi","rls-session"] },
+    { id:"cost-guard", layer:"api", cat:"backend", title:"LLM Cost Guard", icon:"🛡️", tag:"the zero-bill backstop",
+      charge:"A gate chain run before <em>every</em> LLM call, in order <strong>email-verified → rate-limit → daily-cap → global-budget</strong>; the earliest failure is returned. Adds a <strong>per-user rate limit</strong> (429 + Retry-After), <strong>per-kind daily caps</strong> + new-account day-0 guard, a <strong>request-size cap</strong> (422), <strong>Discover reuse cache</strong>, a process-wide <strong>concurrency cap</strong> (503 server_busy), transient-error backoff, and the <strong>global daily kill-switch</strong> that guarantees the shared key can never produce a bill. Caps count only successful calls; cached responses are free.",
+      tech:["rate limiting","quota caps","kill-switch","concurrency cap","backoff"],
+      files:["apps/api/app/quota.py — the 5-gate chain","apps/api/app/llm_runner.py — concurrency limiter","emits llm.call + quota.check spans (see Observability)"],
+      links:["llm-seam","routers","otel","feature-flags"] },
+    { id:"feature-flags", layer:"api", cat:"backend", title:"Feature Flags", icon:"🚩", tag:"ship dark, no redeploy",
+      charge:"Risky/new features hide behind a flag that defaults <strong>off</strong>, resolved from an env default (<code>FEATURE_*</code>) overlaid by a row in a <strong>global feature_flags table</strong>, cached in-process for a short TTL. Flip the row → flag changes for everyone within one TTL with <strong>no redeploy</strong>. Only the resolved PUBLIC map reaches the browser; users can never enable their own flags.",
+      tech:["env + DB overlay","TTL cache","kill-switch RLS"],
+      files:["apps/api/app/feature_flags.py","feature_flags table (server-only, deny-by-default RLS)"],
+      links:["routers","web","supabase-db"] },
+    { id:"rls-session", layer:"api", cat:"backend", title:"RLS DB Session", icon:"🧬", tag:"makes Postgres RLS bite",
+      charge:"Each request's DB session assumes the non-privileged <code>authenticated</code> role and publishes the caller's <code>request.jwt.claims</code> (<code>SET LOCAL ROLE</code> + <code>set_config</code>, re-applied per transaction) — so the Postgres RLS policies enforce tenant isolation a <strong>second</strong> time, on top of the app-layer <code>WHERE user_id = …</code>.",
+      tech:["SQLAlchemy","SET LOCAL ROLE","RLS"],
+      files:["apps/api/app/db/rls.py","wired through app/deps.get_db"],
+      links:["rls","auth-dep","fastapi","supabase-db"] },
+    { id:"core", layer:"api", cat:"backend", title:"lengua_core (domain)", icon:"🧠", tag:"pure, no DB / no web",
+      charge:"The <strong>pure domain core</strong> — no database, no web framework, so it's portable and unit-testable. Holds the CEFR/level tuning constants, the card models, and the building blocks below (cards, scheduler, proficiency, prompts, LLM seam). Both the FastAPI service and the legacy Streamlit app build on it.",
+      tech:["pure Python","unit-testable","portable"],
+      files:["<b>apps/api/lengua_core/</b>","lengua_core/config.py — LEVEL_DELTAS, weights","lengua_core/models.py — GeneratedCard / WordNote"],
+      links:["cards","scheduler","proficiency","prompts","llm-seam","fastapi","legacy"] },
+    { id:"cards", layer:"api", cat:"backend", title:"Card Builder", icon:"🃏", tag:"lengua_core/cards.py",
+      charge:"Pure card-building: turns <strong>one sentence into a recognition + production pair</strong> — a recognition card (read target → recall English) and a production card (read English → build target), each scheduled independently.",
+      tech:["pure functions","FSRS-ready"], files:["apps/api/lengua_core/cards.py"], links:["core","scheduler","routers"] },
+    { id:"scheduler", layer:"api", cat:"backend", title:"FSRS Scheduler", icon:"📅", tag:"lengua_core/scheduler.py",
+      charge:"Pure <strong>FSRS</strong> spaced-repetition: new-card state, today's due-batch selection (split new vs. due, bounded by the daily limits), and grading that reschedules each card on an <em>Again / Hard / Good / Easy</em> rating — so the daily batch stays fresh with no cron.",
+      tech:["FSRS","py-fsrs","spaced repetition"], files:["apps/api/lengua_core/scheduler.py"], links:["cards","proficiency","routers"] },
+    { id:"proficiency", layer:"api", cat:"backend", title:"CEFR Proficiency", icon:"📈", tag:"lengua_core/proficiency.py",
+      charge:"Pure CEFR scoring: bands (A1→C2), progress to the next band, and the <strong>review-driven nudges</strong> that move a learner's level — <em>Easy</em> nudges up, <em>Again/Hard</em> down, production cards weighted heavier, and only current-level cards count so old/easy backlog can't inflate the level.",
+      tech:["CEFR A1–C2","adaptive scoring"], files:["apps/api/lengua_core/proficiency.py","tuning: lengua_core/config.py"], links:["scheduler","prompts","routers"] },
+    { id:"prompts", layer:"api", cat:"backend", title:"Prompt Rules", icon:"📝", tag:"lengua_core/prompts.py",
+      charge:"The editable <code>RULES</code> list + output-format + level prompt that govern <em>how</em> sentences are written. Editing one entry reassembles the prompt automatically; the output shape (sentence / translation / used_words) is enforced separately by the provider schema, so rules only affect style.",
+      tech:["prompt engineering","structured output"], files:["apps/api/lengua_core/prompts.py — RULES","schema enforced in the provider wrapper"], links:["llm-seam","proficiency","gemini"] },
+    { id:"llm-seam", layer:"api", cat:"backend", title:"LLM Provider Seam", icon:"🔀", tag:"lengua_core/llm/",
+      charge:"The provider abstraction: a base protocol, a deterministic <strong>fake</strong>, and a selector chosen by <code>LLM_PROVIDER</code>. Words go in → cards come out, and tap-a-word explanations — without the rest of the app knowing which vendor answered. This is what lets dev/CI, prod and E2E use different providers with zero code change.",
+      tech:["provider protocol","selector","dependency seam"],
+      files:["apps/api/lengua_core/llm/ — base, providers, selector, retry, usage","get_provider() keyed on LLM_PROVIDER (groq default; fake for tests)"],
+      links:["groq","gemini","fake","cost-guard","prompts"] },
+
+    /* 3 · LLM PROVIDERS */
+    { id:"groq", layer:"llm", cat:"llm", title:"Groq (Llama 3.1 8B)", icon:"🟢", tag:"dev / CI default",
+      charge:"<code>llama-3.1-8b-instant</code> on Groq — the <strong>default provider for development and CI</strong> (<code>LLM_PROVIDER=groq</code>). Used on a free tier; the cost guard's global budget is deliberately set below the provider's free requests-per-day so the shared key can never bill.",
+      tech:["Groq","llama-3.1-8b-instant","free tier"], files:["selected via lengua_core/llm/","GROQ_API_KEY (server-only secret)"], links:["llm-seam","cost-guard"] },
+    { id:"gemini", layer:"llm", cat:"llm", title:"Google Gemini", icon:"✨", tag:"production provider",
+      charge:"<code>gemini-2.5-flash</code> — the <strong>production</strong> sentence generator. Wrapped to take words → structured cards (sentence / translation / used_words) and to answer tap-a-word explanations, with a max output-token cap so an answer can't balloon in cost.",
+      tech:["Gemini 2.5 Flash","structured output"], files:["apps/api/lengua_core/gemini.py — provider wrapper","GEMINI_API_KEY / GEMINI_MODEL"], links:["llm-seam","prompts","cost-guard"] },
+    { id:"fake", layer:"llm", cat:"llm", title:"FakeLLM", icon:"🎭", tag:"tests + E2E — zero real calls",
+      charge:"A <strong>deterministic, zero-I/O fake</strong> provider (<code>LLM_PROVIDER=fake</code>). Backend tests and the E2E suite run against it with no Groq/Gemini keys present, and a test-only route asserts <strong>zero real LLM calls</strong> — so the whole pipeline is exercised end-to-end without ever spending a token.",
+      tech:["deterministic","no network","E2E-safe"], files:["apps/api/lengua_core/llm/ — fake provider","apps/api/app/testing.py — /__test__/llm-calls counter"], links:["llm-seam","e2e","backend-tests"] },
+
+    /* 4 · DATA & AUTH */
+    { id:"supabase-db", layer:"data", cat:"data", title:"Supabase Postgres", icon:"🐘", tag:"the system of record",
+      charge:"The managed Postgres holding all per-user domain data (<strong>profiles, languages, cards, reviews, proficiency, user_settings</strong>), the cost-guard counters (<strong>llm_usage</strong> per-user/day, <strong>llm_budget</strong> global/day), and the operator-config <strong>feature_flags</strong> table. Every per-user table carries Row-Level Security; FSRS state is stored as JSON on each card. Supabase is the data store; auth flows through GoTrue alongside it.",
+      tech:["Postgres","Supabase","SQLAlchemy 2.0 (async)","asyncpg"],
+      files:["supabase/ — CLI config, initial migration, seed","tables: profiles · languages · cards · reviews · proficiency","user_settings · llm_usage · llm_budget · feature_flags"],
+      links:["rls","migrations","rls-session","feature-flags","supabase-auth"] },
+    { id:"rls", layer:"data", cat:"data", title:"Row-Level Security", icon:"🔒", tag:"tenant isolation, enforced twice",
+      charge:"Postgres RLS policies (<code>using (user_id = auth.uid())</code>; <code>profiles</code> keys on <code>id</code>) on every per-user table. Combined with the app-layer <code>WHERE user_id = …</code>, an app-code bug <strong>still cannot leak data across tenants</strong>. The <code>feature_flags</code> table is deny-by-default so a user can never flip a flag.",
+      tech:["RLS","auth.uid()","deny-by-default"], files:["supabase/migrations/… — policies","reproduced for the backend schema by Alembic 0003"], links:["supabase-db","rls-session","migrations"] },
+    { id:"migrations", layer:"data", cat:"data", title:"Migrations", icon:"🗃️", tag:"Supabase + Alembic",
+      charge:"Schema is versioned two ways kept in lockstep: the <strong>Supabase migrations</strong> (CLI, applied by <code>supabase start</code>) and <strong>Alembic</strong> revisions for the backend's own schema (<code>0002</code> = handle_new_user trigger, <code>0003</code> = RLS). Deploys run a discrete <code>alembic upgrade head</code> targeted by <code>-x env=staging|prod|local</code>.",
+      tech:["Alembic","Supabase CLI","versioned schema"], files:["supabase/migrations/","apps/api/ — Alembic revisions","docs/runbook.md — migration runbook"], links:["supabase-db","rls","cd-staging","cd-prod"] },
+    { id:"supabase-auth", layer:"data", cat:"data", title:"Supabase Auth", icon:"👤", tag:"GoTrue — identity",
+      charge:"Email/password signup with <strong>required email confirmation</strong> + a password policy, a post-auth <strong>redirect allow-list</strong>, and branded email templates. <strong>Google OAuth</strong> is scaffolded (inert until the owner supplies credentials); Apple is documented. A <code>handle_new_user</code> trigger auto-creates a <code>profiles</code> row on first signup. No anonymous mode.",
+      tech:["GoTrue","email confirm","Google OAuth","triggers"], files:["supabase/config.toml — version-controlled auth config","supabase/templates/ — branded emails","infra/supabase/oauth-setup.md"], links:["auth-dep","web","supabase-db","seed"] },
+    { id:"seed", layer:"data", cat:"data", title:"Seed & Import", icon:"🌱", tag:"fixtures + history import",
+      charge:"Scripts that populate accounts: <code>seed_dev_user.py</code> (local dev), <code>seed_e2e.py</code> (a pre-confirmed <strong>demo / reviewer account</strong> <code>demo@lengua.test</code> with a due Spanish deck — used by CI E2E and store review), and <code>import_sqlite.py</code> to bring the operator's legacy single-user history into a real account (idempotent, preserves FSRS state).",
+      tech:["Python scripts","Auth Admin API","idempotent"], files:["apps/api/scripts/seed_dev_user.py","apps/api/scripts/seed_e2e.py","apps/api/scripts/import_sqlite.py"], links:["supabase-auth","e2e","seed-staging","legacy"] },
+
+    /* 5 · OBSERVABILITY */
+    { id:"otel", layer:"obs", cat:"obs", title:"OpenTelemetry", icon:"🛰️", tag:"app/observability.py",
+      charge:"Instruments the API from day one: auto-instrumented <strong>traces</strong> (FastAPI / SQLAlchemy / httpx), one structured <strong>JSON access log</strong> per request stamped with <code>trace_id / span_id / user_id</code>, and <strong>cost + product metrics</strong> (<code>llm_calls_total</code>, <code>llm_cap_hits_total</code>, <code>llm_budget_remaining</code>, reviews/cards/signups). Every signal is tagged with service + environment. OTLP export is a <strong>no-op until an endpoint is set</strong> — zero egress in local/CI.",
+      tech:["OpenTelemetry","OTLP","spans + metrics + logs"], files:["apps/api/app/observability.py — tracing/metrics/logs setup","apps/api/app/llm_observability.py — llm.call / quota.check spans"], links:["grafana","cost-guard","fastapi"] },
+    { id:"grafana", layer:"obs", cat:"obs", title:"Grafana Cloud", icon:"📊", tag:"Tempo / Loki / Mimir",
+      charge:"The backend's telemetry destination over OTLP: <strong>Tempo</strong> for traces, <strong>Loki</strong> for logs (Cloud Run also ships the stdout JSON line straight to Loki), and <strong>Mimir</strong> for metrics. Per-environment <code>deployment.environment</code> resource attributes let dashboards filter staging vs. prod. Dashboards/alerts land in Phase 5.",
+      tech:["Grafana Cloud","Tempo","Loki","Mimir"], files:["configured purely via OTEL_* env vars","OTEL_EXPORTER_OTLP_ENDPOINT enables export"], links:["otel"] },
+    { id:"sentry", layer:"obs", cat:"obs", title:"Sentry", icon:"🚨", tag:"error tracking (api + web)",
+      charge:"Exception tracking on both sides, each with its <strong>own DSN</strong>: the backend stamps each issue with <code>user_id</code> + the active <code>trace_id</code> (so it links to the matching Tempo trace); the web SDK captures JS errors + Web Vitals. Like the OTLP exporters, Sentry initializes <strong>only when its DSN is set</strong> — local / CI / E2E load nothing.",
+      tech:["Sentry","DSN-gated","trace-linked"], files:["apps/api/app/error_tracking.py — SENTRY_DSN_API","apps/web/src/lib/error-tracking.ts — VITE_SENTRY_DSN_WEB"], links:["otel","web","fastapi"] },
+    { id:"posthog", layer:"obs", cat:"obs", title:"PostHog Analytics", icon:"📉", tag:"consent-gated product analytics",
+      charge:"<strong>EU-hosted, anonymized product analytics</strong> that loads <em>only</em> after the user explicitly opts in via the first-run consent banner (toggleable in Settings) and only when <code>VITE_POSTHOG_KEY</code> is configured. Nothing analytics-related loads or is sent otherwise.",
+      tech:["PostHog","EU-hosted","opt-in only"], files:["apps/web/ — consent banner + analytics init","VITE_POSTHOG_KEY"], links:["web"] },
+
+    /* 6 · CI/CD & HOSTING */
+    { id:"ci", layer:"cicd", cat:"cicd", title:"CI Gate", icon:"✅", tag:".github/workflows/ci.yml",
+      charge:"The blocking per-PR pipeline. Six <strong>required</strong> jobs must be green to merge — <strong>lint-and-types · backend-tests · frontend-tests · build · e2e · security</strong> — plus advisory a11y/perf + a coverage-delta comment. One in-flight run per ref; a new push cancels the previous.",
+      tech:["GitHub Actions","required checks","branch protection"], files:["<b>.github/workflows/ci.yml</b>","runs on every pull_request + push:main"], links:["lint","backend-tests","frontend-tests","build-job","e2e","security"] },
+    { id:"lint", layer:"cicd", cat:"cicd", title:"Lint + Types", icon:"🧹", tag:"ci job",
+      charge:"Static quality on both stacks: <strong>ruff</strong> + <strong>ruff format --check</strong> + <strong>mypy</strong> (api), and <strong>eslint</strong> + <strong>prettier --check</strong> + <strong>tsc --noEmit</strong> (web). Also regenerates <code>packages/api-types</code> from <code>openapi.json</code> and fails on any drift.",
+      tech:["ruff","mypy","eslint","prettier","tsc"], files:["ci.yml → lint-and-types job"], links:["ci","api-types"] },
+    { id:"backend-tests", layer:"cicd", cat:"cicd", title:"Backend Tests", icon:"🐍", tag:"ci job",
+      charge:"<strong>pytest</strong> with branch coverage and <code>fail-under=80</code>, against a throwaway Postgres — the local <strong>Supabase CLI stack</strong> (real DB + Auth + RLS + trigger). Runs with <code>LLM_PROVIDER=fake</code> and no LLM keys, so a real provider call is impossible.",
+      tech:["pytest","coverage ≥80%","Supabase CLI"], files:["ci.yml → backend-tests job","apps/api/tests/"], links:["ci","fake","supabase-db"] },
+    { id:"frontend-tests", layer:"cicd", cat:"cicd", title:"Frontend Tests", icon:"⚛️", tag:"ci job",
+      charge:"<strong>vitest</strong> with v8 coverage and <strong>80% line + branch thresholds</strong> enforced in <code>vite.config.ts</code>. Includes a bundle-safety unit test asserting no server-only secrets reach the client source.",
+      tech:["vitest","v8 coverage ≥80%"], files:["ci.yml → frontend-tests job","apps/web/src/**/*.test.ts(x)"], links:["ci","web"] },
+    { id:"build-job", layer:"cicd", cat:"cicd", title:"Build", icon:"📦", tag:"ci job",
+      charge:"Builds the shippable artifacts: the <strong>multi-stage uv Docker image</strong> (smoke-tested to honor <code>$PORT</code> and answer <code>/health</code> 200) and the <strong>production Vite bundle</strong> — then <strong>audits the bundle for leaked secrets</strong> (fails on any service-role / Groq / Gemini key or server-only env name in <code>dist/</code>). Both are uploaded so E2E runs the exact image + bundle.",
+      tech:["Docker Buildx","Vite build","secret audit"], files:["ci.yml → build job","apps/api/Dockerfile"], links:["ci","e2e","cloud-run","vercel"] },
+    { id:"e2e", layer:"cicd", cat:"cicd", title:"E2E (Playwright)", icon:"🎬", tag:"ci job — zero real LLM calls",
+      charge:"<strong>Playwright</strong> against an ephemeral full stack: the built API image + a stack-wired web bundle + a disposable Supabase Postgres seeded with the demo account. Runs with <code>LLM_PROVIDER=fake</code> and asserts <strong>0 → &gt;0</strong> on the test-only LLM-call counter — proving the seam is exercised with <strong>zero real Groq/Gemini requests</strong>.",
+      tech:["Playwright","ephemeral stack","retry-once"], files:["ci.yml → e2e job","apps/web/ — *.spec.ts","apps/api/app/testing.py"], links:["ci","fake","build-job","seed"] },
+    { id:"security", layer:"cicd", cat:"cicd", title:"Security Scan", icon:"🔍", tag:"ci job",
+      charge:"Dependency + secret scanning: <strong>pip-audit</strong> (api, strict, over uv-exported requirements), <strong>pnpm audit</strong> (web, fail on high+), and <strong>gitleaks</strong> secret scanning (full history on push, PR range on PRs) — fails the job on any detected secret.",
+      tech:["pip-audit","pnpm audit","gitleaks"], files:["ci.yml → security job"], links:["ci"] },
+    { id:"cd-staging", layer:"cicd", cat:"cicd", title:"Deploy · Staging", icon:"🚀", tag:"deploy-staging.yml",
+      charge:"On merge to <code>main</code>: build + push the API image to <strong>Artifact Registry</strong>, run a discrete <code>alembic upgrade head</code> against staging, deploy Cloud Run <strong>lengua-api-staging</strong>, deploy <strong>Vercel staging</strong>, then smoke-check. Gated off by default — every deploy job is <code>if: DEPLOY_ENABLED == 'true'</code>.",
+      tech:["GitHub Actions","Cloud Run","Vercel","Alembic"], files:["<b>.github/workflows/deploy-staging.yml</b>","DEPLOY_ENABLED repo variable"], links:["artifact-registry","cloud-run","vercel","migrations","cd-prod","seed-staging"] },
+    { id:"cd-prod", layer:"cicd", cat:"cicd", title:"Deploy · Prod", icon:"🏁", tag:"deploy-prod.yml — gated",
+      charge:"A separate, <strong>gated promotion</strong>: a <code>production</code>-environment approval → <strong>promote the exact staging-validated image digest</strong> to <strong>lengua-api-prod</strong>, run the gated prod migration, deploy Vercel production, smoke-check. A bad release rolls back in one command via <code>rollback.sh</code>.",
+      tech:["manual approval","digest promotion","Cloud Run"], files:["<b>.github/workflows/deploy-prod.yml</b>","infra/deploy/rollback.sh"], links:["cd-staging","cloud-run","vercel","rollback","migrations"] },
+    { id:"seed-staging", layer:"cicd", cat:"cicd", title:"Seed Staging", icon:"🪴", tag:"seed-staging.yml",
+      charge:"A workflow to seed the staging database (demo account + fixtures) so the staging environment is immediately exercisable after a deploy. Part of the go-live activation runbook.",
+      tech:["GitHub Actions","seed scripts"], files:[".github/workflows/seed-staging.yml","planning/go-live-activation.md"], links:["seed","cd-staging"] },
+    { id:"artifact-registry", layer:"cicd", cat:"cicd", title:"Artifact Registry", icon:"📥", tag:"GCP container registry",
+      charge:"Google Artifact Registry stores the built API container images. Staging pushes a new image; <strong>prod promotes the exact digest</strong> that passed staging — so the bits running in prod are byte-identical to what was validated.",
+      tech:["GCP","Artifact Registry","image digests"], files:["pushed by deploy-staging.yml","promoted by deploy-prod.yml"], links:["cd-staging","cd-prod","cloud-run"] },
+    { id:"cloud-run", layer:"cicd", cat:"cicd", title:"Cloud Run", icon:"☁️", tag:"hosts the API",
+      charge:"Google <strong>Cloud Run</strong> runs the containerized FastAPI service — <code>lengua-api-staging</code> and <code>lengua-api-prod</code>. Injects <code>$PORT</code> (the image's shell-form CMD honors it) and ships the stdout JSON access log to Loki.",
+      tech:["Cloud Run","serverless containers"], files:["target of deploy-staging / deploy-prod","apps/api/Dockerfile"], links:["fastapi","artifact-registry","cd-staging","cd-prod","grafana"] },
+    { id:"vercel", layer:"cicd", cat:"cicd", title:"Vercel", icon:"▲", tag:"hosts the web app",
+      charge:"<strong>Vercel</strong> hosts the React/Vite web bundle for staging and production, deployed from the same CD pipelines. Build-time <code>VITE_*</code> vars wire the bundle to the right API + Supabase + Sentry/PostHog endpoints per environment.",
+      tech:["Vercel","static SPA","VITE_ env"], files:["deployed by deploy-staging / deploy-prod","apps/web/ — Vite build"], links:["web","cd-staging","cd-prod"] },
+    { id:"deploy-gate", layer:"cicd", cat:"cicd", title:"DEPLOY_ENABLED Gate", icon:"🔘", tag:"CD off by default",
+      charge:"A single repo variable that gates <strong>every</strong> deploy job (<code>if: vars.DEPLOY_ENABLED == 'true'</code>). With it unset, the CD workflows are green no-ops — nothing deploys. The owner turns CD on with one <code>gh variable set</code> per the go-live runbook.",
+      tech:["repo variable","safe-by-default"], files:["planning/go-live-activation.md","gh variable set DEPLOY_ENABLED -b true"], links:["cd-staging","cd-prod"] },
+    { id:"rollback", layer:"cicd", cat:"cicd", title:"Rollback", icon:"⏪", tag:"infra/deploy/rollback.sh",
+      charge:"One-command rollback of a bad release — re-points Cloud Run at the previous good image revision. Documented alongside the deploy/migration steps in the runbook.",
+      tech:["bash","Cloud Run revisions"], files:["infra/deploy/rollback.sh","docs/runbook.md"], links:["cd-prod","cloud-run"] },
+  ];
+
+  const byId = Object.fromEntries(NODES.map(n => [n.id, n]));
+  const layersEl = document.getElementById("map-layers");
+  const chipsEl  = document.getElementById("map-chips");
+  const searchEl = document.getElementById("map-search");
+  let activeCats = new Set();
+
+  Object.entries(CATS).forEach(([key, c]) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.style.setProperty("--cat", c.color);
+    b.innerHTML = `<span class="dot"></span>${c.label}`;
+    b.onclick = () => { activeCats.has(key) ? activeCats.delete(key) : activeCats.add(key); b.classList.toggle("active"); applyFilter(); };
+    chipsEl.appendChild(b);
+  });
+
+  LAYERS.forEach((layer, li) => {
+    const c = CATS[layer.cat];
+    const sec = document.createElement("section");
+    sec.className = "layer"; sec.dataset.layer = layer.id; sec.style.setProperty("--cat", c.color);
+    const head = document.createElement("div");
+    head.className = "layer-head";
+    head.innerHTML = `<span class="layer-idx">${layer.idx}</span><span class="layer-title">${layer.title}</span><span class="layer-desc">— ${layer.desc}</span>`;
+    sec.appendChild(head);
+    const wrap = document.createElement("div"); wrap.className = "nodes";
+    NODES.filter(n => n.layer === layer.id).forEach(n => {
+      const card = document.createElement("button");
+      card.className = "node" + (n.planned ? " planned" : "");
+      card.dataset.id = n.id; card.style.setProperty("--cat", CATS[n.cat].color);
+      card.innerHTML = (n.planned ? `<span class="n-badge">planned</span>` : ``) +
+        `<div class="n-top"><span class="ic">${n.icon}</span><span class="n-title">${n.title}</span></div><div class="n-tag">${n.tag}</div>`;
+      card.onclick = () => select(n.id);
+      wrap.appendChild(card);
+    });
+    sec.appendChild(wrap); layersEl.appendChild(sec);
+    if (li < LAYERS.length - 1) { const f = document.createElement("div"); f.className = "layer-flow"; f.textContent = "▼"; layersEl.appendChild(f); }
+  });
+
+  function renderEmpty() {
+    document.querySelectorAll("#map-layers .node").forEach(el => el.classList.remove("selected","related","dimmed"));
+    const legend = Object.entries(CATS).map(([k,c]) => `<div class="lg"><span class="dot" style="background:${c.color}"></span>${c.label}</div>`).join("");
+    detailEl.innerHTML = `
+      <div class="d-empty">
+        <h3>Explore the architecture</h3>
+        <p>The full <b>Lengua</b> stack, top to bottom — clients → API → LLMs → data → observability → CI/CD &amp; hosting — down to individual modules and routes.</p>
+        <p><b>Click any block</b> to read what it's in charge of, the tech behind it, the files that own it, and what it connects to. Filter by layer with the chips, or search by name.</p>
+        <div class="hint">Prefer just the real tools &amp; services? Switch to the <a href="#" onclick="showView('graph');return false;">Software map</a> tab.</div>
+        <div class="legend">${legend}</div>
+      </div>`;
+  }
+  function select(id) {
+    const n = byId[id]; if (!n) return;
+    const related = new Set(n.links || []);
+    document.querySelectorAll("#map-layers .node").forEach(el => {
+      const nid = el.dataset.id;
+      el.classList.toggle("selected", nid === id);
+      el.classList.toggle("related", related.has(nid));
+      el.classList.toggle("dimmed", nid !== id && !related.has(nid));
+    });
+    const tech = (n.tech||[]).map(t => `<span class="tag">${t}</span>`).join("");
+    const files = (n.files||[]).map(f => `<div class="file mono">${f}</div>`).join("");
+    const conns = (n.links||[]).map(lid => { const t = byId[lid]; if (!t) return ""; return `<button class="conn" data-go="${lid}" style="--cc:${CATS[t.cat].color}"><span class="dot"></span>${t.title}</button>`; }).join("");
+    detailEl.innerHTML = `
+      <div class="detail" style="--cat:${CATS[n.cat].color}">
+        <button class="d-close" title="Close">✕</button>
+        <span class="d-cat"><span class="dot"></span>${CATS[n.cat].label}${n.planned ? " · planned" : ""}</span>
+        <h2 class="d-title"><span class="ic">${n.icon}</span>${n.title}</h2>
+        <p class="d-sub">${n.tag}</p>
+        <div class="d-section"><p class="d-label">Responsible for</p><p class="d-charge">${n.charge}</p></div>
+        ${tech ? `<div class="d-section"><p class="d-label">Key tech</p><div class="tagrow">${tech}</div></div>` : ""}
+        ${files ? `<div class="d-section"><p class="d-label">Files / paths</p><div class="files">${files}</div></div>` : ""}
+        ${conns ? `<div class="d-section"><p class="d-label">Connects to</p><div class="conns">${conns}</div></div>` : ""}
+      </div>`;
+    detailEl.querySelector(".d-close").onclick = renderEmpty;
+    detailEl.querySelectorAll(".conn").forEach(b => b.onclick = () => select(b.dataset.go));
+    asideEl.classList.add("open");
+    if (window.innerWidth <= 940) asideEl.scrollIntoView({ behavior: "smooth" });
+  }
+  function applyFilter() {
+    const q = (searchEl.value || "").trim().toLowerCase();
+    LAYERS.forEach(layer => {
+      const sec = layersEl.querySelector(`[data-layer="${layer.id}"]`);
+      let any = false;
+      sec.querySelectorAll(".node").forEach(card => {
+        const n = byId[card.dataset.id];
+        const ok = (activeCats.size === 0 || activeCats.has(n.cat)) &&
+          (!q || (n.title+" "+n.tag+" "+n.charge+" "+(n.tech||[]).join(" ")).toLowerCase().includes(q));
+        card.style.display = ok ? "" : "none"; if (ok) any = true;
+      });
+      sec.style.display = any ? "" : "none";
+      const f = sec.nextElementSibling;
+      if (f && f.classList.contains("layer-flow")) f.style.display = any ? "" : "none";
+    });
+  }
+  searchEl.addEventListener("input", applyFilter);
+  return { renderEmpty };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   VIEW 2 — SOFTWARE MAP  (real tools & services, static network)
+   ═══════════════════════════════════════════════════════════════════ */
+const GraphView = (function () {
+  const CATS = {
+    client:  { label: "Frontend",        color: "var(--c-client)" },
+    backend: { label: "Backend",         color: "var(--c-backend)" },
+    data:    { label: "Data & Auth",     color: "var(--c-data)" },
+    llm:     { label: "LLM",             color: "var(--c-llm)" },
+    obs:     { label: "Observability",   color: "var(--c-obs)" },
+    cicd:    { label: "CI/CD & Hosting", color: "var(--c-cicd)" },
+    test:    { label: "Testing",         color: "var(--c-test)" },
+  };
+  const COL_ORDER = ["client","backend","data","llm","obs","cicd","test"];
+  const NODES = [
+    { id:"react", cat:"client", icon:"⚛️", title:"React + Vite", full:"React + Vite", tag:"the web app UI",
+      why:"The component framework (React) and build tool (Vite) behind the entire user-facing app — Generate, Review, Discover, Settings, Account. <strong>Why:</strong> we needed a rich, interactive single-page app with instant dev reloads and a huge ecosystem; React renders the UI, Vite bundles and serves it.",
+      tech:["React 18","Vite","SPA","TypeScript"], links:["tailwind","tanstack","fastapi","gotrue","sentry","posthog","vercel","playwright","vitest","capacitor"] },
+    { id:"tailwind", cat:"client", icon:"🎨", title:"Tailwind + shadcn", full:"Tailwind CSS + shadcn/ui", tag:"styling & components",
+      why:"Utility-first CSS (Tailwind) plus an accessible component set (shadcn/ui on Radix). <strong>Why:</strong> consistent, themeable, accessible UI — including right-to-left scripts and diacritics — without hand-writing CSS or pulling in a heavy component framework.",
+      tech:["Tailwind CSS","shadcn/ui","Radix","RTL"], links:["react"] },
+    { id:"tanstack", cat:"client", icon:"🔁", title:"TanStack Query", full:"TanStack Query", tag:"server-state & caching",
+      why:"Manages all server data on the client — fetching, caching, retries, and loading/error states. <strong>Why:</strong> the UI must stay in sync with the API without hand-rolled fetch logic; TanStack Query gives every screen consistent caching and refetch behaviour.",
+      tech:["TanStack Query","caching","async state"], links:["react","fastapi"] },
+    { id:"capacitor", cat:"client", icon:"📱", title:"Capacitor", full:"Capacitor", tag:"native mobile · planned", planned:true,
+      why:"Wraps the same React app as native iOS/Android shells. <strong>Why:</strong> ship to the App Store / Play Store from one codebase instead of building separate native apps (Phase 7). Already accounted for in the auth redirect allow-list and deep-link scheme.",
+      tech:["Capacitor","iOS","Android"], links:["react","gotrue"] },
+
+    { id:"fastapi", cat:"backend", icon:"⚡", title:"FastAPI", full:"FastAPI (Python · Uvicorn)", tag:"the API service",
+      why:"The async Python web framework (served by Uvicorn, validated by Pydantic) that exposes the whole Generate→Save→Review→Discover loop over HTTP and enforces the cost guard + auth. <strong>Why:</strong> fast, async, type-driven, and it auto-generates the OpenAPI schema the web's typed client is built from.",
+      tech:["FastAPI","Uvicorn","Pydantic","Python 3.12","OpenAPI"], links:["react","tanstack","sqlalchemy","fsrs","groq","gemini","gotrue","otel","sentry","docker","cloudrun","pytest","playwright"] },
+    { id:"sqlalchemy", cat:"backend", icon:"🗄️", title:"SQLAlchemy", full:"SQLAlchemy + Alembic", tag:"ORM + migrations",
+      why:"The async ORM that maps Python objects to Postgres (via asyncpg), and Alembic which versions every schema change. <strong>Why:</strong> safe, typed database access and deterministic, reviewable migrations — including the RLS policies and triggers — so deploys upgrade the schema reliably.",
+      tech:["SQLAlchemy 2.0","Alembic","asyncpg"], links:["fastapi","postgres"] },
+    { id:"fsrs", cat:"backend", icon:"📅", title:"FSRS", full:"FSRS (py-fsrs)", tag:"spaced-repetition engine",
+      why:"The Free Spaced Repetition Scheduler library that picks each flashcard's next due date from your Again/Hard/Good/Easy rating. <strong>Why:</strong> this is the core learning algorithm — it keeps the daily review batch optimally spaced with no cron, maximising retention per minute studied.",
+      tech:["FSRS","py-fsrs","spaced repetition"], links:["fastapi"] },
+
+    { id:"supabase", cat:"data", icon:"🟩", title:"Supabase", full:"Supabase", tag:"managed Postgres + Auth platform",
+      why:"The managed platform that provides our Postgres database, the Auth service, and a local-dev/CI CLI stack. <strong>Why:</strong> one vendor gives us a production database, authentication, row-level-security primitives, and a reproducible local stack — so we don't run our own DB or identity infrastructure.",
+      tech:["Supabase","managed Postgres","RLS","CLI"], links:["postgres","gotrue","github"] },
+    { id:"postgres", cat:"data", icon:"🐘", title:"PostgreSQL", full:"PostgreSQL", tag:"the database",
+      why:"The relational database — the system of record for every user's languages, cards, reviews, proficiency, settings and the cost-guard counters. <strong>Why:</strong> rock-solid relational integrity plus <strong>Row-Level Security</strong>, which enforces per-user tenant isolation inside the database itself, not just in app code.",
+      tech:["PostgreSQL","Row-Level Security","JSONB"], links:["supabase","sqlalchemy"] },
+    { id:"gotrue", cat:"data", icon:"👤", title:"Supabase Auth", full:"Supabase Auth (GoTrue)", tag:"identity & JWTs",
+      why:"The authentication service handling signup, login, Google OAuth and email confirmation, and minting the JWT access tokens the API verifies on every request. <strong>Why:</strong> auth is security-critical and easy to get wrong — delegating it means we never store passwords, and the backend just verifies signed tokens.",
+      tech:["GoTrue","JWT","OAuth","email confirm"], links:["supabase","react","fastapi","capacitor"] },
+
+    { id:"groq", cat:"llm", icon:"🟢", title:"Groq · Llama 3.1", full:"Groq — Llama 3.1 8B", tag:"dev / CI provider",
+      why:"Ultra-fast hosted inference of Llama 3.1 8B — the <strong>default sentence/word generator for development and CI</strong>. <strong>Why:</strong> it's fast and has a free tier, and the cost guard's global budget is set below that free daily limit, so day-to-day building never risks a bill.",
+      tech:["Groq","llama-3.1-8b-instant","free tier"], links:["fastapi"] },
+    { id:"gemini", cat:"llm", icon:"✨", title:"Google Gemini", full:"Google Gemini", tag:"production provider",
+      why:"Gemini 2.5 Flash with schema-constrained (structured) output — the <strong>production</strong> generator of example sentences, translations and tap-a-word explanations. <strong>Why:</strong> strong language quality at low cost, and structured output guarantees the JSON shape the app expects without brittle parsing.",
+      tech:["Gemini 2.5 Flash","structured output"], links:["fastapi"] },
+
+    { id:"otel", cat:"obs", icon:"🛰️", title:"OpenTelemetry", full:"OpenTelemetry", tag:"instrumentation",
+      why:"The vendor-neutral standard that instruments the API with traces, cost/product metrics and structured logs, then exports them over OTLP. <strong>Why:</strong> one instrumentation layer that isn't tied to any vendor — we can point it at any backend, and it stays a no-op (zero egress) until an endpoint is configured.",
+      tech:["OpenTelemetry","OTLP","traces · metrics · logs"], links:["fastapi","grafana"] },
+    { id:"grafana", cat:"obs", icon:"📊", title:"Grafana Cloud", full:"Grafana Cloud", tag:"traces / logs / metrics",
+      why:"The observability backend — Tempo (traces), Loki (logs) and Mimir (metrics) with dashboards. <strong>Why:</strong> it's where OpenTelemetry data lands so we can debug a slow request, read logs per environment, and (in Phase 5) alert on the LLM cost-guard budget before it's exhausted.",
+      tech:["Grafana Cloud","Tempo","Loki","Mimir"], links:["otel"] },
+    { id:"sentry", cat:"obs", icon:"🚨", title:"Sentry", full:"Sentry", tag:"error tracking",
+      why:"Captures unhandled exceptions and performance data from both the backend and the browser (each with its own DSN), and links backend issues to the matching trace id. <strong>Why:</strong> when something breaks for a user we get the stack trace, the affected user, and a path straight to the trace — instead of guessing from logs.",
+      tech:["Sentry","error tracking","Web Vitals","DSN-gated"], links:["fastapi","react"] },
+    { id:"posthog", cat:"obs", icon:"📉", title:"PostHog", full:"PostHog", tag:"product analytics",
+      why:"EU-hosted product analytics for understanding which features get used. <strong>Why:</strong> to improve the app with real usage data — but privacy-first: it loads <em>only</em> after explicit, revocable user consent and only when a key is configured, so nothing is tracked by default.",
+      tech:["PostHog","EU-hosted","opt-in only"], links:["react"] },
+
+    { id:"github", cat:"cicd", icon:"🐙", title:"GitHub Actions", full:"GitHub Actions", tag:"CI/CD pipelines",
+      why:"The automation that runs on every pull request and merge. <strong>Why:</strong> it runs the blocking quality gate (lint, type-check, tests, build, E2E, security scans) so nothing broken merges, then runs the gated staging/production deploys — every change is verified and shipped straight from the repo.",
+      tech:["GitHub Actions",".github/workflows","required checks"], links:["docker","artifact","cloudrun","vercel","pytest","vitest","playwright","supabase"] },
+    { id:"docker", cat:"cicd", icon:"🐳", title:"Docker", full:"Docker", tag:"container image",
+      why:"Packages the FastAPI service into a reproducible multi-stage container image. <strong>Why:</strong> the exact same image runs in CI, staging and production — eliminating \"works on my machine\" and giving Cloud Run a single, portable artifact to run.",
+      tech:["Docker","multi-stage build","OCI image"], links:["fastapi","artifact","github"] },
+    { id:"artifact", cat:"cicd", icon:"📦", title:"Artifact Registry", full:"Google Artifact Registry", tag:"image registry",
+      why:"Google's container registry that stores the built API images. <strong>Why:</strong> staging pushes a new image and production <strong>promotes the exact digest</strong> that passed staging — so prod runs byte-identical bits to what was validated, never a fresh rebuild.",
+      tech:["Artifact Registry","GCP","image digests"], links:["docker","cloudrun","github"] },
+    { id:"cloudrun", cat:"cicd", icon:"☁️", title:"Cloud Run", full:"Google Cloud Run", tag:"API hosting",
+      why:"Serverless container hosting that runs the API image for staging and production. <strong>Why:</strong> it autoscales (down to zero), injects the port, and needs no servers to manage — ideal for a low-traffic, cost-sensitive app that must still scale on demand.",
+      tech:["Cloud Run","serverless containers","autoscaling"], links:["fastapi","artifact","github"] },
+    { id:"vercel", cat:"cicd", icon:"▲", title:"Vercel", full:"Vercel", tag:"web hosting / CDN",
+      why:"Builds and serves the React/Vite bundle on a global CDN, per environment. <strong>Why:</strong> zero-config static hosting with a preview URL on every pull request, so the frontend ships fast and reviewers can click a live build before merge.",
+      tech:["Vercel","CDN","preview deploys"], links:["react","github"] },
+
+    { id:"pytest", cat:"test", icon:"🐍", title:"pytest", full:"pytest", tag:"backend tests",
+      why:"The Python test framework running unit and integration tests against a real Supabase Postgres, gated at <strong>≥80% coverage</strong>. <strong>Why:</strong> the backend holds the money-sensitive cost guard and tenant-isolation logic — it must be proven correct (against a real DB, not mocks) before any merge.",
+      tech:["pytest","coverage ≥80%","integration"], links:["fastapi","github"] },
+    { id:"vitest", cat:"test", icon:"🧪", title:"Vitest", full:"Vitest", tag:"frontend tests",
+      why:"The Vite-native unit test runner for the web app, with ≥80% coverage thresholds and a bundle-safety check. <strong>Why:</strong> fast component/logic tests in the same toolchain as the build, plus an automated guard that no server secret can accidentally ship to the browser.",
+      tech:["Vitest","v8 coverage","jsdom"], links:["react","github"] },
+    { id:"playwright", cat:"test", icon:"🎭", title:"Playwright", full:"Playwright", tag:"end-to-end tests",
+      why:"Browser automation that drives the real web + API + database stack headlessly. <strong>Why:</strong> it proves the whole user loop actually works end-to-end — running against a deterministic fake LLM and asserting <strong>zero real LLM calls</strong>, so E2E is free and reproducible.",
+      tech:["Playwright","E2E","headless Chromium"], links:["react","fastapi","github"] },
+  ];
+
+  const VB_W = 1380, VB_H = 780;
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const byId = Object.fromEntries(NODES.map(n => [n.id, n]));
+  const svg = document.getElementById("graph");
+  svg.setAttribute("viewBox", `0 0 ${VB_W} ${VB_H}`);
+  const rootStyle = getComputedStyle(document.documentElement);
+  const resolve = v => { const m = /var\((--[\w-]+)\)/.exec(v); return m ? rootStyle.getPropertyValue(m[1]).trim() : v; };
+  const CAT_COLOR = Object.fromEntries(Object.entries(CATS).map(([k,c]) => [k, resolve(c.color)]));
+
+  const NW = 150, NH = 46, marginX = 52, topY = 92, botY = 56;
+  const colW = (VB_W - marginX*2) / COL_ORDER.length;
+  const pos = {};
+  COL_ORDER.forEach((cat, ci) => {
+    const cx = marginX + colW * (ci + 0.5);
+    const members = NODES.filter(n => n.cat === cat);
+    const step = (VB_H - topY - botY) / members.length;
+    members.forEach((n, i) => { pos[n.id] = { x: cx, y: topY + step * (i + 0.5) }; });
+  });
+
+  const headsG = document.getElementById("graph-heads");
+  COL_ORDER.forEach((cat, ci) => {
+    const t = document.createElementNS(SVGNS, "text");
+    t.setAttribute("class", "colhead"); t.setAttribute("x", marginX + colW * (ci + 0.5)); t.setAttribute("y", 50);
+    t.style.setProperty("--cat", CAT_COLOR[cat]); t.textContent = CATS[cat].label;
+    headsG.appendChild(t);
+  });
+
+  const edgeSet = new Set(); const EDGES = [];
+  NODES.forEach(n => (n.links||[]).forEach(t => {
+    if (!byId[t]) return; const key = [n.id, t].sort().join("|");
+    if (edgeSet.has(key)) return; edgeSet.add(key); EDGES.push({ a: n.id, b: t });
+  }));
+  const edgesG = document.getElementById("graph-edges");
+  const edgeEls = EDGES.map(e => {
+    const p = pos[e.a], q = pos[e.b], mx = (p.x + q.x) / 2;
+    const path = document.createElementNS(SVGNS, "path");
+    path.setAttribute("d", `M ${p.x} ${p.y} C ${mx} ${p.y}, ${mx} ${q.y}, ${q.x} ${q.y}`);
+    path.setAttribute("class", "edge"); path.dataset.a = e.a; path.dataset.b = e.b;
+    edgesG.appendChild(path); return path;
+  });
+
+  const nodesG = document.getElementById("graph-nodes");
+  const nodeEls = {};
+  NODES.forEach(n => {
+    const p = pos[n.id], col = CAT_COLOR[n.cat];
+    const g = document.createElementNS(SVGNS, "g");
+    g.setAttribute("class", "gnode" + (n.planned ? " planned" : ""));
+    g.setAttribute("transform", `translate(${p.x},${p.y})`);
+    g.style.setProperty("--cat", col); g.dataset.id = n.id;
+    const box = document.createElementNS(SVGNS, "rect");
+    box.setAttribute("class", "box"); box.setAttribute("x", -NW/2); box.setAttribute("y", -NH/2);
+    box.setAttribute("width", NW); box.setAttribute("height", NH); box.setAttribute("rx", 12);
+    const ico = document.createElementNS(SVGNS, "text");
+    ico.setAttribute("class", "ico"); ico.setAttribute("x", -NW/2 + 15); ico.setAttribute("y", 1); ico.textContent = n.icon;
+    const lbl = document.createElementNS(SVGNS, "text");
+    lbl.setAttribute("class", "lbl"); lbl.setAttribute("x", -NW/2 + 40); lbl.setAttribute("y", 1); lbl.textContent = n.title;
+    g.append(box, ico, lbl);
+    g.addEventListener("pointerenter", () => { if (selectedId == null) highlight(n.id, false); });
+    g.addEventListener("pointerleave", () => { if (selectedId == null) clearHi(); else highlight(selectedId, true); });
+    g.addEventListener("click", e => { e.stopPropagation(); select(n.id); });
+    nodesG.appendChild(g); nodeEls[n.id] = g;
+  });
+
+  function neighbors(id) { const s = new Set([id]); EDGES.forEach(e => { if (e.a===id) s.add(e.b); if (e.b===id) s.add(e.a); }); return s; }
+  function highlight(id, isSel) {
+    const nb = neighbors(id);
+    for (const nid in nodeEls) {
+      if (!visible(byId[nid].cat)) continue;
+      const g = nodeEls[nid];
+      g.classList.toggle("faded", !nb.has(nid));
+      g.classList.toggle("sel", isSel && nid === id);
+    }
+    edgeEls.forEach(p => { const inc = p.dataset.a===id || p.dataset.b===id; p.classList.toggle("hot", inc); p.classList.toggle("fade", !inc); });
+  }
+  function clearHi() { for (const nid in nodeEls) nodeEls[nid].classList.remove("faded","sel"); edgeEls.forEach(p => p.classList.remove("hot","fade")); }
+
+  let activeCats = new Set();
+  const visible = cat => activeCats.size === 0 || activeCats.has(cat);
+  const chipsEl = document.getElementById("graph-chips");
+  Object.entries(CATS).forEach(([key, c]) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.style.setProperty("--cat", c.color);
+    b.innerHTML = `<span class="dot"></span>${c.label}`;
+    b.onclick = () => { activeCats.has(key) ? activeCats.delete(key) : activeCats.add(key); b.classList.toggle("active"); applyFilter(); };
+    chipsEl.appendChild(b);
+  });
+  function applyFilter() {
+    for (const nid in nodeEls) nodeEls[nid].style.display = visible(byId[nid].cat) ? "" : "none";
+    edgeEls.forEach(p => { p.style.display = (visible(byId[p.dataset.a].cat) && visible(byId[p.dataset.b].cat)) ? "" : "none"; });
+    headsG.querySelectorAll("text").forEach((t, i) => t.style.opacity = visible(COL_ORDER[i]) ? "" : ".25");
+  }
+
+  let selectedId = null;
+  function renderEmpty() {
+    selectedId = null; clearHi();
+    const legend = Object.entries(CATS).map(([k,c]) => `<div class="lg"><span class="dot" style="background:${c.color}"></span>${c.label}</div>`).join("");
+    detailEl.innerHTML = `
+      <div class="d-empty">
+        <h3>The software behind Lengua</h3>
+        <p>Every box is a real tool or service we use; every line is a real dependency between them — grouped into the columns of the stack: frontend, backend, data, LLM, observability, hosting and testing.</p>
+        <p><b>Hover</b> a tool to trace what it connects to. <b>Click</b> it to read what it is and <em>why we added it</em>, at an architecture level. Use the chips to focus one part of the stack.</p>
+        <div class="hint">Want the internals — modules, routes, the cost-guard gate chain? Switch to the <a href="#" onclick="showView('map');return false;">Layered map</a> tab.</div>
+        <div class="legend">${legend}</div>
+      </div>`;
+  }
+  function select(id) {
+    const n = byId[id]; if (!n) return;
+    selectedId = id; highlight(id, true);
+    const tech = (n.tech||[]).map(t => `<span class="tag">${t}</span>`).join("");
+    const conns = (n.links||[]).map(lid => { const t = byId[lid]; if (!t) return ""; return `<button class="conn" data-go="${lid}" style="--cc:${CAT_COLOR[t.cat]}"><span class="dot"></span>${t.title}</button>`; }).join("");
+    detailEl.innerHTML = `
+      <div class="detail" style="--cat:${CATS[n.cat].color}">
+        <button class="d-close" title="Close">✕</button>
+        <span class="d-cat"><span class="dot"></span>${CATS[n.cat].label}${n.planned ? " · planned" : ""}</span>
+        <h2 class="d-title"><span class="ic">${n.icon}</span>${n.full || n.title}</h2>
+        <p class="d-sub">${n.tag}</p>
+        <div class="d-section"><p class="d-label">What it is &amp; why it's here</p><p class="d-charge">${n.why}</p></div>
+        ${tech ? `<div class="d-section"><p class="d-label">Tech</p><div class="tagrow">${tech}</div></div>` : ""}
+        ${conns ? `<div class="d-section"><p class="d-label">Connects to</p><div class="conns">${conns}</div></div>` : ""}
+      </div>`;
+    detailEl.querySelector(".d-close").onclick = renderEmpty;
+    detailEl.querySelectorAll(".conn").forEach(b => b.onclick = () => select(b.dataset.go));
+    asideEl.classList.add("open");
+    if (window.innerWidth <= 940) asideEl.scrollIntoView({ behavior: "smooth" });
+  }
+  const searchEl = document.getElementById("graph-search");
+  searchEl.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    const q = searchEl.value.trim().toLowerCase(); if (!q) return;
+    const hit = NODES.find(n => (n.title+" "+(n.full||"")+" "+n.tag+" "+(n.tech||[]).join(" ")).toLowerCase().includes(q));
+    if (hit) select(hit.id);
+  });
+  svg.addEventListener("click", (e) => {
+    // only clear when the click is on empty canvas, never when it lands on/near a node
+    if (!(e.target instanceof Element) || !e.target.closest(".gnode")) renderEmpty();
+  });
+  return { renderEmpty };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   TABS
+   ═══════════════════════════════════════════════════════════════════ */
+let current = "map";
+function showView(which) {
+  current = which;
+  document.getElementById("view-map").classList.toggle("active", which === "map");
+  document.getElementById("view-graph").classList.toggle("active", which === "graph");
+  document.getElementById("tab-map").classList.toggle("on", which === "map");
+  document.getElementById("tab-graph").classList.toggle("on", which === "graph");
+  document.getElementById("view-sub").textContent =
+    which === "map" ? "every layer, module and route" : "the real tools, and why we use them";
+  asideEl.classList.remove("open");
+  (which === "map" ? MapView : GraphView).renderEmpty();
+}
+document.getElementById("tab-map").onclick   = () => showView("map");
+document.getElementById("tab-graph").onclick = () => showView("graph");
+document.addEventListener("keydown", e => { if (e.key === "Escape") { (current === "map" ? MapView : GraphView).renderEmpty(); asideEl.classList.remove("open"); } });
+
+showView("map");
+</script>
+</body>
+</html>
