@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import unicodedata
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -35,7 +34,7 @@ from app.repositories.proficiency import ProficiencyRepository
 from app.services.errors import NotFoundError
 from lengua_core import cards as core_cards
 from lengua_core import proficiency, scheduler
-from lengua_core.cards import BuiltCard, bare_word
+from lengua_core.cards import BuiltCard
 from lengua_core.llm.base import LLMProvider
 
 if TYPE_CHECKING:
@@ -47,15 +46,13 @@ if TYPE_CHECKING:
 
 
 def _fold(token: str) -> str:
-    """Case- and diacritic-folded bare form of ``token`` for insensitive whole-word matching.
+    """Case- and diacritic-folded bare form of ``token`` (see :func:`lengua_core.cards.fold_word`).
 
-    Strips surrounding punctuation (:func:`~lengua_core.cards.bare_word`), decomposes to NFD and
-    drops combining marks (so diacritics and Arabic vowel marks don't block a match), then
-    case-folds — "Está", "esta", and "ESTÁ" all fold to ``esta``, and a vowelized surface matches
-    its bare vocabulary word. Returns ``""`` for an all-punctuation token (never matched).
+    Thin module-local alias so the existing call sites read unchanged; the implementation is shared
+    with Discover's vowelized known-word dedup so the two paths can never drift on what "the same
+    word" means.
     """
-    decomposed = unicodedata.normalize("NFD", bare_word(token))
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
+    return core_cards.fold_word(token)
 
 
 def _appears_as_run(sentence_tokens: list[str], needle: list[str]) -> bool:

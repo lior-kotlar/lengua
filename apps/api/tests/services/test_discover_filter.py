@@ -39,3 +39,27 @@ def test_non_positive_count_returns_empty() -> None:
 
 def test_all_known_returns_empty() -> None:
     assert _dedup_unknown(["Casa", "AGUA"], known=["casa", "agua"], count=5) == []
+
+
+def test_default_does_not_fold_diacritics_so_accents_stay_distinct() -> None:
+    # fold=False (the default, for non-vowelized scripts): diacritics are meaning-bearing, so the
+    # Spanish "está" (verb) is NOT treated as the known "esta" (demonstrative) — it survives as new.
+    assert _dedup_unknown(["está", "agua"], known=["esta"], count=5) == ["está", "agua"]
+
+
+def test_fold_drops_vowel_marked_variants_of_known_words() -> None:
+    # fold=True (a vowelized language): a known word and a differently-vowel-marked surface of it
+    # are the same word, so the marked suggestion is dropped rather than shown as new.
+    # Hebrew: niqqud-marked "שָׁלוֹם" vs bare known "שלום".
+    assert _dedup_unknown(["שָׁלוֹם", "תודה"], known=["שלום"], count=5, fold=True) == ["תודה"]
+    # Arabic: harakat-marked "مَدْرَسَة" vs bare known "مدرسة".
+    assert _dedup_unknown(["مَدْرَسَة", "كتاب"], known=["مدرسة"], count=5, fold=True) == ["كتاب"]
+
+
+def test_fold_dedups_vowel_marked_duplicates_among_suggestions() -> None:
+    # Two surfaces of the same vowelized word collapse to one (first spelling wins), like the
+    # case-insensitive dedup but across vowel marks.
+    assert _dedup_unknown(["שָׁלוֹם", "שלום", "תודה"], known=[], count=5, fold=True) == [
+        "שָׁלוֹם",
+        "תודה",
+    ]

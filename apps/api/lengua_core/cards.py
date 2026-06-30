@@ -11,6 +11,7 @@ It is **pure**: no database, no FSRS, no I/O.
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 
 from .models import GeneratedCard
@@ -21,6 +22,7 @@ __all__ = [
     "STRIP_CHARS",
     "BuiltCard",
     "bare_word",
+    "fold_word",
     "build_cards",
 ]
 
@@ -37,6 +39,22 @@ STRIP_CHARS = ".,!?؟،؛:;\"'«»…()[]"
 def bare_word(token: str) -> str:
     """The word with surrounding punctuation stripped (diacritics kept)."""
     return token.strip(STRIP_CHARS)
+
+
+def fold_word(token: str) -> str:
+    """Case- and diacritic-folded bare form of ``token`` for insensitive whole-word matching.
+
+    Strips surrounding punctuation (:func:`bare_word`), decomposes to NFD and drops combining marks
+    (so accents and Arabic/Hebrew vowel marks don't block a match), then case-folds — ``"Está"``,
+    ``"esta"`` and ``"ESTÁ"`` all fold to ``esta``, and a vowel-marked surface folds to its bare
+    consonant skeleton. Returns ``""`` for an all-punctuation token (never matched).
+
+    **Diacritics are meaning-bearing in some scripts** (Spanish ``"esta"`` vs ``"está"`` are
+    different words), so callers fold only where a diacritic/vowel-mark variant denotes the *same*
+    word — e.g. bare-vs-niqqud Hebrew or bare-vs-harakat Arabic — not as a blanket normalisation.
+    """
+    decomposed = unicodedata.normalize("NFD", bare_word(token))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
 
 
 @dataclass(frozen=True)
@@ -63,9 +81,7 @@ def build_cards(card: GeneratedCard, *, gen_level: float | None = None) -> list[
     two cards: ``[recognition, production]``.
     """
     # Notes are keyed by bare word so the review page can look them up.
-    notes = (
-        {bare_word(n.word): n.note for n in card.word_notes} if card.word_notes else None
-    )
+    notes = {bare_word(n.word): n.note for n in card.word_notes} if card.word_notes else None
     return [
         BuiltCard(
             direction=RECOGNITION,

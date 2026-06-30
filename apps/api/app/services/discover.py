@@ -43,6 +43,7 @@ from app.repositories.proficiency import ProficiencyRepository
 from app.services.errors import NotFoundError
 from app.services.generate import GenerateService
 from lengua_core import proficiency
+from lengua_core.cards import fold_word
 from lengua_core.llm.base import LLMProvider
 
 if TYPE_CHECKING:
@@ -63,7 +64,9 @@ if TYPE_CHECKING:
 _SUGGEST_OVER_REQUEST = 5
 
 
-def _dedup_unknown(words: list[str], known: list[str], *, count: int) -> list[str]:
+def _dedup_unknown(
+    words: list[str], known: list[str], *, count: int, fold: bool = False
+) -> list[str]:
     """Return up to ``count`` trimmed suggestions, dropping known or repeated words.
 
     Matching is **case-insensitive** on both axes — ``"Casa"`` is dropped when ``"casa"`` is already
@@ -72,20 +75,29 @@ def _dedup_unknown(words: list[str], known: list[str], *, count: int) -> list[st
     service-layer guard *behind* the generation prompt: the prompt merely *asks* the model to drop
     vocabulary the learner already has, and this *enforces* it (finding S15), trimming to ``count``
     only after the bad words are gone (so dropped words don't eat into the requested size).
+
+    ``fold`` additionally folds **diacritics/vowel marks** (via :func:`lengua_core.cards.fold_word`,
+    the same fold the Generate path uses for ``used_words``), so for a **vowelized** language a
+    known word and a differently-vowel-marked surface of it count as the same word — e.g. a
+    bare-vs-niqqud Hebrew or bare-vs-harakat Arabic suggestion of a word already in the deck is
+    dropped, not shown as new. It is **off by default** because in non-vowelized scripts diacritics
+    are meaning-bearing (Spanish ``"esta"`` vs ``"está"`` are different words), so folding there
+    would wrongly suppress a genuinely new word. The caller passes ``fold=language.vowelized``.
     """
     if count <= 0:
         return []
-    known_lower = {w.strip().lower() for w in known}
+    norm = fold_word if fold else str.lower
+    known_norm = {n for w in known if (n := norm(w.strip()))}
     seen: set[str] = set()
     result: list[str] = []
     for word in words:
         bare = word.strip()
         if not bare:
             continue
-        lowered = bare.lower()
-        if lowered in known_lower or lowered in seen:
+        key = norm(bare)
+        if not key or key in known_norm or key in seen:
             continue
-        seen.add(lowered)
+        seen.add(key)
         result.append(bare)
         if len(result) >= count:
             break
@@ -142,8 +154,10 @@ class DiscoverService:
 
         **Known-word + dedup guard (finding S15).** The provider is over-requested by a small
         buffer, then :func:`_dedup_unknown` drops anything the learner already knows (matched
-        case-insensitively, not just via the prompt) and any duplicates before trimming to ``count``
-        — defence in depth behind the generation prompt for weaker dev models.
+        case-insensitively — and, for a **vowelized** language, diacritic-/vowel-mark-insensitively,
+        so a bare-vs-marked surface of a known word doesn't slip through as new) and any duplicates
+        before trimming to ``count`` — defence in depth behind the generation prompt for weaker dev
+        models.
         """
         language = await self._languages.get(user_id, language_id)
         if language is None:
@@ -181,7 +195,9 @@ class DiscoverService:
             kind=guard.kind if guard is not None else None,
         )
         # Enforce the prompt's "exclude known vocabulary" instruction in code, dedup, trim (S15).
-        suggestions = _dedup_unknown(raw, known, count=count)
+        # Fold diacritics/vowel marks for a vowelized language so a known word's differently-marked
+        # surface isn't re-suggested as new (matches the Generate path's used_words folding).
+        suggestions = _dedup_unknown(raw, known, count=count, fold=language.vowelized)
         # Count the successful spend, then memoise the preview for the reuse window — but never
         # cache an *empty* preview (S8): the next request should retry, not be stuck on "no words".
         if guard is not None:

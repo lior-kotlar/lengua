@@ -71,3 +71,16 @@ def test_bare_word_strips_surrounding_punctuation_keeping_diacritics() -> None:
     assert cards.bare_word("(test)") == "test"
     # Arabic diacritics are kept; only the trailing punctuation mark is stripped.
     assert cards.bare_word("بَيْت،") == "بَيْت"
+
+
+def test_fold_word_is_case_and_diacritic_insensitive() -> None:
+    # Case + Latin accents fold together: all three are the same folded form.
+    assert cards.fold_word("Está") == cards.fold_word("esta") == cards.fold_word("ESTÁ") == "esta"
+    # Surrounding punctuation is stripped before folding.
+    assert cards.fold_word("«Está».") == "esta"
+    # A vowel-marked (niqqud) Hebrew surface folds to its bare consonant skeleton.
+    assert cards.fold_word("שָׁלוֹם") == cards.fold_word("שלום")
+    # An Arabic harakat-marked surface folds to its bare form.
+    assert cards.fold_word("مَدْرَسَة") == cards.fold_word("مدرسة")
+    # An all-punctuation token folds to empty (never matches anything).
+    assert cards.fold_word("...") == ""
