@@ -9,5 +9,10 @@
   },
   "scripts": {
     "gen:api": "pnpm --filter api-types generate"
+  },
+  "pnpm": {
+    "overrides": {
+      "js-yaml@<4.2.0": "^4.2.0"
+    }
   }
 }
