@@ -114,8 +114,9 @@ describe('useDiscover', () => {
       topic: 'food',
     });
 
+    // A normal discover always sends fresh:false (the contract types the field required).
     expect(post).toHaveBeenCalledWith('/discover', {
-      body: { language_id: 3, count: 5, topic: 'food' },
+      body: { language_id: 3, count: 5, topic: 'food', fresh: false },
     });
     expect(out).toEqual(['house', 'water']);
   });
@@ -128,7 +129,24 @@ describe('useDiscover', () => {
 
     await result.current.mutateAsync({ languageId: 1, count: 3, topic: null });
     expect(post).toHaveBeenCalledWith('/discover', {
-      body: { language_id: 1, count: 3, topic: null },
+      body: { language_id: 1, count: 3, topic: null, fresh: false },
+    });
+  });
+
+  it('sends fresh:true on an explicit reroll (bypasses the backend reuse cache — S8)', async () => {
+    post.mockReturnValue(ok({ words: ['music', 'river'] }));
+    const { result } = renderHook(() => useDiscover(), {
+      wrapper: makeWrapper(),
+    });
+
+    await result.current.mutateAsync({
+      languageId: 3,
+      count: 5,
+      topic: 'food',
+      fresh: true,
+    });
+    expect(post).toHaveBeenCalledWith('/discover', {
+      body: { language_id: 3, count: 5, topic: 'food', fresh: true },
     });
   });
 

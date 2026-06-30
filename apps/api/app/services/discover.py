@@ -55,6 +55,43 @@ if TYPE_CHECKING:
     from app.quota import QuotaGuard
 
 
+#: Extra candidate words to ask the provider for beyond the learner-facing ``count`` so that, after
+#: dropping any already-known or duplicate suggestions a weak model may still surface (finding S15),
+#: there are still enough genuinely-new words to fill ``count``. Kept small — the suggestion token
+#: budget is modest and over-requesting only needs to absorb the occasional bad word, not double the
+#: ask (``count`` itself is capped at 20 by the DTO, so the provider is never asked for many).
+_SUGGEST_OVER_REQUEST = 5
+
+
+def _dedup_unknown(words: list[str], known: list[str], *, count: int) -> list[str]:
+    """Return up to ``count`` trimmed suggestions, dropping known or repeated words.
+
+    Matching is **case-insensitive** on both axes — ``"Casa"`` is dropped when ``"casa"`` is already
+    known, and ``"Agua"``/``"agua"`` collapse to a single entry — blank entries are skipped, and the
+    first spelling of each kept word wins so the provider's ranking survives. This is the
+    service-layer guard *behind* the generation prompt: the prompt merely *asks* the model to drop
+    vocabulary the learner already has, and this *enforces* it (finding S15), trimming to ``count``
+    only after the bad words are gone (so dropped words don't eat into the requested size).
+    """
+    if count <= 0:
+        return []
+    known_lower = {w.strip().lower() for w in known}
+    seen: set[str] = set()
+    result: list[str] = []
+    for word in words:
+        bare = word.strip()
+        if not bare:
+            continue
+        lowered = bare.lower()
+        if lowered in known_lower or lowered in seen:
+            continue
+        seen.add(lowered)
+        result.append(bare)
+        if len(result) >= count:
+            break
+    return result
+
+
 class DiscoverService:
     """Suggest new words for a learner and turn accepted ones into cards."""
 
@@ -83,6 +120,7 @@ class DiscoverService:
         *,
         count: int = 5,
         topic: str | None = None,
+        fresh: bool = False,
         guard: QuotaGuard | None = None,
     ) -> list[str]:
         """Return up to ``count`` new words for the learner (excludes already-known vocabulary).
@@ -95,41 +133,61 @@ class DiscoverService:
         therefore enforced (via ``guard.check``) and counted (via ``guard.record_success``) **only
         on a cache miss**, the same cache-aware shape ``ExplainService`` uses. The language check
         runs first (and unconditionally) so an unknown language is a 404 even on a cache hit.
+
+        **Reroll bypass + never-cache-empty (finding S8).** ``fresh=True`` is an *explicit reroll*:
+        it skips the reuse lookup so an unchanged request returns a freshly generated (and so billed
+        + counted) set rather than replaying the identical cached preview. And an **empty** preview
+        is never cached — a transient "no words" must not pin emptiness for the whole window; the
+        next request retries the provider.
+
+        **Known-word + dedup guard (finding S15).** The provider is over-requested by a small
+        buffer, then :func:`_dedup_unknown` drops anything the learner already knows (matched
+        case-insensitively, not just via the prompt) and any duplicates before trimming to ``count``
+        — defence in depth behind the generation prompt for weaker dev models.
         """
         language = await self._languages.get(user_id, language_id)
         if language is None:
             raise NotFoundError(f"Language {language_id} not found.")
 
         key = DiscoverKey(user_id=user_id, language_id=language_id, topic=topic, count=count)
-        cached = self._cache.get(key)
-        if cached is not None:
-            # Reuse hit: prior preview, no provider call, no gate, no increment — it is free.
-            return cached
+        # A normal request reuses a fresh-enough preview (free: no provider call, no gate/count). An
+        # explicit reroll (``fresh``) skips the lookup so it can't replay the identical words (S8).
+        if not fresh:
+            cached = self._cache.get(key)
+            if cached is not None:
+                return cached
 
-        # Cache miss: this WILL call the provider, so gate the per-user daily cap first (429 if at).
+        # Cache miss (or a forced reroll): this WILL call the provider, so gate the per-user daily
+        # cap first (429 if at).
         if guard is not None:
             await guard.check()
 
         score = await self._proficiency.get_score(user_id, language_id)
         band: str = proficiency.band_for_score(score)
         known = await self._cards.known_words(user_id, language_id)
-        # Blocking provider call under the global concurrency cap (3.5.1); ``run_provider`` stamps
-        # the ``llm.*`` attributes on the guard's per-call span (3.8.1 / 5.2.1) and counts tokens
-        # (5.2.4). ``input_size`` for discover is the requested word count.
-        suggestions: list[str] = await run_provider(
+        # Over-request a small buffer (S15) so dropping known/duplicate words still leaves ``count``
+        # genuinely-new ones. Blocking provider call under the global concurrency cap (3.5.1);
+        # ``run_provider`` stamps the ``llm.*`` attributes on the guard's per-call span (3.8.1 /
+        # 5.2.1) and counts tokens (5.2.4). ``input_size`` is the learner-facing requested count.
+        provider_count = count + _SUGGEST_OVER_REQUEST
+        raw: list[str] = await run_provider(
             self._limiter,
             self._provider,
             guard.span if guard is not None else None,
             lambda: self._provider.suggest_new_words(
-                language.name, band, known, count=count, topic=topic
+                language.name, band, known, count=provider_count, topic=topic
             ),
             input_size=count,
             kind=guard.kind if guard is not None else None,
         )
-        # Count the successful spend, then memoise the preview for the reuse window.
+        # Enforce the prompt's "exclude known vocabulary" instruction in code, dedup, trim (S15).
+        suggestions = _dedup_unknown(raw, known, count=count)
+        # Count the successful spend, then memoise the preview for the reuse window — but never
+        # cache an *empty* preview (S8): the next request should retry, not be stuck on "no words".
         if guard is not None:
             await guard.record_success()
-        self._cache.put(key, suggestions)
+        if suggestions:
+            self._cache.put(key, suggestions)
         return suggestions
 
     async def accept(

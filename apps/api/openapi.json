@@ -311,6 +311,11 @@
             "title": "Count",
             "type": "integer"
           },
+          "fresh": {
+            "default": false,
+            "title": "Fresh",
+            "type": "boolean"
+          },
           "language_id": {
             "title": "Language Id",
             "type": "integer"
@@ -1152,7 +1157,7 @@
     },
     "/discover": {
       "post": {
-        "description": "Preview new words at the learner's level, excluding vocabulary they already know.\n\nCache-aware (task 3.6.3): a repeat for the same ``(language, topic, count)`` within the reuse\nwindow is served from ``cache`` — no provider call, no gate, no count. The ``guard`` is handed\nto the service so the per-user daily ``discover`` cap is enforced (and counted) only on a cache\nmiss, where the provider call runs under the global concurrency cap (``limiter``).",
+        "description": "Preview new words at the learner's level, excluding vocabulary they already know.\n\nCache-aware (task 3.6.3): a repeat for the same ``(language, topic, count)`` within the reuse\nwindow is served from ``cache`` — no provider call, no gate, no count. The ``guard`` is handed\nto the service so the per-user daily ``discover`` cap is enforced (and counted) only on a cache\nmiss, where the provider call runs under the global concurrency cap (``limiter``). An explicit\nreroll (``body.fresh``) bypasses the cache so it returns a freshly generated, counted set rather\nthan replaying the identical cached preview (finding S8).",
         "operationId": "discover_discover_post",
         "requestBody": {
           "content": {

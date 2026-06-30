@@ -147,13 +147,18 @@ function DiscoverSession({
     Number(count) >= DISCOVER_COUNT_MIN &&
     Number(count) <= DISCOVER_COUNT_MAX;
 
-  function runDiscover() {
+  // `fresh` marks an explicit reroll: it tells the backend to bypass its short-window reuse cache so
+  // a repeat with the unchanged count/topic returns a genuinely new set instead of replaying the
+  // cached preview (finding S8). The initial form submit leaves it false so an immediate exact
+  // repeat can still be served for free.
+  function runDiscover(fresh = false) {
     const topicValue = topic.trim() === '' ? null : topic.trim();
     discover.mutate(
       {
         languageId,
         count: clampDiscoverCount(Number(count)),
         topic: topicValue,
+        fresh,
       },
       { onSuccess: (words) => setSuggested(words) },
     );
@@ -165,6 +170,11 @@ function DiscoverSession({
       return;
     }
     runDiscover();
+  }
+
+  /** Reroll: re-run the same request but bypass the reuse cache for a fresh set (finding S8). */
+  function reroll() {
+    runDiscover(true);
   }
 
   /** Accept the suggested words: hand them to the Generate flow (group 4.5), don't save here. */
@@ -202,7 +212,7 @@ function DiscoverSession({
           showVowels={showVowels}
           isRerolling={discover.isPending}
           onAccept={handleAccept}
-          onReroll={runDiscover}
+          onReroll={reroll}
           onStartOver={startOver}
         />
       )}

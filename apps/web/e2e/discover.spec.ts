@@ -5,10 +5,12 @@ import { expect, test, type Page } from './fixtures';
  * (Supabase + the API container with LLM_PROVIDER=fake). The deterministic FakeLLM walks a fixed
  * English vocabulary pool (skipping words the learner already knows), so the real-stack preview is
  * stable. Reroll + accept + the quota-429 path are stubbed at the BROWSER boundary so the assertions
- * are deterministic — the FakeLLM (and the backend's short-window reuse cache) would otherwise return
- * the SAME words for an identical reroll, and the server LLM seam is never reached for the stubbed
- * cases. The zero-real-LLM guarantee holds: the API container has no Groq/Gemini keys (CI asserts the
- * FakeLLM counter separately). Gated on E2E_STACK=1 like the other authed flows.
+ * are deterministic — a reroll now bypasses the backend reuse cache (finding S8), but the FakeLLM is
+ * a pure function of the unchanged known-vocabulary, so it still yields the SAME words for an
+ * identical reroll; stubbing lets the test observe a genuinely NEW set, and the server LLM seam is
+ * never reached for the stubbed cases. The zero-real-LLM guarantee holds: the API container has no
+ * Groq/Gemini keys (CI asserts the FakeLLM counter separately). Gated on E2E_STACK=1 like the other
+ * authed flows.
  */
 
 const DEMO_EMAIL = 'demo@lengua.test';

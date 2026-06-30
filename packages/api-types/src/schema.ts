@@ -80,7 +80,9 @@ export interface paths {
          *     Cache-aware (task 3.6.3): a repeat for the same ``(language, topic, count)`` within the reuse
          *     window is served from ``cache`` — no provider call, no gate, no count. The ``guard`` is handed
          *     to the service so the per-user daily ``discover`` cap is enforced (and counted) only on a cache
-         *     miss, where the provider call runs under the global concurrency cap (``limiter``).
+         *     miss, where the provider call runs under the global concurrency cap (``limiter``). An explicit
+         *     reroll (``body.fresh``) bypasses the cache so it returns a freshly generated, counted set rather
+         *     than replaying the identical cached preview (finding S8).
          */
         post: operations["discover_discover_post"];
         delete?: never;
@@ -523,6 +525,11 @@ export interface components {
              * @default 5
              */
             count: number;
+            /**
+             * Fresh
+             * @default false
+             */
+            fresh: boolean;
             /** Language Id */
             language_id: number;
             /** Topic */
