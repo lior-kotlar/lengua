@@ -13,12 +13,16 @@ and commits once, so a multi-write operation stays atomic.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Language
+
+# The columns a ``PATCH`` may change. Constraining ``update`` to this allow-list keeps it from
+# blindly writing arbitrary attributes off a caller-supplied mapping.
+_EDITABLE_FIELDS = ("name", "code", "vowelized")
 
 
 class LanguagesRepository:
@@ -59,16 +63,29 @@ class LanguagesRepository:
         result = await self._session.scalars(stmt)
         return result.one_or_none()
 
+    async def update(
+        self, user_id: uuid.UUID, language_id: int, changes: Mapping[str, object]
+    ) -> Language | None:
+        """Apply a partial update to the user's language; return the row, or ``None`` if not owned.
+
+        Only the recognised, *present* keys in ``changes`` (``name`` / ``code`` / ``vowelized``)
+        are written, so an absent key leaves its column untouched. Values are taken as-is — the
+        service normalises/validates them before calling this.
+        """
+        language = await self.get(user_id, language_id)
+        if language is None:
+            return None
+        for field in _EDITABLE_FIELDS:
+            if field in changes:
+                setattr(language, field, changes[field])
+        await self._session.flush()
+        return language
+
     async def set_vowelized(
         self, user_id: uuid.UUID, language_id: int, vowelized: bool
     ) -> Language | None:
         """Toggle the language's ``vowelized`` flag; return the row, or ``None`` if not owned."""
-        language = await self.get(user_id, language_id)
-        if language is None:
-            return None
-        language.vowelized = vowelized
-        await self._session.flush()
-        return language
+        return await self.update(user_id, language_id, {"vowelized": vowelized})
 
     async def delete(self, user_id: uuid.UUID, language_id: int) -> bool:
         """Delete the user's language (cards/proficiency cascade). ``True`` if a row was removed."""

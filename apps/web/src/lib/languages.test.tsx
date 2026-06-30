@@ -77,18 +77,23 @@ describe('useLanguagesQuery', () => {
 
 describe('useAddLanguage', () => {
   it('creates with trimmed name/code and invalidates the languages query', async () => {
-    post.mockReturnValue(ok(SPANISH));
+    post.mockReturnValue(ok({ ...SPANISH, created: true }));
     const { queryClient, wrapper } = makeClient();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
 
     const { result } = renderHook(() => useAddLanguage(), { wrapper });
-    const created = await result.current.mutateAsync({
+    const outcome = await result.current.mutateAsync({
       name: '  Spanish  ',
       code: '  es  ',
       vowelized: true,
     });
 
-    expect(created).toEqual(SPANISH);
+    // The `created` flag is split off — `language` is the plain LanguageOut.
+    expect(outcome).toEqual({
+      language: SPANISH,
+      created: true,
+      bandError: false,
+    });
     expect(post).toHaveBeenCalledWith('/languages', {
       body: { name: 'Spanish', code: 'es', vowelized: true },
     });
@@ -102,7 +107,7 @@ describe('useAddLanguage', () => {
 
   it('omits the code when blank and defaults vowelized to false', async () => {
     // The created row also has a null code → the funnel event passes null through (not undefined).
-    post.mockReturnValue(ok({ ...SPANISH, code: null }));
+    post.mockReturnValue(ok({ ...SPANISH, code: null, created: true }));
     const { wrapper } = makeClient();
 
     const { result } = renderHook(() => useAddLanguage(), { wrapper });
@@ -114,28 +119,85 @@ describe('useAddLanguage', () => {
     expect(trackLanguageAdded).toHaveBeenCalledWith(null);
   });
 
-  it('PUTs the starting band when it is not the default A1', async () => {
-    post.mockReturnValue(ok({ ...SPANISH, id: 9 }));
+  it('PUTs the starting band when it is not the default A1 (newly created)', async () => {
+    post.mockReturnValue(ok({ ...SPANISH, id: 9, created: true }));
     put.mockReturnValue(ok({ band: 'B1', progress: 0, score: 2 }));
     const { wrapper } = makeClient();
 
     const { result } = renderHook(() => useAddLanguage(), { wrapper });
-    await result.current.mutateAsync({ name: 'French', band: 'B1' });
+    const outcome = await result.current.mutateAsync({
+      name: 'French',
+      band: 'B1',
+    });
 
     expect(put).toHaveBeenCalledWith('/proficiency/{language_id}', {
       params: { path: { language_id: 9 } },
       body: { band: 'B1' },
     });
+    expect(outcome.created).toBe(true);
+    expect(outcome.bandError).toBe(false);
   });
 
   it('does not PUT proficiency for the default A1 starting band', async () => {
-    post.mockReturnValue(ok(SPANISH));
+    post.mockReturnValue(ok({ ...SPANISH, created: true }));
     const { wrapper } = makeClient();
 
     const { result } = renderHook(() => useAddLanguage(), { wrapper });
     await result.current.mutateAsync({ name: 'Spanish', band: 'A1' });
 
     expect(put).not.toHaveBeenCalled();
+  });
+
+  it('S3: re-adding an existing language (created=false) skips the band PUT and the funnel event', async () => {
+    // Idempotent add: the backend returns the EXISTING row with `created: false`. Even with a
+    // non-default starting band chosen, the proficiency must NOT be reset.
+    post.mockReturnValue(ok({ ...SPANISH, id: 7, created: false }));
+    const { queryClient, wrapper } = makeClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAddLanguage(), { wrapper });
+    const outcome = await result.current.mutateAsync({
+      name: 'Spanish',
+      band: 'B2',
+    });
+
+    expect(outcome).toEqual({
+      language: { ...SPANISH, id: 7 },
+      created: false,
+      bandError: false,
+    });
+    // No proficiency reset, and no activation-funnel event for a re-add.
+    expect(put).not.toHaveBeenCalled();
+    expect(trackLanguageAdded).not.toHaveBeenCalled();
+    // The list is still invalidated so the (existing) language is reflected everywhere.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['languages'] });
+  });
+
+  it('S12: a failed band PUT still resolves the add (bandError) and invalidates the list', async () => {
+    post.mockReturnValue(ok({ ...SPANISH, id: 9, created: true }));
+    // The band PUT fails (e.g. transient 500) AFTER the language was created.
+    put.mockReturnValue(
+      Promise.resolve({
+        data: undefined,
+        error: { detail: 'boom' },
+        response: new Response(null, { status: 500 }),
+      }),
+    );
+    const { queryClient, wrapper } = makeClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAddLanguage(), { wrapper });
+    const outcome = await result.current.mutateAsync({
+      name: 'French',
+      band: 'B1',
+    });
+
+    // The add resolves (does not reject) because the language WAS created.
+    expect(outcome.created).toBe(true);
+    expect(outcome.bandError).toBe(true);
+    expect(outcome.language).toEqual({ ...SPANISH, id: 9 });
+    // The list is invalidated so the created language appears despite the band failure.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['languages'] });
   });
 });
 

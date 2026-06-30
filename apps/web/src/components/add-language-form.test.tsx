@@ -52,15 +52,27 @@ describe('AddLanguageForm', () => {
     });
   });
 
-  it('toasts and calls onCreated after a successful add, then resets', async () => {
-    const mutate = vi.fn(
-      (
-        _input: unknown,
-        opts: { onSuccess: (language: typeof CREATED) => void },
-      ) => {
-        opts.onSuccess(CREATED);
+  type SuccessResult = {
+    language: typeof CREATED;
+    created: boolean;
+    bandError: boolean;
+  };
+
+  /** A `mutate` stub that immediately resolves with a given add outcome. */
+  function mutateWith(result: SuccessResult) {
+    return vi.fn(
+      (_input: unknown, opts: { onSuccess: (r: SuccessResult) => void }) => {
+        opts.onSuccess(result);
       },
     );
+  }
+
+  it('toasts and calls onCreated after a successful add, then resets', async () => {
+    const mutate = mutateWith({
+      language: CREATED,
+      created: true,
+      bandError: false,
+    });
     useAddLanguage.mockReturnValue({ mutate, isPending: false });
     const onCreated = vi.fn();
     render(<AddLanguageForm onCreated={onCreated} />);
@@ -76,6 +88,94 @@ describe('AddLanguageForm', () => {
     );
     // Form reset on success.
     expect(nameInput.value).toBe('');
+  });
+
+  it('S3: shows a "you already have it" toast on an idempotent re-add (created=false)', async () => {
+    const mutate = mutateWith({
+      language: CREATED,
+      created: false,
+      bandError: false,
+    });
+    useAddLanguage.mockReturnValue({ mutate, isPending: false });
+    const onCreated = vi.fn();
+    render(<AddLanguageForm onCreated={onCreated} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'French');
+    await user.click(screen.getByRole('button', { name: /add language/i }));
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Already in your languages',
+        description: expect.stringContaining('You already have French'),
+      }),
+    );
+    // Not the "added" toast, and the language is still handed back (e.g. to make it active).
+    expect(toast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Language added' }),
+    );
+    expect(onCreated).toHaveBeenCalledWith(CREATED);
+  });
+
+  it('S12: warns (without claiming failure) when the language was created but the level failed', async () => {
+    const mutate = mutateWith({
+      language: CREATED,
+      created: true,
+      bandError: true,
+    });
+    useAddLanguage.mockReturnValue({ mutate, isPending: false });
+    const onCreated = vi.fn();
+    render(<AddLanguageForm onCreated={onCreated} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'French');
+    await user.click(screen.getByRole('button', { name: /add language/i }));
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: expect.stringContaining('starting level'),
+      }),
+    );
+    // The language WAS created → still handed back, never the hard "could not add" error.
+    expect(onCreated).toHaveBeenCalledWith(CREATED);
+    expect(toast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Could not add language' }),
+    );
+  });
+
+  it('S14: requires a code when vowel marks are on and blocks the submit', async () => {
+    const mutate = vi.fn();
+    useAddLanguage.mockReturnValue({ mutate, isPending: false });
+    render(<AddLanguageForm />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'Hebrew');
+    await user.click(screen.getByLabelText(/include vowel marks/i));
+    await user.click(screen.getByRole('button', { name: /add language/i }));
+
+    expect(screen.getByText(/enter a language code/i)).toBeInTheDocument();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it('S14: submits a vowelized language once a code is provided', async () => {
+    const mutate = vi.fn();
+    useAddLanguage.mockReturnValue({ mutate, isPending: false });
+    render(<AddLanguageForm />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'Hebrew');
+    await user.type(screen.getByLabelText('Code (optional)'), 'he');
+    await user.click(screen.getByLabelText(/include vowel marks/i));
+    await user.click(screen.getByRole('button', { name: /add language/i }));
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0][0]).toEqual({
+      name: 'Hebrew',
+      code: 'he',
+      vowelized: true,
+      band: 'A1',
+    });
   });
 
   it('toasts an error when the add fails', async () => {

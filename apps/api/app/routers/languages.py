@@ -1,4 +1,4 @@
-"""Languages router (task 1.5.2): list/add/remove + toggle ``vowelized``, scoped to current_user."""
+"""Languages router (task 1.5.2): list/add/remove + edit fields, scoped to current_user."""
 
 from __future__ import annotations
 
@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Language
 from app.deps import current_user, get_db
-from app.schemas.languages import LanguageCreate, LanguageOut, LanguageUpdate
+from app.schemas.languages import (
+    LanguageCreate,
+    LanguageCreateOut,
+    LanguageOut,
+    LanguageUpdate,
+)
 from app.services.errors import NotFoundError, ValidationError
 from app.services.languages import LanguagesService
 
@@ -26,33 +31,53 @@ async def list_languages(
     return await LanguagesService(db).list_languages(user_id)
 
 
-@router.post("", response_model=LanguageOut)
+@router.post("", response_model=LanguageCreateOut)
 async def add_language(
     body: LanguageCreate,
     user_id: uuid.UUID = Depends(current_user),
     db: AsyncSession = Depends(get_db),
-) -> Language:
-    """Add a language (idempotent on the per-user ``UNIQUE (user_id, name)``)."""
+) -> LanguageCreateOut:
+    """Add a language (idempotent on the per-user ``UNIQUE (user_id, name)``).
+
+    The response ``created`` flag is ``True`` when a new language was inserted and ``False`` when
+    the name already existed — in which case the existing row is returned unchanged, so a client
+    can tell a fresh add from a re-add (and skip resetting an existing language's proficiency).
+    Status stays 200 (the API's ``POST`` convention); the flag carries the signal.
+    """
     try:
-        return await LanguagesService(db).add_language(
+        language, created = await LanguagesService(db).add_language(
             user_id, body.name, code=body.code, vowelized=body.vowelized
         )
     except ValidationError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    return LanguageCreateOut(
+        id=language.id,
+        name=language.name,
+        code=language.code,
+        vowelized=language.vowelized,
+        created=created,
+    )
 
 
 @router.patch("/{language_id}", response_model=LanguageOut)
-async def set_vowelized(
+async def update_language(
     language_id: int,
     body: LanguageUpdate,
     user_id: uuid.UUID = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Language:
-    """Toggle a language's ``vowelized`` flag."""
+    """Edit a language's fields (``name`` / ``code`` / ``vowelized``); a partial update.
+
+    Only the fields present in the body are changed (``code`` may be sent as ``null`` to clear it).
+    """
     try:
-        return await LanguagesService(db).set_vowelized(user_id, language_id, body.vowelized)
+        return await LanguagesService(db).update_language(
+            user_id, language_id, body.model_dump(exclude_unset=True)
+        )
     except NotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
 
 @router.delete("/{language_id}", status_code=status.HTTP_204_NO_CONTENT)
