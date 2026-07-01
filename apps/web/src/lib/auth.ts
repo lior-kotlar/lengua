@@ -42,9 +42,26 @@ export interface SignUpResult extends AuthResult {
 }
 
 /**
+ * True when a raw GoTrue message is safe to show a user. Some server errors (notably a 500
+ * `unexpected_failure`) arrive with a useless serialized body as the "message" — observed on staging
+ * as the literal `"{}"` — which must never be surfaced verbatim; callers fall back to friendly copy.
+ */
+function isPresentableMessage(message: string): boolean {
+  const trimmed = message.trim();
+  if (trimmed === '' || trimmed === '[object Object]') {
+    return false;
+  }
+  // Reject a serialized object/array that leaked in as the message (e.g. "{}", "[]", '{"code":…}').
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  return !((first === '{' && last === '}') || (first === '[' && last === ']'));
+}
+
+/**
  * Normalize an unknown thrown/returned auth error into a friendly message + code.
  *
- * Maps the GoTrue error codes we care about; falls back to the raw message, then a generic line.
+ * Maps the GoTrue error codes we care about; falls back to the raw message when it is presentable,
+ * then a generic line (never a raw serialized error body — see {@link isPresentableMessage}).
  */
 export function mapAuthError(error: unknown): AuthResult {
   if (!isAuthError(error)) {
@@ -68,9 +85,9 @@ export function mapAuthError(error: unknown): AuthResult {
       return { error: 'An account with this email already exists.', code };
     case 'weak_password':
       return {
-        error:
-          error.message ||
-          'Password is too weak — use at least 8 characters with a mix of cases and a number.',
+        error: isPresentableMessage(error.message)
+          ? error.message
+          : 'Password is too weak — use at least 8 characters with a mix of cases and a number.',
         code,
       };
     case 'same_password':
@@ -91,9 +108,19 @@ export function mapAuthError(error: unknown): AuthResult {
         error: 'This link has expired. Please request a new one.',
         code,
       };
+    case 'unexpected_failure':
+      // A GoTrue-side 500 (e.g. the confirmation-email send failing). Its raw message is often a
+      // useless serialized body (observed on staging as the literal "{}"), so always show friendly
+      // copy rather than leak it to the UI.
+      return {
+        error: 'Something went wrong on our end. Please try again in a moment.',
+        code,
+      };
     default:
       return {
-        error: error.message || 'Something went wrong. Please try again.',
+        error: isPresentableMessage(error.message)
+          ? error.message
+          : 'Something went wrong. Please try again.',
         code,
       };
   }
