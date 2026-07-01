@@ -246,6 +246,33 @@ describe('mapAuthError', () => {
     );
     expect(mapAuthError('weird').code).toBeUndefined();
   });
+
+  it('maps a 500 unexpected_failure to friendly copy, never the raw body', () => {
+    // Regression: the staging sign-up 500 arrived with the useless body "{}" as its message and
+    // leaked to the UI as an empty "{}" alert. It must render friendly copy instead.
+    const result = mapAuthError(
+      new AuthApiError('{}', 500, 'unexpected_failure'),
+    );
+    expect(result.error).toMatch(/something went wrong/i);
+    expect(result.error).not.toBe('{}');
+    expect(result.code).toBe('unexpected_failure');
+  });
+
+  it('never surfaces a non-presentable raw message (serialized object/array)', () => {
+    for (const bad of ['{}', '[]', '[object Object]', '{"code":"x"}']) {
+      const result = mapAuthError(
+        new AuthApiError(bad, 400, 'some_unknown_code'),
+      );
+      expect(result.error).not.toBe(bad);
+      expect(result.error).toMatch(/something went wrong/i);
+    }
+    // A genuine human message on an unknown code still passes through unchanged.
+    expect(
+      mapAuthError(
+        new AuthApiError('A real problem occurred.', 400, 'some_unknown_code'),
+      ).error,
+    ).toBe('A real problem occurred.');
+  });
 });
 
 describe('readAuthRedirectError', () => {
