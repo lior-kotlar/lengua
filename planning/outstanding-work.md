@@ -54,7 +54,7 @@ errors / all-200 network**; final `staging_smoke` 13/0/0, `e2e-staging` 6 passed
 
 ---
 
-## 0b. Full-loop staging validation (2026-07-01) · ☑ loop validated · 🔒 1 owner blocker
+## 0b. Full-loop staging validation (2026-07-01) · ☑ loop validated · ☑ sign-up FIXED (staging) · 🔒 prod SMTP follow-up
 
 Ran the **FULL learning loop on live staging for 2+ languages incl. account lifecycle** (Tier B —
 service-role present). Built a reusable Playwright harness
@@ -63,17 +63,18 @@ service-role present). Built a reusable Playwright harness
 [`staging-validation/VALIDATION-REPORT.md`](staging-validation/VALIDATION-REPORT.md); rounds in
 `staging-validation/FAILURES-{1,2}.md`.
 
-**Result:** Layer B smoke 14/0/0 (exit 0); full Playwright suite **9 passed / 1 failed**. Everything
-green — login/out/back-in, add language+CEFR, generate→save, study recognition+production (reveal,
-rate-to-advance, tap-a-word), 2+ languages + switching (CEFR flip, RTL/nikkud), discover, settings,
-account export, **UI account-delete**, fresh users full 2-language loop end-to-end — **except public
-sign-up**. Zero test data left on staging (harness self-cleans). **Verdict: NO-GO** until the one
-blocker below is fixed + redeployed.
+**Result:** the whole loop is green. After the initial round found the sign-up 500, it was fixed (below)
+and the **full Playwright suite is now 10/10 green** + Layer B smoke 12/0/0 (14/0/0 with LLM), **zero test
+data leaked**. Green: **register (public form) → sign out → log back in**, login/out/back-in, add
+language+CEFR, generate→save, study recognition+production (reveal, rate-to-advance, tap-a-word), 2+
+languages + switching (CEFR flip, RTL/nikkud), discover, settings, account export, **UI account-delete**,
+fresh users full 2-language loop end-to-end. **Verdict: GO for staging** (see the prod caveat below).
 
 | | Item | Sev | Status |
 |---|---|---|---|
-| 🔒 | **Public email sign-up returns HTTP 500** "Error sending confirmation email" — Supabase staging Auth `POST /auth/v1/signup`, sustained 5/5 over ~2h; a brand-new user **cannot register through the website** | **High / NO-GO** | OWNER: Supabase Auth email/SMTP config (verify custom SMTP + verified sender domain, e.g. wire `RESEND_API_KEY`; read Auth → Logs for the exact SMTP error) + redeploy + re-run `signup.spec.ts`. Detail → VALIDATION-REPORT.md §4 |
-| ☐ | `mapAuthError` renders an empty `{}` alert for unexpected auth errors (`apps/web/src/lib/auth.ts:49`) | Low/UX | add a friendly fallback message — normal PR (deliberately not done by the validation) |
+| ☑ | **Public email sign-up 500** "Error sending confirmation email" (Supabase staging Auth `POST /auth/v1/signup`) — a brand-new user couldn't register | **was High/NO-GO** | **FIXED on staging 2026-07-01:** disabled email confirmation (`mailer_autoconfirm=true` via Management API) + turned off the broken custom SMTP. Sign-up now auto-confirms + returns a session; `signup.spec.ts` (register→logout→login) green. |
+| 🔒 | **Prod email verification** — staging runs with `mailer_autoconfirm=true` (no email verification), which must NOT ship to prod | Med | **GitHub issue #103 (OPEN).** OWNER before prod: custom SMTP via Resend (`smtp.resend.com:465`, user `resend`, pass=Resend API key) on a **verified sender domain**, then re-enable confirmation. Needs a domain + DNS. |
+| ☑ | `mapAuthError` rendered an empty `{}` alert for unexpected auth errors (`apps/web/src/lib/auth.ts`) | Low/UX | **FIXED in PR #102 (merged):** explicit `unexpected_failure` case + `isPresentableMessage` guard + regression tests. |
 | ◐ | SYNTHESIS missing-`data-testid` hardening (Languages rows + active marker, success toasts, `app-shell`, per-page route markers) | Info | non-blocking; the harness uses working role/text fallbacks today |
 
 ---
