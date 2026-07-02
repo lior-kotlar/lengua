@@ -85,7 +85,10 @@ export function MoreSheet() {
                 className="h-4 w-4 text-muted-foreground"
                 aria-hidden="true"
               />
-              <label htmlFor="more-sheet-dark-mode" className="flex-1 text-body">
+              <label
+                htmlFor="more-sheet-dark-mode"
+                className="flex-1 text-body"
+              >
                 Dark mode
               </label>
               <Switch

@@ -104,9 +104,9 @@ describe('AppLayout navigation landmark', () => {
       'aria-current',
       'page',
     );
-    expect(desktop.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute(
-      'aria-current',
-    );
+    expect(
+      desktop.getByRole('link', { name: 'Dashboard' }),
+    ).not.toHaveAttribute('aria-current');
   });
 });
 
