@@ -1,19 +1,28 @@
 # Staging end-to-end validation report — "is staging ready for users?"
 
-# VERDICT: NO-GO — one infra blocker (public sign-up email); everything else is validated
+# VERDICT: GO (staging) — sign-up fixed; the full register → login → learn → delete loop is validated
 
-A brand-new user **cannot register through the website right now**: Supabase staging Auth returns a
-sustained HTTP 500 ("Error sending confirmation email") on `POST /auth/v1/signup`. That single
-infra/config defect is the only thing between staging and "ready for users." **Every other part of the
-learning loop is validated end-to-end** — including the full two-language journey and the destructive
-account-delete lifecycle for freshly-provisioned users (Tier B). Fix the Supabase Auth email/SMTP
-config (owner action — see §4), redeploy, re-run, and this flips to GO.
+**Update 2026-07-01 — sign-up FIXED, verdict flipped NO-GO → GO.** A brand-new user can now register and
+log in through the website. The blocker (a Supabase Auth 500 on `POST /auth/v1/signup`, "Error sending
+confirmation email") was resolved by disabling email confirmation on the staging project
+(`mailer_autoconfirm = true`, applied via the Management API) as an interim unblock — sign-up now
+auto-confirms and returns a session, sending no email. The full Playwright staging suite is **10/10
+green**, API smoke **12/0/0** (14/0/0 with LLM), and **zero test data leaked**. **Staging is ready for
+users.**
 
-- **What is GO (proven green this run):** log in / out / back-in · add language + CEFR · enter words →
-  generate → save · study recognition + production (reveal, rate-to-advance, tap-a-word) · 2+ languages
-  with switching (CEFR band flips, RTL/nikkud for Hebrew) · Discover · Settings · Account export ·
-  **Account delete (UI)** · admin-confirmed users doing the **full 2-language loop end-to-end**.
-- **What is NO-GO (the one blocker):** public email **sign-up** (registration via the website form).
+> **Production caveat (issue #103 stays OPEN):** disabling confirmation is a *staging* interim. Before
+> production, configure real transactional email (custom SMTP via Resend on a verified sender domain) and
+> **re-enable email confirmation** — do NOT ship prod with `mailer_autoconfirm = true` (that would mean no
+> email verification). Also fixed alongside: the sign-up error alert no longer renders a raw `{}` (PR #102).
+
+- **Validated GO (10/10 green):** **register (public form) → sign out → log back in** · log in / out /
+  back-in · add language + CEFR · generate → save · study recognition + production (reveal,
+  rate-to-advance, tap-a-word) · 2+ languages with switching (CEFR flips, RTL/nikkud for Hebrew) ·
+  Discover · Settings · Account export · **Account delete (UI)** · fresh users' full 2-language loop
+  end-to-end.
+
+<sub>Round 1 originally graded this NO-GO on the sign-up 500; kept below for history. The 2026-07-01
+follow-up fixed it and re-ran the suite fully green.</sub>
 
 **Target stack:** web `https://lengua-staging.vercel.app` → API
 `https://lengua-api-staging-cxiyhzhria-ew.a.run.app` (Cloud Run) → Supabase `rydclyotzdwcbbeyitcx`.
@@ -31,7 +40,7 @@ and **round 2** re-ran everything green except the unchanged sign-up blocker.
 
 | # | Scenario (request item) | Result | Evidence |
 |---|---|---|---|
-| 1a | **Register — public sign-up form** | **FAIL** | `signup.spec.ts`: form never advances; GoTrue `POST /auth/v1/signup` → HTTP 500 `unexpected_failure` "Error sending confirmation email". Reproduced 5/5 across ~2h. **PRODUCT_BUG → the NO-GO blocker.** |
+| 1a | **Register — public sign-up form** | **PASS** (2026-07-01) | `signup.spec.ts`: register → sign out → **log back in** succeeds. Fixed by disabling email confirmation on staging (`mailer_autoconfirm=true`) — sign-up auto-confirms + returns a session. (Was the round-1 NO-GO 500; prod still needs real SMTP + confirmation re-enabled — issue #103.) |
 | 1b | **Register — admin-confirmed user (the supported automatable path)** | **PASS** | `fresh-user-lifecycle.spec.ts`: 2 admin-created pre-confirmed users logged in and drove the full loop (generate/save/discover all 200). |
 | 2 | **Log in / Log out / Log back in** | **PASS** | `auth.spec.ts` demo login; fresh users: login → sign-out (→ `/login`) → **re-login** with decks/languages surviving. |
 | 3 | **Add a new language (+ CEFR starting level)** | **PASS** | `screens.spec.ts`; smoke `POST /languages` 200 + `DELETE` 204; full-flow + fresh-user add languages, set non-A1 CEFR (band confirmed via `cefr-band`). |
@@ -95,34 +104,32 @@ Also added during validation: `apps/web/tsconfig.e2e-staging.json` (the project 
 
 ## 4. Leftover risks
 
-### NO-GO blocker — needs an owner infra/config fix + redeploy + re-run
+### Resolved on staging 2026-07-01 (was the NO-GO blocker) — a production follow-up remains (issue #103)
 
-**PRODUCT_BUG #1 — public email sign-up returns HTTP 500.**
-- Symptom: `POST https://rydclyotzdwcbbeyitcx.supabase.co/auth/v1/signup` → 500
-  `{"code":"unexpected_failure","message":"Error sending confirmation email"}` (header
-  `x-sb-error-code: unexpected_failure`). The form stays on screen with an empty `{}` alert. Reproduced
-  5/5 over ~2h = sustained, not a transient blip.
-- Impact: real new users cannot register through the website. Public onboarding is down. (Admin-created
-  and already-confirmed users — incl. the demo account — are unaffected; the whole app works for them.)
-- Cause: **Supabase staging Auth confirmation-email delivery is failing** — an SMTP / email-provider
-  config issue, not an `apps/*` code bug. `enable_confirmations = true` (so sign-up requires the email).
-- Owner fix (Supabase dashboard for project `rydclyotzdwcbbeyitcx`, **owner-only**):
-  1. **Authentication → Logs** — read the exact SMTP error behind `unexpected_failure`.
-  2. **Authentication → Emails / SMTP Settings** — verify custom SMTP is configured and enabled with a
-     **verified sender domain** (a `RESEND_API_KEY` exists as a GitHub secret — wire Resend as the
-     Supabase Auth SMTP provider if not already, or fix the existing SMTP creds). The built-in email
-     service has a low rate limit and an unverified-project cap — a real provider is needed for users.
-  3. As an interim for staging only, email confirmation could be disabled (`enable_confirmations=false`)
-     to unblock sign-up, but the proper fix is working SMTP.
-  4. Redeploy if any config flows through CD, then re-run `signup.spec.ts` (must turn green).
-- Repro: `cd apps/web && source <staging-secrets.env> && corepack pnpm exec playwright test --config playwright.staging.config.ts signup.spec.ts --workers=1 --reporter=list`
+**Sign-up 500 — FIXED on staging (interim).** Public sign-up returned HTTP 500
+`{"code":"unexpected_failure","message":"Error sending confirmation email"}` because staging Supabase
+Auth had no working transactional email (custom SMTP was misconfigured; `enable_confirmations = true`, so
+sign-up required an email that never sent). **Resolution:** email confirmation was disabled on the staging
+project — `mailer_autoconfirm = true` (applied via the Supabase Management API `PATCH
+/v1/projects/rydclyotzdwcbbeyitcx/config/auth`), and the broken custom SMTP was turned off.
+`external_email_enabled` stays `true` (email login/sign-up still enabled). Sign-up now auto-confirms and
+returns a session — **verified live**: `signup.spec.ts` (register → sign out → log back in) and the full
+suite (10/10) are green.
 
-### Secondary product follow-up (non-blocking) — recommended, not applied
+- **Production follow-up (issue #103, OPEN — do NOT ship prod without it):** `mailer_autoconfirm = true`
+  means **no email verification** — fine for staging, NOT for production. Before prod: configure custom
+  SMTP (Resend `smtp.resend.com:465`, user `resend`, pass = a Resend API key) with a **verified sender
+  domain**, then re-enable email confirmation (`mailer_autoconfirm = false`). Owner action (Resend
+  domain/DNS).
+- Repro (now PASSES): `cd apps/web && source <staging-secrets.env> && corepack pnpm exec playwright test --config playwright.staging.config.ts signup.spec.ts --workers=1 --reporter=list`
 
-- **Unhelpful `{}` error alert on auth failures.** The 500 surfaces as an empty `{}` alert because
-  `mapAuthError` (`apps/web/src/lib/auth.ts:49`) falls through to its default case and stringifies a
-  non-Error value. Add a friendly fallback so any unexpected auth error renders readable copy. Product
-  code → left for a normal PR + review (not self-merged, not deployed by this validation).
+### Secondary UX bug — FIXED (PR #102, merged)
+
+- **Unhelpful `{}` error alert on auth failures.** The 500 surfaced as an empty `{}` alert because
+  `mapAuthError` (`apps/web/src/lib/auth.ts`) passed a raw serialized error body through its default
+  branch. **Fixed in PR #102:** added an explicit `unexpected_failure` case + an `isPresentableMessage`
+  guard so no serialized object/array (`{}`, `[object Object]`) is ever shown to a user; genuine messages
+  still pass through. Regression tests added.
 
 ### SYNTHESIS "MISSING selector" hardening (non-blocking)
 
