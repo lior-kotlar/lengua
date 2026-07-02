@@ -20,7 +20,9 @@ const Switch = React.forwardRef<
     )}
     {...props}
   >
-    <SwitchPrimitives.Thumb className="block h-[27px] w-[27px] translate-x-0 rounded-full bg-white shadow-[0_2px_4px_rgb(0_0_0/0.2),0_0_1px_rgb(0_0_0/0.12)] transition-transform duration-200 ease-apple data-[state=checked]:translate-x-[20px]" />
+    {/* In an RTL container the thumb starts at the track's right edge, so "checked" must
+        translate it the other way — otherwise it escapes the track (and widens the page). */}
+    <SwitchPrimitives.Thumb className="block h-[27px] w-[27px] translate-x-0 rounded-full bg-white shadow-[0_2px_4px_rgb(0_0_0/0.2),0_0_1px_rgb(0_0_0/0.12)] transition-transform duration-200 ease-apple data-[state=checked]:translate-x-[20px] rtl:data-[state=checked]:-translate-x-[20px]" />
   </SwitchPrimitives.Root>
 ));
 Switch.displayName = SwitchPrimitives.Root.displayName;
