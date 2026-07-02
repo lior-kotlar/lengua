@@ -4,48 +4,89 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* ── Surfaces & text (Apple grouped-background system, light) ── */
+    --background: 240 20% 98%; /* #F9F9FC grouped canvas */
+    --foreground: 240 6% 10%; /* #17171A label */
+    --card: 0 0% 100%; /* #FFFFFF inset cell */
+    --card-foreground: 240 6% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --popover-foreground: 240 6% 10%;
+    --primary: 211 100% 50%; /* #007AFF systemBlue */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 24% 96%; /* #F2F2F7 systemGray6 fill */
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 24% 96%;
+    --muted-foreground: 240 2% 44%; /* #6E6E73 ≈ secondaryLabel */
+    --accent: 240 20% 94%; /* #EDEDF2 neutral hover fill (never blue) */
+    --accent-foreground: 240 6% 10%;
+    --destructive: 3 100% 59%; /* #FF3B30 systemRed */
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 6% 87%; /* #DBDBE0 — PRE-MULTIPLIED hairline; use `border-border` solid, no /60 needed */
+    --input: 240 5% 84%; /* #D4D4DA form-field edge */
+    --ring: 211 100% 50%;
+    --radius: 0.75rem; /* 12px base */
+
+    /* ── HIG semantic hues (ratings, CEFR, status). `-deep` = AA text-on-tint. ── */
+    --hig-red: 3 100% 59%; /* #FF3B30 */
+    --hig-orange: 35 100% 50%; /* #FF9500 */
+    --hig-blue: 211 100% 50%; /* #007AFF */
+    --hig-green: 135 59% 49%; /* #34C759 */
+    --hig-gray: 240 2% 57%; /* #8E8E93 */
+    --hig-red-deep: 354 100% 42%; /* #D70015 */
+    --hig-orange-deep: 15 100% 39%; /* #C93400 */
+    --hig-blue-deep: 211 100% 40%; /* #0066CC */
+    --hig-green-deep: 135 59% 34%; /* #248A3D */
+
+    /* ── Elevation (keyline cards; big soft overlays) ── */
+    --shadow-card:
+      0 1px 3px rgb(16 16 20 / 0.06), 0 1px 2px rgb(16 16 20 / 0.04);
+    --shadow-raised:
+      0 4px 16px rgb(16 16 20 / 0.08), 0 1px 2px rgb(16 16 20 / 0.04);
+    --shadow-overlay:
+      0 16px 48px rgb(16 16 20 / 0.18), 0 2px 8px rgb(16 16 20 / 0.06);
+
+    /* ── Motion ── */
+    --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 240 3% 7%; /* #111113 window */
+    --foreground: 0 0% 98%;
+    --card: 240 3% 11%; /* ≈ #1C1C1E elevated cell */
+    --card-foreground: 0 0% 98%;
+    --popover: 240 2% 18%; /* ≈ #2C2C2E second elevation */
+    --popover-foreground: 0 0% 98%;
+    --primary: 210 100% 52%; /* #0A84FF */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 2% 16%; /* #28282A */
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 2% 15%;
+    --muted-foreground: 240 5% 64%; /* #9C9CA4 */
+    --accent: 240 2% 18%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 3 100% 61%; /* #FF453A */
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 2% 22%; /* ≈ #38383A iOS separator */
+    --input: 240 2% 26%;
+    --ring: 210 100% 52%;
+
+    /* Vivid hues for dark */
+    --hig-red: 3 100% 61%; /* #FF453A */
+    --hig-orange: 36 100% 52%; /* #FF9F0A */
+    --hig-blue: 210 100% 52%; /* #0A84FF */
+    --hig-green: 135 63% 50%; /* #30D158 */
+    --hig-gray: 240 2% 57%;
+    /* THE RE-POINTING TRICK: deep vars point at the vivids in dark, so ONE class
+       string (`bg-hig-red/15 text-hig-red-deep`) is correct in both modes. */
+    --hig-red-deep: 3 100% 61%;
+    --hig-orange-deep: 36 100% 52%;
+    --hig-blue-deep: 210 100% 52%;
+    --hig-green-deep: 135 63% 50%;
+
+    /* Dark elevation = surface lightness step; shadows only ground overlays */
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35);
+    --shadow-raised: 0 2px 8px rgb(0 0 0 / 0.4);
+    --shadow-overlay: 0 16px 48px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.35);
   }
 }
 
@@ -53,7 +94,60 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-body;
+    font-feature-settings:
+      'cv02', 'cv03', 'cv04', 'cv11'; /* Inter: disambiguated I/l/1, open digits */
+  }
+  /* Script text: optical-size parity with Inter + air for diacritics. Global on purpose. */
+  .font-arabic,
+  .font-hebrew {
+    font-size: 1.08em;
+    line-height: 1.7;
+  }
+  /* Kill the blue Chrome autofill slabs visible on the login inputs. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: inset 0 0 0 1000px hsl(var(--card));
+    -webkit-text-fill-color: hsl(var(--foreground));
+    caret-color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  /* Frosted chrome — ONLY on surfaces content scrolls beneath (header, tab bar, sheets). */
+  .frosted {
+    @apply bg-background/80 backdrop-blur-xl backdrop-saturate-150;
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .frosted {
+      @apply bg-background; /* Capacitor / low-end webview fallback */
+    }
+  }
+  /* Native <select> chevron (LanguagePicker + CEFR selects stay native — style only). */
+  .select-chevron {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238E8E93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+  }
+  [dir='rtl'] .select-chevron {
+    background-position: left 0.625rem center;
+  }
+}
+
+/* Reduced motion: belt (framer MotionConfig) + suspenders (CSS). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

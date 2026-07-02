@@ -13,8 +13,8 @@ describe('EmptyState', () => {
     // No action region (children) is rendered.
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
-    // Neutral tone: no success accent.
-    expect(card).not.toHaveClass('border-green-500/50');
+    // No icon supplied → no illustration circle.
+    expect(card.querySelector('svg')).toBeNull();
   });
 
   it('renders a description and action children when provided', () => {
@@ -42,16 +42,17 @@ describe('EmptyState', () => {
       />,
     );
     const card = screen.getByTestId('empty-state');
-    expect(card).toHaveClass('border-green-500/50');
-    // The icon renders (aria-hidden) — it is the only svg in the header.
-    expect(card.querySelector('svg')).not.toBeNull();
+    // Success tone → the icon sits in a green-tinted circle with the deep green stroke.
+    const icon = card.querySelector('svg');
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveClass('text-hig-green-deep');
   });
 
   it('renders an icon with the neutral tone by default', () => {
     render(<EmptyState icon={CheckCircle2} title="Pick something" />);
     const card = screen.getByTestId('empty-state');
-    expect(card).not.toHaveClass('border-green-500/50');
     // Default tone → the icon uses the muted (not success) colour.
     expect(card.querySelector('svg')).toHaveClass('text-muted-foreground');
+    expect(card.querySelector('svg')).not.toHaveClass('text-hig-green-deep');
   });
 });

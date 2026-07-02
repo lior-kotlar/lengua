@@ -122,7 +122,7 @@ export function DailyLimitPanel({ error, className }: DailyLimitPanelProps) {
             className="h-5 w-5 shrink-0 text-amber-500"
             aria-hidden="true"
           />
-          <CardTitle className="text-lg">Daily limit reached</CardTitle>
+          <CardTitle>Daily limit reached</CardTitle>
         </div>
         <CardDescription>{description}</CardDescription>
       </CardHeader>

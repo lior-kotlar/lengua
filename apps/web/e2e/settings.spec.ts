@@ -58,7 +58,8 @@ test.describe('settings screen (ephemeral stack)', () => {
       ),
       page.getByRole('button', { name: 'Save settings' }).click(),
     ]);
-    await expect(page.getByText('Settings saved')).toBeVisible();
+    // `.first()`: Radix briefly mirrors the toast text into an aria-live announce span.
+    await expect(page.getByText('Settings saved').first()).toBeVisible();
 
     // Reload: the value is fetched fresh from the backend and still 7.
     await page.reload();

@@ -13,13 +13,6 @@
 import { RotateCcw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 export interface ErrorStateProps {
@@ -41,23 +34,24 @@ export function ErrorState({
   className,
 }: ErrorStateProps) {
   return (
-    <Card
+    <div
       role="alert"
       data-testid="error-state"
-      className={cn('border-destructive/50', className)}
-    >
-      <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      {onRetry !== undefined && (
-        <CardContent>
-          <Button variant="outline" onClick={onRetry}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            {retryLabel}
-          </Button>
-        </CardContent>
+      className={cn(
+        'space-y-3 rounded-lg border border-hig-red/25 bg-hig-red/[0.06] p-5',
+        className,
       )}
-    </Card>
+    >
+      <div className="space-y-1">
+        <p className="text-body font-semibold">{title}</p>
+        <p className="text-subhead text-muted-foreground">{description}</p>
+      </div>
+      {onRetry !== undefined && (
+        <Button variant="destructive" size="sm" onClick={onRetry}>
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          {retryLabel}
+        </Button>
+      )}
+    </div>
   );
 }

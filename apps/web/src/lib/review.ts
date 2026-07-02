@@ -67,7 +67,9 @@ export const RATINGS: readonly ReviewRating[] = [
 ] as const;
 
 /**
- * Tailwind background (+ hover) classes for a rating button, by its locked colour.
+ * Tailwind classes for a rating button, by its locked colour — the iOS tinted-pill treatment
+ * (soft tinted fill, deep colored text). The `-deep` text vars re-point at the vivid hues in dark
+ * mode (index.css), so one string per colour is valid in both modes.
  *
  * Kept as an exhaustive switch (no `default`) so adding a colour is a type error rather than a
  * silent fallthrough, and so every branch is covered. Uses the same red/orange/blue/green family as
@@ -76,13 +78,31 @@ export const RATINGS: readonly ReviewRating[] = [
 export function ratingButtonClass(color: RatingColor): string {
   switch (color) {
     case 'red':
-      return 'bg-red-500 hover:bg-red-600';
+      return 'bg-hig-red/15 text-hig-red-deep border-hig-red/25 hover:bg-hig-red/25';
     case 'orange':
-      return 'bg-orange-500 hover:bg-orange-600';
+      return 'bg-hig-orange/15 text-hig-orange-deep border-hig-orange/25 hover:bg-hig-orange/25';
     case 'blue':
-      return 'bg-blue-500 hover:bg-blue-600';
+      return 'bg-hig-blue/15 text-hig-blue-deep border-hig-blue/25 hover:bg-hig-blue/25';
     case 'green':
-      return 'bg-green-500 hover:bg-green-600';
+      return 'bg-hig-green/15 text-hig-green-deep border-hig-green/25 hover:bg-hig-green/25';
+  }
+}
+
+/**
+ * Tailwind classes for the just-pressed rating button: the pill commits by filling SOLID in its
+ * vivid hue while the grade posts (siblings dim). Exhaustive for the same reason as
+ * {@link ratingButtonClass}.
+ */
+export function ratingFlashClass(color: RatingColor): string {
+  switch (color) {
+    case 'red':
+      return 'bg-hig-red text-white border-transparent';
+    case 'orange':
+      return 'bg-hig-orange text-white border-transparent';
+    case 'blue':
+      return 'bg-hig-blue text-white border-transparent';
+    case 'green':
+      return 'bg-hig-green text-white border-transparent';
   }
 }
 

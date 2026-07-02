@@ -76,7 +76,7 @@ export default function Account() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Profile</CardTitle>
+          <CardTitle>Profile</CardTitle>
           <CardDescription>The account you are signed in with.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -102,7 +102,7 @@ export default function Account() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Export your data</CardTitle>
+          <CardTitle>Export your data</CardTitle>
           <CardDescription>
             Download everything in your account — languages, flashcards, review
             history, and progress — as a JSON file.
@@ -127,7 +127,7 @@ export default function Account() {
 
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-lg">Delete account</CardTitle>
+          <CardTitle>Delete account</CardTitle>
           <CardDescription>
             Permanently delete your account and all of your data. This cannot be
             undone.

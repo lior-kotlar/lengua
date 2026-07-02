@@ -49,7 +49,7 @@ export function LlmErrorState({ error, transientHint }: LlmErrorStateProps) {
   return (
     <Card role="alert" className="border-destructive/50">
       <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       {transient && transientHint !== undefined && (

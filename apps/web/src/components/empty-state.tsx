@@ -9,13 +9,7 @@
  */
 import type { LucideIcon } from 'lucide-react';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 export interface EmptyStateProps {
@@ -42,29 +36,39 @@ export function EmptyState({
   return (
     <Card
       data-testid="empty-state"
-      className={cn(tone === 'success' && 'border-green-500/50', className)}
+      className={cn(
+        'flex flex-col items-center px-6 py-10 text-center',
+        className,
+      )}
     >
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          {Icon !== undefined && (
-            <Icon
-              className={cn(
-                'h-5 w-5 shrink-0',
-                tone === 'success' ? 'text-green-500' : 'text-muted-foreground',
-              )}
-              aria-hidden="true"
-            />
+      {Icon !== undefined && (
+        <div
+          className={cn(
+            'mb-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
+            tone === 'success' ? 'bg-hig-green/15' : 'bg-secondary',
           )}
-          <CardTitle className="text-lg">{title}</CardTitle>
+        >
+          <Icon
+            className={cn(
+              'h-5 w-5',
+              tone === 'success'
+                ? 'text-hig-green-deep'
+                : 'text-muted-foreground',
+            )}
+            aria-hidden="true"
+          />
         </div>
-        {description !== undefined && (
-          <CardDescription>{description}</CardDescription>
-        )}
-      </CardHeader>
+      )}
+      <p className="text-headline">{title}</p>
+      {description !== undefined && (
+        <p className="mt-1 max-w-sm text-subhead text-muted-foreground">
+          {description}
+        </p>
+      )}
       {children !== undefined && (
-        <CardContent className="flex flex-wrap items-center gap-3">
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
           {children}
-        </CardContent>
+        </div>
       )}
     </Card>
   );
