@@ -56,16 +56,38 @@ export function progressPercent(progress: number): number {
 export function cefrBandColor(band: string): string {
   switch (band) {
     case 'A1':
-      return 'bg-red-500';
+      return 'bg-hig-red';
     case 'A2':
-      return 'bg-orange-500';
+      return 'bg-hig-orange';
     case 'B1':
     case 'B2':
-      return 'bg-blue-500';
+      return 'bg-hig-blue';
     case 'C1':
     case 'C2':
-      return 'bg-green-500';
+      return 'bg-hig-green';
     default:
       return 'bg-muted-foreground';
+  }
+}
+
+/**
+ * Tailwind classes for a CEFR band CHIP (tinted pill: soft fill + deep text), same band → hue
+ * mapping as {@link cefrBandColor}. The `-deep` text vars re-point at the vivid hues in dark mode,
+ * so one string per band is valid in both modes. Unknown bands degrade to a neutral chip.
+ */
+export function cefrBandChipClass(band: string): string {
+  switch (band) {
+    case 'A1':
+      return 'bg-hig-red/15 text-hig-red-deep';
+    case 'A2':
+      return 'bg-hig-orange/15 text-hig-orange-deep';
+    case 'B1':
+    case 'B2':
+      return 'bg-hig-blue/15 text-hig-blue-deep';
+    case 'C1':
+    case 'C2':
+      return 'bg-hig-green/15 text-hig-green-deep';
+    default:
+      return 'bg-secondary text-muted-foreground';
   }
 }

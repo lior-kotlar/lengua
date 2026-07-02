@@ -82,7 +82,7 @@ export function RemoveLanguageDialog({
             <Button variant="outline">Cancel</Button>
           </DialogClose>
           <Button
-            variant="destructive"
+            variant="destructiveSolid"
             onClick={handleConfirm}
             disabled={removeLanguage.isPending}
           >

@@ -26,7 +26,10 @@ export function LoadingState({
       role="status"
       aria-busy="true"
       data-testid="loading-skeleton"
-      className={cn('space-y-3 rounded-lg border p-4', className)}
+      className={cn(
+        'space-y-3 rounded-lg border bg-card p-5 shadow-card',
+        className,
+      )}
     >
       <span className="sr-only">{label}</span>
       <Skeleton className="h-5 w-1/3" aria-hidden="true" />

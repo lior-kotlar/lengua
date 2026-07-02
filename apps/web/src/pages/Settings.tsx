@@ -58,9 +58,7 @@ export default function Settings() {
       ) : settings.isError ? (
         <Card role="alert" className="border-destructive/50">
           <CardHeader>
-            <CardTitle className="text-lg">
-              Could not load your settings
-            </CardTitle>
+            <CardTitle>Could not load your settings</CardTitle>
             <CardDescription>
               Something went wrong fetching your preferences. Please try again.
             </CardDescription>
@@ -150,7 +148,7 @@ function SettingsForm({ settings }: { settings: SettingsOut }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Review &amp; discovery</CardTitle>
+        <CardTitle>Review &amp; discovery</CardTitle>
         <CardDescription>
           These apply across all of your languages.
         </CardDescription>

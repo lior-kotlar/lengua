@@ -27,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { useVowelMarks } from '@/components/vowel-marks-context';
 import { VowelMarksToggle } from '@/components/vowel-marks-toggle';
@@ -242,7 +243,7 @@ function WordForm({
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Your words</CardTitle>
+          <CardTitle>Your words</CardTitle>
           <CardDescription>
             One word or phrase per line (or comma-separated). Up to{' '}
             {WORDS_PER_REQUEST_CAP} at a time.
@@ -254,7 +255,7 @@ function WordForm({
               <label htmlFor="generate-words" className="text-sm font-medium">
                 Words
               </label>
-              <textarea
+              <Textarea
                 id="generate-words"
                 dir={directionForCode(language.code)}
                 value={rawWords}
@@ -263,7 +264,6 @@ function WordForm({
                 rows={5}
                 placeholder={'casa\nperro\nbuenos días'}
                 aria-describedby="generate-words-count"
-                className="flex min-h-[7rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
               <p
                 id="generate-words-count"
@@ -406,7 +406,7 @@ function ResultsPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Review &amp; save</CardTitle>
+        <CardTitle>Review &amp; save</CardTitle>
         <CardDescription>
           Pick the sentences to add to your deck. Each becomes two flashcards
           (reading + writing).
@@ -519,7 +519,7 @@ function SavedConfirmation({ count, onGenerateMore }: SavedConfirmationProps) {
             className="h-5 w-5 shrink-0 text-green-500"
             aria-hidden="true"
           />
-          <CardTitle className="text-lg">
+          <CardTitle>
             Saved {count} {count === 1 ? 'card' : 'cards'}
           </CardTitle>
         </div>

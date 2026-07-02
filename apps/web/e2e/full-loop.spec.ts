@@ -85,7 +85,8 @@ test.describe('full core loop (ephemeral stack)', () => {
 
     // ── 2. SAVE (all selected by default → two sentences = four cards) ─────────────────────────
     await page.getByRole('button', { name: /save 2 sentences/i }).click();
-    await expect(page.getByText('Cards saved')).toBeVisible();
+    // `.first()`: Radix briefly mirrors the toast text into an aria-live announce span.
+    await expect(page.getByText('Cards saved').first()).toBeVisible();
     await expect(page.getByText('Saved 4 cards')).toBeVisible();
 
     // ── 3. REVIEW (reveal + grade Again) ──────────────────────────────────────────────────────

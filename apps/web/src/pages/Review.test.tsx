@@ -369,10 +369,10 @@ describe('Review — rating (4.6.3)', () => {
     await screen.findByText('Hola');
     await user.click(screen.getByRole('button', { name: 'Show translation' }));
 
-    expect(ratingButton(1).className).toContain('bg-red-500'); // Again
-    expect(ratingButton(2).className).toContain('bg-orange-500'); // Hard
-    expect(ratingButton(3).className).toContain('bg-blue-500'); // Good
-    expect(ratingButton(4).className).toContain('bg-green-500'); // Easy
+    expect(ratingButton(1).className).toContain('bg-hig-red/15'); // Again
+    expect(ratingButton(2).className).toContain('bg-hig-orange/15'); // Hard
+    expect(ratingButton(3).className).toContain('bg-hig-blue/15'); // Good
+    expect(ratingButton(4).className).toContain('bg-hig-green/15'); // Easy
   });
 
   it('posts the chosen grade and advances to the next card', async () => {

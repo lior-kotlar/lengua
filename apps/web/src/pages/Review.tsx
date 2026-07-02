@@ -392,12 +392,12 @@ function RatingButtons({ onGrade, disabled }: RatingButtonsProps) {
             disabled={disabled}
             data-rating={rating.value}
             className={cn(
-              'flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white transition-[filter,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50',
+              'flex items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-sm font-semibold transition-[background-color,border-color,color,transform] duration-150 ease-apple active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50',
               ratingButtonClass(rating.color),
             )}
           >
             {rating.label}
-            <kbd className="rounded bg-white/20 px-1 text-xs font-normal">
+            <kbd className="rounded bg-black/[0.06] px-1 text-xs font-normal tabular-nums dark:bg-white/10">
               {rating.value}
             </kbd>
           </button>
@@ -444,7 +444,7 @@ function SessionComplete({ reviewed, onReviewMore }: SessionCompleteProps) {
             className="h-5 w-5 shrink-0 text-green-500"
             aria-hidden="true"
           />
-          <CardTitle className="text-lg">Done for today</CardTitle>
+          <CardTitle>Done for today</CardTitle>
         </div>
         <CardDescription>
           You reviewed {reviewed} {reviewed === 1 ? 'card' : 'cards'}. Nice

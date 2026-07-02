@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { LazyMotion, MotionConfig, domAnimation } from 'framer-motion';
 import { BrowserRouter } from 'react-router-dom';
 
 import App from '@/App';
@@ -13,6 +14,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { initErrorTracking } from '@/lib/error-tracking';
 import { registerPostHogAnalytics } from '@/lib/posthog';
 import { createQueryClient } from '@/lib/query-client';
+// The app face: self-hosted Inter (variable wght), imported before index.css so the token layer
+// can rely on it. Latin only — the script fonts below own Arabic/Hebrew glyphs.
+import '@fontsource-variable/inter/index.css';
 import '@/index.css';
 // Self-hosted diacritic-correct fonts for the complex scripts (group 4.9.2). Bundled by Vite (no
 // runtime CDN — mobile-webview-safe): Noto Naskh Arabic positions harakat, Noto Sans Hebrew positions
@@ -46,28 +50,35 @@ const ReactQueryDevtools = import.meta.env.DEV
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <AnalyticsConsentProvider>
-          <BrowserRouter>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </BrowserRouter>
-          <Toaster />
-          {/* First-run analytics-consent banner (4.10.3): app-global, outside the route tree, so it
+    {/* LazyMotion + `m.` components keep framer-motion at ~21 kB gz; `strict` throws on any bare
+        `motion.` import (the built-in bundle guard). MotionConfig honours the user's OS
+        reduced-motion preference app-wide (belt; index.css is the suspenders). */}
+    <LazyMotion features={domAnimation} strict>
+      <MotionConfig reducedMotion="user">
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <AnalyticsConsentProvider>
+              <BrowserRouter>
+                <AuthProvider>
+                  <App />
+                </AuthProvider>
+              </BrowserRouter>
+              <Toaster />
+              {/* First-run analytics-consent banner (4.10.3): app-global, outside the route tree, so it
               shows on first load regardless of auth state and never reappears after a decision. */}
-          <AnalyticsConsentBanner />
-          {/* Hidden Sentry debug-error trigger (5.4.2): renders null unless VITE_ENABLE_DEBUG_TOOLS
+              <AnalyticsConsentBanner />
+              {/* Hidden Sentry debug-error trigger (5.4.2): renders null unless VITE_ENABLE_DEBUG_TOOLS
               is set, so it never appears in a production build. */}
-          <DebugErrorButton />
-          {ReactQueryDevtools && (
-            <Suspense fallback={null}>
-              <ReactQueryDevtools initialIsOpen={false} />
-            </Suspense>
-          )}
-        </AnalyticsConsentProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+              <DebugErrorButton />
+              {ReactQueryDevtools && (
+                <Suspense fallback={null}>
+                  <ReactQueryDevtools initialIsOpen={false} />
+                </Suspense>
+              )}
+            </AnalyticsConsentProvider>
+          </QueryClientProvider>
+        </ThemeProvider>
+      </MotionConfig>
+    </LazyMotion>
   </StrictMode>,
 );

@@ -249,7 +249,7 @@ function DiscoverForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Find new words</CardTitle>
+        <CardTitle>Find new words</CardTitle>
         <CardDescription>
           Lengua picks vocabulary you have not seen yet, at your current level.
           Add a topic to steer the theme, or leave it blank.
@@ -377,7 +377,7 @@ function SuggestionsPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Suggested words</CardTitle>
+        <CardTitle>Suggested words</CardTitle>
         <CardDescription>
           New vocabulary at your level. Use these to generate sentences, or try
           a different set.

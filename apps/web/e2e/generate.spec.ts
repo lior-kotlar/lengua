@@ -90,8 +90,10 @@ test.describe('generate screen (ephemeral stack)', () => {
     await expect(page.getByText('1 of 2 selected')).toBeVisible();
     await page.getByRole('button', { name: /save 1 sentence/i }).click();
 
-    // Success toast + the saved confirmation panel.
-    await expect(page.getByText('Cards saved')).toBeVisible();
+    // Success toast + the saved confirmation panel. `.first()` because for ~1s after the toast
+    // opens, Radix also renders a visually-hidden aria-live announce span containing the same
+    // string (same pattern as the staging specs).
+    await expect(page.getByText('Cards saved').first()).toBeVisible();
     await expect(page.getByText('Saved 2 cards')).toBeVisible();
 
     // The saved cards are now reviewable: the active language's due queue contains the first

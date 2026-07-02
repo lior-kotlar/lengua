@@ -39,7 +39,7 @@ export default function Languages() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Your languages</CardTitle>
+          <CardTitle>Your languages</CardTitle>
           <CardDescription>
             The active language scopes Generate, Review and your level.
           </CardDescription>
@@ -102,7 +102,7 @@ export default function Languages() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Add a language</CardTitle>
+          <CardTitle>Add a language</CardTitle>
           <CardDescription>
             Choose a starting level — it adapts automatically as you review.
           </CardDescription>

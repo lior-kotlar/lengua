@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 
 export function AnalyticsConsentToggle() {
   const { decision, grant, deny } = useAnalyticsConsent();
@@ -25,7 +25,7 @@ export function AnalyticsConsentToggle() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Privacy &amp; analytics</CardTitle>
+        <CardTitle>Privacy &amp; analytics</CardTitle>
         <CardDescription>
           Lengua can use privacy-friendly, EU-hosted product analytics (PostHog)
           to understand how the app is used and improve it. We never collect
@@ -36,36 +36,22 @@ export function AnalyticsConsentToggle() {
       <CardContent>
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
-            <p id="analytics-toggle-label" className="text-sm font-medium">
+            <p id="analytics-toggle-label" className="text-body font-medium">
               Share anonymous usage analytics
             </p>
             <p
               id="analytics-toggle-hint"
-              className="text-xs text-muted-foreground"
+              className="text-footnote text-muted-foreground"
             >
               {enabled ? 'On — thank you!' : 'Off'}
             </p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={enabled}
+          <Switch
+            checked={enabled}
+            onCheckedChange={(checked) => (checked ? grant() : deny())}
             aria-labelledby="analytics-toggle-label"
             aria-describedby="analytics-toggle-hint"
-            onClick={enabled ? deny : grant}
-            className={cn(
-              'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-              enabled ? 'bg-primary' : 'bg-input',
-            )}
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                'inline-block h-5 w-5 transform rounded-full bg-background shadow transition-transform',
-                enabled ? 'translate-x-5' : 'translate-x-0.5',
-              )}
-            />
-          </button>
+          />
         </div>
       </CardContent>
     </Card>

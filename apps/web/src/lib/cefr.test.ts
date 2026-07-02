@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CEFR_BANDS,
+  cefrBandChipClass,
   cefrBandColor,
   isCefrBand,
   nextBand,
@@ -56,15 +57,32 @@ describe('progressPercent', () => {
 
 describe('cefrBandColor', () => {
   it('maps bands to the locked red/orange/blue/green palette by tier', () => {
-    expect(cefrBandColor('A1')).toBe('bg-red-500');
-    expect(cefrBandColor('A2')).toBe('bg-orange-500');
-    expect(cefrBandColor('B1')).toBe('bg-blue-500');
-    expect(cefrBandColor('B2')).toBe('bg-blue-500');
-    expect(cefrBandColor('C1')).toBe('bg-green-500');
-    expect(cefrBandColor('C2')).toBe('bg-green-500');
+    expect(cefrBandColor('A1')).toBe('bg-hig-red');
+    expect(cefrBandColor('A2')).toBe('bg-hig-orange');
+    expect(cefrBandColor('B1')).toBe('bg-hig-blue');
+    expect(cefrBandColor('B2')).toBe('bg-hig-blue');
+    expect(cefrBandColor('C1')).toBe('bg-hig-green');
+    expect(cefrBandColor('C2')).toBe('bg-hig-green');
   });
 
   it('falls back to neutral for an unknown band', () => {
     expect(cefrBandColor('??')).toBe('bg-muted-foreground');
+  });
+});
+
+describe('cefrBandChipClass', () => {
+  it('maps bands to tinted chips in the same hue tiers as the bar fill', () => {
+    expect(cefrBandChipClass('A1')).toBe('bg-hig-red/15 text-hig-red-deep');
+    expect(cefrBandChipClass('A2')).toBe(
+      'bg-hig-orange/15 text-hig-orange-deep',
+    );
+    expect(cefrBandChipClass('B1')).toBe('bg-hig-blue/15 text-hig-blue-deep');
+    expect(cefrBandChipClass('B2')).toBe('bg-hig-blue/15 text-hig-blue-deep');
+    expect(cefrBandChipClass('C1')).toBe('bg-hig-green/15 text-hig-green-deep');
+    expect(cefrBandChipClass('C2')).toBe('bg-hig-green/15 text-hig-green-deep');
+  });
+
+  it('falls back to a neutral chip for an unknown band', () => {
+    expect(cefrBandChipClass('??')).toBe('bg-secondary text-muted-foreground');
   });
 });

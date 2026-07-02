@@ -19,6 +19,7 @@ import {
   explainKey,
   isProductionCard,
   ratingButtonClass,
+  ratingFlashClass,
   RATINGS,
   segmentSentence,
   useDueQuery,
@@ -74,15 +75,31 @@ describe('RATINGS (locked FSRS colours)', () => {
 });
 
 describe('ratingButtonClass', () => {
-  it('returns the locked Tailwind background for each colour', () => {
+  it('returns the locked tinted-pill treatment for each colour (soft fill + deep text)', () => {
     const cases: Record<RatingColor, string> = {
-      red: 'bg-red-500',
-      orange: 'bg-orange-500',
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
+      red: 'bg-hig-red/15 text-hig-red-deep border-hig-red/25 hover:bg-hig-red/25',
+      orange:
+        'bg-hig-orange/15 text-hig-orange-deep border-hig-orange/25 hover:bg-hig-orange/25',
+      blue: 'bg-hig-blue/15 text-hig-blue-deep border-hig-blue/25 hover:bg-hig-blue/25',
+      green:
+        'bg-hig-green/15 text-hig-green-deep border-hig-green/25 hover:bg-hig-green/25',
     };
     for (const [color, expected] of Object.entries(cases)) {
-      expect(ratingButtonClass(color as RatingColor)).toContain(expected);
+      expect(ratingButtonClass(color as RatingColor)).toBe(expected);
+    }
+  });
+});
+
+describe('ratingFlashClass', () => {
+  it('fills the committed pill solid in its vivid hue for each colour', () => {
+    const cases: Record<RatingColor, string> = {
+      red: 'bg-hig-red text-white border-transparent',
+      orange: 'bg-hig-orange text-white border-transparent',
+      blue: 'bg-hig-blue text-white border-transparent',
+      green: 'bg-hig-green text-white border-transparent',
+    };
+    for (const [color, expected] of Object.entries(cases)) {
+      expect(ratingFlashClass(color as RatingColor)).toBe(expected);
     }
   });
 });

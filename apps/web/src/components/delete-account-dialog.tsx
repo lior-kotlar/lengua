@@ -159,7 +159,7 @@ export function DeleteAccountDialog() {
             </DialogClose>
             <Button
               type="submit"
-              variant="destructive"
+              variant="destructiveSolid"
               disabled={!confirmed || deleteAccount.isPending}
             >
               {deleteAccount.isPending ? 'Deleting…' : 'Delete account'}

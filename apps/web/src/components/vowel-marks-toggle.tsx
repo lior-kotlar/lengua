@@ -8,7 +8,7 @@
  */
 import { useActiveLanguage } from '@/components/active-language-context';
 import { useVowelMarks } from '@/components/vowel-marks-context';
-import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 
 export function VowelMarksToggle() {
   const { activeLanguage } = useActiveLanguage();
@@ -20,26 +20,12 @@ export function VowelMarksToggle() {
   }
 
   return (
-    <label className="flex w-fit items-center gap-2 text-sm">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={showVowels}
+    <label className="flex w-fit items-center gap-2.5 text-subhead">
+      <Switch
+        checked={showVowels}
+        onCheckedChange={setShowVowels}
         aria-label="Show vowel marks"
-        onClick={() => setShowVowels(!showVowels)}
-        className={cn(
-          'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          showVowels ? 'bg-primary' : 'bg-muted',
-        )}
-      >
-        <span
-          aria-hidden="true"
-          className={cn(
-            'inline-block h-4 w-4 transform rounded-full bg-background shadow transition-transform',
-            showVowels ? 'translate-x-4' : 'translate-x-0.5',
-          )}
-        />
-      </button>
+      />
       <span className="font-medium text-muted-foreground">Vowel marks</span>
     </label>
   );
