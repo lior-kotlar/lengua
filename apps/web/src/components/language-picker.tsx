@@ -8,7 +8,6 @@
  * trivial to drive in tests/Playwright, and gives the best native UX inside the Capacitor webview
  * (Phase 7). When the account has no languages yet, it degrades to a link to the management screen.
  */
-import { Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useActiveLanguage } from '@/components/active-language-context';
@@ -20,7 +19,7 @@ export function LanguagePicker() {
 
   if (isLoading && languages.length === 0) {
     return (
-      <span className="text-sm text-muted-foreground" aria-busy="true">
+      <span className="text-subhead text-muted-foreground" aria-busy="true">
         Loading…
       </span>
     );
@@ -30,7 +29,7 @@ export function LanguagePicker() {
     return (
       <Link
         to="/languages"
-        className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        className="text-subhead font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
         Add a language
       </Link>
@@ -38,23 +37,21 @@ export function LanguagePicker() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-      <select
-        aria-label="Active language"
-        value={activeLanguageId ?? ''}
-        onChange={(event) => setActiveLanguageId(Number(event.target.value))}
-        className={cn(
-          'h-9 rounded-md border border-input bg-background px-2 text-sm font-medium',
-          'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-        )}
-      >
-        {languages.map((language) => (
-          <option key={language.id} value={language.id}>
-            {language.name}
-          </option>
-        ))}
-      </select>
-    </div>
+    <select
+      aria-label="Active language"
+      value={activeLanguageId ?? ''}
+      onChange={(event) => setActiveLanguageId(Number(event.target.value))}
+      className={cn(
+        // iOS pill treatment of the header select (spec §3) — still a native <select>.
+        'select-chevron h-8 max-w-[45vw] truncate rounded-full border-0 bg-secondary pl-3 pr-7 text-subhead font-medium',
+        'transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      )}
+    >
+      {languages.map((language) => (
+        <option key={language.id} value={language.id}>
+          {language.name}
+        </option>
+      ))}
+    </select>
   );
 }

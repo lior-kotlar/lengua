@@ -17,6 +17,15 @@ if (!window.matchMedia) {
   }));
 }
 
+// jsdom does not implement ResizeObserver; Radix Popover (floating-ui positioning) requires it.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 afterEach(() => {
   cleanup();
   localStorage.clear();

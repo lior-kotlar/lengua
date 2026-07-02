@@ -13,8 +13,10 @@ const ToastViewport = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Viewport
     ref={ref}
+    // Mobile: bottom-center, offset above the 49px tab bar (+ safe area) so "Cards saved" /
+    // "Settings saved" never land beneath it. Desktop (`sm:`): bottom-right, standard offset.
     className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]',
+      'fixed bottom-[calc(49px+env(safe-area-inset-bottom)+12px)] z-[100] flex max-h-screen w-full flex-col-reverse items-center p-4 sm:bottom-0 sm:right-0 sm:flex-col sm:items-end md:max-w-[420px]',
       className,
     )}
     {...props}

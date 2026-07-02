@@ -8,6 +8,7 @@
  * invalidates the proficiency query so the panel re-renders at the new level (which also re-levels
  * future generation on the backend).
  */
+import { useId } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { useActiveLanguage } from '@/components/active-language-context';
@@ -27,7 +28,7 @@ export function CefrPanel() {
   if (activeLanguageId === null) {
     return (
       <section aria-label="Proficiency level" className="px-3 py-2">
-        <p className="text-xs text-muted-foreground">
+        <p className="text-footnote text-muted-foreground">
           Add a language to track your level.
         </p>
       </section>
@@ -50,6 +51,9 @@ interface CefrLevelProps {
 function CefrLevel({ languageId, languageName }: CefrLevelProps) {
   const { data, isLoading, isError } = useProficiencyQuery(languageId);
   const setBand = useSetProficiencyBand(languageId);
+  // Per-instance id: the panel mounts twice at once on phones (hidden desktop sidebar copy + the
+  // open More sheet copy), so a hardcoded id would break the visible select's label association.
+  const overrideId = useId();
 
   function handleOverride(band: string) {
     setBand.mutate(band, {
@@ -66,14 +70,12 @@ function CefrLevel({ languageId, languageName }: CefrLevelProps) {
   return (
     <section
       aria-label="Proficiency level"
-      className="space-y-2 rounded-md border bg-card px-3 py-3"
+      className="space-y-2 rounded-lg border bg-card p-3 shadow-card"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Level
-        </h2>
+        <h2 className="text-caption uppercase text-muted-foreground">Level</h2>
         {languageName !== '' && (
-          <span className="max-w-[8rem] truncate text-xs text-muted-foreground">
+          <span className="max-w-[8rem] truncate text-footnote text-muted-foreground">
             {languageName}
           </span>
         )}
@@ -81,7 +83,7 @@ function CefrLevel({ languageId, languageName }: CefrLevelProps) {
 
       {isLoading && (
         <p
-          className="flex items-center gap-2 text-sm text-muted-foreground"
+          className="flex items-center gap-2 text-subhead text-muted-foreground"
           aria-busy="true"
         >
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -90,7 +92,7 @@ function CefrLevel({ languageId, languageName }: CefrLevelProps) {
       )}
 
       {isError && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-subhead text-hig-red-deep">
           Couldn&apos;t load your level.
         </p>
       )}
@@ -101,17 +103,17 @@ function CefrLevel({ languageId, languageName }: CefrLevelProps) {
 
           <div className="space-y-1.5 pt-1">
             <label
-              htmlFor="cefr-override"
-              className="text-xs font-medium text-muted-foreground"
+              htmlFor={overrideId}
+              className="text-footnote font-medium text-muted-foreground"
             >
               Override level
             </label>
             <select
-              id="cefr-override"
+              id={overrideId}
               value={data.band}
               disabled={setBand.isPending}
               onChange={(event) => handleOverride(event.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+              className="select-chevron h-9 w-full rounded-md border border-input bg-card px-3 pr-8 text-body transition-[border-color,box-shadow] duration-150 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25 disabled:opacity-50"
             >
               {CEFR_BANDS.map((band) => (
                 <option key={band} value={band}>
@@ -119,7 +121,7 @@ function CefrLevel({ languageId, languageName }: CefrLevelProps) {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-footnote text-muted-foreground">
               Auto-adjusts as you review; override it if it&apos;s off.
             </p>
           </div>
@@ -141,13 +143,12 @@ function BandProgress({ band, progress }: BandProgressProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between">
-        <span
-          data-testid="cefr-band"
-          className="text-lg font-bold tracking-tight"
-        >
+        <span data-testid="cefr-band" className="text-title2 font-bold">
           {band}
         </span>
-        <span className="text-xs text-muted-foreground">{percent}%</span>
+        <span className="text-subhead tabular-nums text-muted-foreground">
+          {percent}%
+        </span>
       </div>
       <div
         role="progressbar"
@@ -157,14 +158,14 @@ function BandProgress({ band, progress }: BandProgressProps) {
         aria-label={
           upcoming !== null ? `Progress to ${upcoming}` : 'Top level reached'
         }
-        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
       >
         <div
           className={cn('h-full rounded-full', cefrBandColor(band))}
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-footnote text-muted-foreground">
         {upcoming !== null ? `Progress to ${upcoming}` : 'Top level (C2)'}
       </p>
     </div>
