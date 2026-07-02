@@ -31,8 +31,21 @@ export function MobileTabBar() {
               )
             }
           >
-            <Icon className="h-6 w-6 stroke-[1.8]" aria-hidden="true" />
-            <span className="text-[10px] font-medium">{label}</span>
+            {({ isActive }) => (
+              <>
+                <Icon className="h-6 w-6 stroke-[1.8]" aria-hidden="true" />
+                {/* The 10px label needs the AA-contrast deep hue in light mode (it re-points to
+                    the vivid blue in dark); the 24px icon stays at the brand primary. */}
+                <span
+                  className={cn(
+                    'text-[10px] font-medium',
+                    isActive && 'text-hig-blue-deep',
+                  )}
+                >
+                  {label}
+                </span>
+              </>
+            )}
           </NavLink>
         </li>
       ))}

@@ -69,6 +69,17 @@ describe('MoreSheet', () => {
     expect(rows.queryByRole('link', { name: /sign out/i })).toBeNull();
   });
 
+  it('offers an explicit close control (touch screen readers cannot rely on Escape/overlay)', async () => {
+    renderSheet();
+    const { user, sheet } = await openSheet();
+
+    await user.click(within(sheet).getByRole('button', { name: 'Close' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'More' })).toBeNull(),
+    );
+  });
+
   it('closes when a destination is tapped', async () => {
     renderSheet();
     const { user } = await openSheet();

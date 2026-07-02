@@ -23,7 +23,10 @@ export function AnalyticsConsentBanner() {
       role="region"
       aria-label="Analytics consent"
       data-testid="analytics-consent"
-      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background p-4 shadow-lg"
+      // Below `sm` the app shell pins a 49px tab bar to the bottom edge; the banner sits above it
+      // so it never covers Primary navigation. (On tab-bar-less screens it floats a little high —
+      // harmless for a one-shot prompt.)
+      className="fixed inset-x-0 bottom-[calc(49px+env(safe-area-inset-bottom))] z-50 border-t bg-background p-4 shadow-lg sm:bottom-0"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">

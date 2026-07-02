@@ -8,6 +8,7 @@
  * invalidates the proficiency query so the panel re-renders at the new level (which also re-levels
  * future generation on the backend).
  */
+import { useId } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { useActiveLanguage } from '@/components/active-language-context';
@@ -50,6 +51,9 @@ interface CefrLevelProps {
 function CefrLevel({ languageId, languageName }: CefrLevelProps) {
   const { data, isLoading, isError } = useProficiencyQuery(languageId);
   const setBand = useSetProficiencyBand(languageId);
+  // Per-instance id: the panel mounts twice at once on phones (hidden desktop sidebar copy + the
+  // open More sheet copy), so a hardcoded id would break the visible select's label association.
+  const overrideId = useId();
 
   function handleOverride(band: string) {
     setBand.mutate(band, {
@@ -99,13 +103,13 @@ function CefrLevel({ languageId, languageName }: CefrLevelProps) {
 
           <div className="space-y-1.5 pt-1">
             <label
-              htmlFor="cefr-override"
+              htmlFor={overrideId}
               className="text-footnote font-medium text-muted-foreground"
             >
               Override level
             </label>
             <select
-              id="cefr-override"
+              id={overrideId}
               value={data.band}
               disabled={setBand.isPending}
               onChange={(event) => handleOverride(event.target.value)}

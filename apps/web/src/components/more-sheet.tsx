@@ -10,7 +10,7 @@
  */
 import { useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { ChevronRight, Ellipsis, Moon } from 'lucide-react';
+import { ChevronRight, Ellipsis, Moon, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { CefrPanel } from '@/components/cefr-panel';
@@ -43,7 +43,14 @@ export function MoreSheet() {
         )}
       >
         <Ellipsis className="h-6 w-6 stroke-[1.8]" aria-hidden="true" />
-        <span className="text-[10px] font-medium">More</span>
+        <span
+          className={cn(
+            'text-[10px] font-medium',
+            sectionActive && 'text-hig-blue-deep',
+          )}
+        >
+          More
+        </span>
       </DialogPrimitive.Trigger>
 
       <DialogPrimitive.Portal>
@@ -59,6 +66,12 @@ export function MoreSheet() {
           <DialogPrimitive.Title className="sr-only">
             More
           </DialogPrimitive.Title>
+          {/* Explicit close control: Escape/overlay-tap alone is not reachable for touch
+              screen-reader users. */}
+          <DialogPrimitive.Close className="absolute right-3 top-3 rounded-full p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <X className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
 
           <ul className="mt-3 divide-y">
             {MORE_SHEET_ITEMS.map(({ to, label, icon: Icon }) => (

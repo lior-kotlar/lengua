@@ -9,6 +9,7 @@
  * with `within(screen.getByTestId('nav-desktop'))` (or 'nav-mobile').
  */
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +22,16 @@ const { useLanguagesQuery } = vi.hoisted(() => ({
 vi.mock('@/lib/languages', () => ({
   useLanguagesQuery,
   languagesKey: ['languages'],
+}));
+
+const { useProficiencyQuery, useSetProficiencyBand } = vi.hoisted(() => ({
+  useProficiencyQuery: vi.fn(),
+  useSetProficiencyBand: vi.fn(),
+}));
+vi.mock('@/lib/proficiency', () => ({
+  useProficiencyQuery,
+  useSetProficiencyBand,
+  proficiencyKey: (id: number) => ['proficiency', id],
 }));
 
 import { AppLayout } from '@/components/app-layout';
@@ -55,6 +66,12 @@ beforeEach(() => {
     isError: false,
     refetch: vi.fn(),
   });
+  useProficiencyQuery.mockReturnValue({
+    data: { band: 'B1', progress: 0.4, score: 2.4 },
+    isLoading: false,
+    isError: false,
+  });
+  useSetProficiencyBand.mockReturnValue({ mutate: vi.fn(), isPending: false });
 });
 
 describe('AppLayout navigation landmark', () => {
@@ -90,6 +107,38 @@ describe('AppLayout navigation landmark', () => {
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     expect(nav).toContainElement(screen.getByTestId('nav-desktop'));
     expect(nav).toContainElement(screen.getByTestId('nav-mobile'));
+  });
+
+  it('keeps both CEFR override selects labeled when the More sheet is open (no duplicate ids)', async () => {
+    // With an active language the CefrPanel mounts TWICE at once: the (CSS-hidden) desktop sidebar
+    // copy and the open More sheet copy. Each must keep its own label→select association.
+    useLanguagesQuery.mockReturnValue({
+      data: [{ id: 7, name: 'Spanish', code: 'es', vowelized: false }],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByRole('button', { name: 'More' }));
+
+    // The sheet's (visible) select resolves its accessible name through its own label. While the
+    // sheet is open Radix marks the app root aria-hidden, so this is the one users interact with.
+    const sheet = screen.getByRole('dialog', { name: 'More' });
+    const sheetSelect = within(sheet).getByLabelText('Override level');
+
+    // Both simultaneously-mounted panels keep their own label→select association — a shared
+    // hardcoded id made BOTH labels target the first (display-hidden) select in tree order.
+    const labels = Array.from(document.querySelectorAll('label')).filter(
+      (l) => l.textContent === 'Override level',
+    ) as HTMLLabelElement[];
+    expect(labels).toHaveLength(2);
+    const targets = labels.map((l) => l.control);
+    expect(targets[0]).not.toBeNull();
+    expect(targets[1]).not.toBeNull();
+    expect(targets[0]).not.toBe(targets[1]);
+    expect(targets).toContain(sheetSelect);
   });
 
   it('marks the active route in both lists (aria-current)', () => {

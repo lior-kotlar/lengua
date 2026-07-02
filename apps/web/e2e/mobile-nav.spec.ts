@@ -55,8 +55,9 @@ test.describe('mobile shell (390px, ephemeral stack)', () => {
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 
     // Fire a real toast and assert it stacks above the tab bar, never beneath it.
+    // `.first()`: Radix briefly mirrors the toast text into an aria-live announce span.
     await page.getByRole('button', { name: 'Save settings' }).click();
-    await expect(page.getByText('Settings saved')).toBeVisible();
+    await expect(page.getByText('Settings saved').first()).toBeVisible();
     const viewportBox = await page
       .locator('ol')
       .filter({ has: page.getByText('Settings saved') })
