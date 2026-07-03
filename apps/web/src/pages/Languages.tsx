@@ -52,9 +52,9 @@ export default function Languages() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr,380px]">
         <div className="space-y-3">
-          <h2 className="text-caption uppercase text-muted-foreground">
+          <p className="text-caption uppercase text-muted-foreground">
             Your languages
-          </h2>
+          </p>
 
           {isLoading ? (
             <LoadingState label="Loading languages…" />

@@ -70,9 +70,7 @@ export default function Account() {
 
       {/* Profile — a grouped list (Email) with the page-level Sign out below it. */}
       <div className="space-y-3">
-        <h2 className="text-caption uppercase text-muted-foreground">
-          Profile
-        </h2>
+        <p className="text-caption uppercase text-muted-foreground">Profile</p>
         <div className="overflow-hidden rounded-lg border bg-card shadow-card">
           <div className="flex items-center justify-between gap-4 px-5 py-4">
             <p className="shrink-0 text-body font-medium">Email</p>
@@ -96,9 +94,9 @@ export default function Account() {
 
       {/* Data export */}
       <div className="space-y-3">
-        <h2 className="text-caption uppercase text-muted-foreground">
+        <p className="text-caption uppercase text-muted-foreground">
           Your data
-        </h2>
+        </p>
         <div className="space-y-3 rounded-lg border bg-card p-5 shadow-card">
           <div className="space-y-1">
             <p className="text-body font-medium">Export your data</p>
@@ -130,9 +128,7 @@ export default function Account() {
       {/* Danger zone — tinted-red frame; the Delete trigger is tinted destructive, its dialog
           confirm the solid destructive (both wired inside DeleteAccountDialog). */}
       <div className="space-y-3 rounded-lg border border-hig-red/25 bg-card p-5 shadow-card">
-        <h2 className="text-caption uppercase text-hig-red-deep">
-          Danger zone
-        </h2>
+        <p className="text-caption uppercase text-hig-red-deep">Danger zone</p>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0 space-y-1">
             <p className="text-body font-medium">Delete account</p>

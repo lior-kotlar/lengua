@@ -107,6 +107,19 @@ describe('Languages page', () => {
     expect(screen.getByText('FR')).toBeInTheDocument();
   });
 
+  it('exposes exactly one heading — the h1 equal to the nav label (the "Your languages" eyebrow is not a heading)', () => {
+    // Guards the staging navigateTo contract: getByRole('heading', { name: 'Languages' }) must be
+    // unambiguous. A caption rendered as a heading whose name contains "Languages" (e.g. an
+    // <h2>Your languages</h2>) would collide with the page <h1> under substring name matching.
+    renderPage(makeValue());
+    const headings = screen.getAllByRole('heading');
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent('Languages');
+    expect(
+      screen.getByRole('heading', { name: 'Languages' }),
+    ).toBeInTheDocument();
+  });
+
   it('clicking a language makes it active', async () => {
     const value = makeValue();
     renderPage(value);
