@@ -170,6 +170,24 @@ export function dueKey(languageId: number) {
 }
 
 /**
+ * Fetch a language's due batch (`GET /review/due?language_id=…`) — the shared fetcher behind both
+ * {@link useDueQuery} (the Review screen) and the Dashboard's per-language fan-out
+ * ({@link import('@/lib/dashboard').useDashboardTiles}). Extracting it lets the dashboard reuse the
+ * exact request + {@link dueKey} cache entry, so a language's due batch is fetched once and shared
+ * (the hero and its tile read the same cache), never issued twice.
+ *
+ * The id is always concrete here (callers gate on `null` themselves); the shared cache key is
+ * {@link dueKey}.
+ */
+export function fetchDue(languageId: number): Promise<DueResponse> {
+  return unwrap(
+    getApiClient().GET('/review/due', {
+      params: { query: { language_id: languageId } },
+    }),
+  );
+}
+
+/**
  * Fetch the active language's due batch (`GET /review/due?language_id=…`).
  *
  * `languageId` may be `null` (no language selected yet); the query stays disabled until one exists.
@@ -179,12 +197,7 @@ export function dueKey(languageId: number) {
 export function useDueQuery(languageId: number | null) {
   return useQuery({
     queryKey: dueKey(languageId ?? -1),
-    queryFn: () =>
-      unwrap(
-        getApiClient().GET('/review/due', {
-          params: { query: { language_id: languageId as number } },
-        }),
-      ),
+    queryFn: () => fetchDue(languageId as number),
     enabled: languageId !== null,
   });
 }

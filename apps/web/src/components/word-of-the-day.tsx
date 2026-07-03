@@ -16,15 +16,12 @@ export function WordOfTheDay() {
   return (
     <section
       aria-labelledby="word-of-the-day-heading"
-      className="rounded-lg border border-dashed p-4"
+      className="space-y-1 rounded-lg border bg-card p-5 text-card-foreground shadow-card"
     >
-      <h2
-        id="word-of-the-day-heading"
-        className="text-lg font-semibold tracking-tight"
-      >
+      <h2 id="word-of-the-day-heading" className="text-headline">
         Word of the day
       </h2>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-subhead text-muted-foreground">
         Experimental preview — the full “word of the day” feature is coming
         soon.
       </p>
