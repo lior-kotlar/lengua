@@ -19,6 +19,23 @@ export function proficiencyKey(languageId: number) {
 }
 
 /**
+ * Fetch a language's proficiency (`GET /proficiency/{language_id}`) — the shared fetcher behind both
+ * {@link useProficiencyQuery} (the CEFR panel) and the Dashboard's per-language fan-out
+ * ({@link import('@/lib/dashboard').useDashboardTiles}), so the level for a language is fetched under
+ * the one {@link proficiencyKey} cache entry rather than requested twice.
+ *
+ * The id is always concrete here (callers gate on `null` themselves); the shared cache key is
+ * {@link proficiencyKey}.
+ */
+export function fetchProficiency(languageId: number): Promise<ProficiencyOut> {
+  return unwrap(
+    getApiClient().GET('/proficiency/{language_id}', {
+      params: { path: { language_id: languageId } },
+    }),
+  );
+}
+
+/**
  * Fetch the active language's proficiency.
  *
  * `languageId` may be `null` (no language selected yet); the query is disabled until one exists, so
@@ -27,12 +44,7 @@ export function proficiencyKey(languageId: number) {
 export function useProficiencyQuery(languageId: number | null) {
   return useQuery({
     queryKey: proficiencyKey(languageId ?? -1),
-    queryFn: () =>
-      unwrap(
-        getApiClient().GET('/proficiency/{language_id}', {
-          params: { path: { language_id: languageId as number } },
-        }),
-      ),
+    queryFn: () => fetchProficiency(languageId as number),
     enabled: languageId !== null,
   });
 }
