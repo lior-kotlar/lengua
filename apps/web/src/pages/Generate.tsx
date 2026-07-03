@@ -410,7 +410,7 @@ function ResultsPanel({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h2 className="text-title2">Review &amp; save</h2>
+        <p className="text-title2">Review &amp; save</p>
         <p className="text-subhead text-muted-foreground">
           Pick the sentences to add to your deck. Each becomes two flashcards
           (reading + writing).

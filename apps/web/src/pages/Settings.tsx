@@ -130,9 +130,9 @@ function SettingsForm({ settings }: { settings: SettingsOut }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
       <div className="space-y-1">
-        <h2 className="text-caption uppercase text-muted-foreground">
+        <p className="text-caption uppercase text-muted-foreground">
           Review &amp; discovery
-        </h2>
+        </p>
         <p className="text-footnote text-muted-foreground">
           These apply across all of your languages.
         </p>

@@ -377,7 +377,7 @@ function SuggestionsPanel({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h2 className="text-title2">Suggested words</h2>
+        <p className="text-title2">Suggested words</p>
         <p className="text-subhead text-muted-foreground">
           New vocabulary at your level. Use these to generate sentences, or try
           a different set.
