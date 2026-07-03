@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -669,6 +675,159 @@ describe('Review — without a resolved language name (defensive)', () => {
     );
     renderReview(noName);
     expect(await screen.findByText('Build the sentence')).toBeInTheDocument();
+  });
+});
+
+describe('Review — commit flash (PR3)', () => {
+  it('flashes the chosen pill solid and dims its siblings while the grade posts', async () => {
+    const user = userEvent.setup();
+    get.mockReturnValue(
+      okResult(due([makeCard(1, 'recognition', 'Hola', 'Hello')], [])),
+    );
+    post.mockReturnValue(new Promise(() => {})); // hold the grade in flight
+    renderReview();
+
+    await screen.findByText('Hola');
+    await user.click(screen.getByRole('button', { name: 'Show translation' }));
+    fireEvent.click(ratingButton(1)); // Again → flashes solid red
+
+    // The chosen pill fills solid (white text on the vivid hue) and is NOT dimmed.
+    expect(ratingButton(1).className).toContain('text-white');
+    expect(ratingButton(1).className).not.toContain('opacity-40');
+    // Its three siblings recede.
+    for (const value of [2, 3, 4]) {
+      expect(ratingButton(value).className).toContain('opacity-40');
+    }
+  });
+
+  it('clears the flash and keeps the card when the grade fails', async () => {
+    const user = userEvent.setup();
+    get.mockReturnValue(
+      okResult(due([makeCard(1, 'recognition', 'Hola', 'Hello')], [])),
+    );
+    post.mockReturnValue(failResult(500, 'oops'));
+    renderReview();
+
+    await screen.findByText('Hola');
+    await user.click(screen.getByRole('button', { name: 'Show translation' }));
+    fireEvent.click(ratingButton(1));
+
+    // RTL waitFor flushes the async onError state update inside act().
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    // Back to the resting tinted pill; nothing is left dimmed, and the card stays revealed.
+    expect(ratingButton(1).className).toContain('bg-hig-red/15');
+    expect(ratingButton(1).className).not.toContain('text-white');
+    for (const value of [1, 2, 3, 4]) {
+      expect(ratingButton(value).className).not.toContain('opacity-40');
+    }
+    expect(screen.getByTestId('card-answer')).toHaveTextContent('Hello');
+  });
+
+  it('fires a short haptic when grading on a coarse (touch) pointer', async () => {
+    const user = userEvent.setup();
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, 'vibrate', {
+      value: vibrate,
+      configurable: true,
+      writable: true,
+    });
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('coarse'), // report a coarse pointer, nothing else
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    get.mockReturnValue(
+      okResult(due([makeCard(1, 'recognition', 'Hola', 'Hello')], [])),
+    );
+    post.mockReturnValue(new Promise(() => {}));
+
+    try {
+      renderReview();
+      await screen.findByText('Hola');
+      await user.click(
+        screen.getByRole('button', { name: 'Show translation' }),
+      );
+      fireEvent.click(ratingButton(1));
+      expect(vibrate).toHaveBeenCalledWith(10);
+    } finally {
+      window.matchMedia = originalMatchMedia;
+      delete (navigator as { vibrate?: unknown }).vibrate;
+    }
+  });
+
+  it('does not vibrate when grading on a fine (mouse) pointer', async () => {
+    const user = userEvent.setup();
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, 'vibrate', {
+      value: vibrate,
+      configurable: true,
+      writable: true,
+    });
+    // The default matchMedia mock reports every query as non-matching → the pointer is fine.
+    get.mockReturnValue(
+      okResult(due([makeCard(1, 'recognition', 'Hola', 'Hello')], [])),
+    );
+    post.mockReturnValue(new Promise(() => {}));
+
+    try {
+      renderReview();
+      await screen.findByText('Hola');
+      await user.click(
+        screen.getByRole('button', { name: 'Show translation' }),
+      );
+      fireEvent.click(ratingButton(1));
+      expect(vibrate).not.toHaveBeenCalled();
+    } finally {
+      delete (navigator as { vibrate?: unknown }).vibrate;
+    }
+  });
+});
+
+describe('Review — accessible-name locks (PR3, kbd chips are decorative)', () => {
+  it('keeps the reveal button name exact despite the Space chip ("Show translation")', async () => {
+    get.mockReturnValue(
+      okResult(due([makeCard(1, 'recognition', 'Hola', 'Hello')], [])),
+    );
+    renderReview();
+    await screen.findByText('Hola');
+    // The <Kbd>Space</Kbd> is aria-hidden, so the accessible name stays exactly "Show translation".
+    expect(
+      screen.getByRole('button', { name: 'Show translation' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /^Show (answer|translation)$/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the reveal button name exact on a production card ("Show answer")', async () => {
+    get.mockReturnValue(
+      okResult(due([], [makeCard(5, 'production', 'The chair', 'La silla')])),
+    );
+    renderReview();
+    await screen.findByText(/build the sentence/i);
+    expect(
+      screen.getByRole('button', { name: 'Show answer' }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the rating names exactly Again/Hard/Good/Easy despite the digit chips', async () => {
+    const user = userEvent.setup();
+    get.mockReturnValue(
+      okResult(due([makeCard(1, 'recognition', 'Hola', 'Hello')], [])),
+    );
+    renderReview();
+    await screen.findByText('Hola');
+    await user.click(screen.getByRole('button', { name: 'Show translation' }));
+    // Exact names (the aria-hidden digit chip is excluded from the accessible name).
+    for (const label of ['Again', 'Hard', 'Good', 'Easy']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    }
   });
 });
 
