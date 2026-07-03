@@ -1,5 +1,6 @@
 /**
- * Settings screen (group 4.8) — the React port of the legacy Streamlit Settings page.
+ * Settings screen (group 4.8) — the React port of the legacy Streamlit Settings page, restyled to
+ * the Apple grouped-list grammar (redesign PR5).
  *
  * Edits the three per-user preferences kept in the generic `{key: value}` settings store — the daily
  * new-card limit, the daily total-card limit, and the Discover default word count — and saves them
@@ -11,14 +12,9 @@ import { useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 
 import { AnalyticsConsentToggle } from '@/components/analytics-consent-toggle';
+import { ErrorState } from '@/components/error-state';
+import { LoadingState } from '@/components/loading-state';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { apiErrorMessage } from '@/lib/api-client';
@@ -39,39 +35,25 @@ export default function Settings() {
   const settings = useSettingsQuery();
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
+    <section className="mx-auto max-w-2xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-large-title">Settings</h1>
+        <p className="text-subhead text-muted-foreground">
           Tune your daily review limits and how many words Discover suggests.
         </p>
       </div>
 
       {settings.isPending ? (
-        <p
-          className="flex items-center gap-2 text-sm text-muted-foreground"
-          aria-busy="true"
-        >
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading your settings…
-        </p>
+        <LoadingState label="Loading your settings…" />
       ) : settings.isError ? (
-        <Card role="alert" className="border-destructive/50">
-          <CardHeader>
-            <CardTitle>Could not load your settings</CardTitle>
-            <CardDescription>
-              Something went wrong fetching your preferences. Please try again.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Refetching an errored, data-less query flips the query back to its pending state, so
-                the loading branch above renders while the retry is in flight — this button itself
-                never shows an in-flight label. */}
-            <Button variant="outline" onClick={() => void settings.refetch()}>
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
+        // Refetching an errored, data-less query flips it back to its pending state, so the loading
+        // branch above renders while the retry is in flight — this button never shows an in-flight label.
+        <ErrorState
+          title="Could not load your settings"
+          description="Something went wrong fetching your preferences. Please try again."
+          retryLabel="Retry"
+          onRetry={() => void settings.refetch()}
+        />
       ) : (
         <SettingsForm settings={settings.data} />
       )}
@@ -146,42 +128,44 @@ function SettingsForm({ settings }: { settings: SettingsOut }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Review &amp; discovery</CardTitle>
-        <CardDescription>
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      <div className="space-y-1">
+        <h2 className="text-caption uppercase text-muted-foreground">
+          Review &amp; discovery
+        </h2>
+        <p className="text-footnote text-muted-foreground">
           These apply across all of your languages.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          {fields.map(({ field, value, error }) => (
-            <SettingField
-              key={field.key}
-              field={field}
-              value={value}
-              error={error}
-              disabled={update.isPending}
-              onChange={(next) => setValue(field.key, next)}
-            />
-          ))}
+        </p>
+      </div>
 
-          <Button type="submit" disabled={hasError || update.isPending}>
-            {update.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Saving…
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" aria-hidden="true" />
-                Save settings
-              </>
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+      {/* Grouped list — one hairline-divided row per setting. */}
+      <div className="divide-y overflow-hidden rounded-lg border bg-card shadow-card">
+        {fields.map(({ field, value, error }) => (
+          <SettingField
+            key={field.key}
+            field={field}
+            value={value}
+            error={error}
+            disabled={update.isPending}
+            onChange={(next) => setValue(field.key, next)}
+          />
+        ))}
+      </div>
+
+      <Button type="submit" disabled={hasError || update.isPending}>
+        {update.isPending ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Saving…
+          </>
+        ) : (
+          <>
+            <Save className="h-4 w-4" aria-hidden="true" />
+            Save settings
+          </>
+        )}
+      </Button>
+    </form>
   );
 }
 
@@ -193,7 +177,7 @@ interface SettingFieldProps {
   onChange: (value: string) => void;
 }
 
-/** One labeled integer setting input with help text + inline validation. */
+/** One setting as a grouped-list row: label + description on the left, numeric input on the right. */
 function SettingField({
   field,
   value,
@@ -205,30 +189,40 @@ function SettingField({
   const errorId = `${field.key}-error`;
   const invalid = error !== null;
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={field.key} className="text-sm font-medium">
-        {field.label}
-      </label>
-      <Input
-        id={field.key}
-        type="number"
-        inputMode="numeric"
-        min={field.min}
-        max={field.max}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? errorId : hintId}
-        className={cn('max-w-[10rem]', invalid && 'border-destructive')}
-      />
-      {invalid ? (
-        <p id={errorId} role="alert" className="text-xs text-destructive">
+    <div className="px-5 py-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 space-y-0.5">
+          <label htmlFor={field.key} className="text-body font-medium">
+            {field.label}
+          </label>
+          <p id={hintId} className="text-footnote text-muted-foreground">
+            {field.description}
+          </p>
+        </div>
+        <Input
+          id={field.key}
+          type="number"
+          inputMode="numeric"
+          min={field.min}
+          max={field.max}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? errorId : hintId}
+          className={cn(
+            'h-9 w-24 shrink-0 text-right tabular-nums',
+            invalid && 'border-destructive',
+          )}
+        />
+      </div>
+      {invalid && (
+        <p
+          id={errorId}
+          role="alert"
+          className="mt-2 text-footnote text-destructive"
+        >
           {error}
-        </p>
-      ) : (
-        <p id={hintId} className="text-xs text-muted-foreground">
-          {field.description}
         </p>
       )}
     </div>

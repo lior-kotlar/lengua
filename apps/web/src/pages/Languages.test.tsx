@@ -98,10 +98,13 @@ describe('Languages page', () => {
     renderPage(makeValue());
     expect(screen.getByText('stub-remove-1')).toBeInTheDocument();
     expect(screen.getByText('stub-remove-2')).toBeInTheDocument();
-    // The active language (id 1) carries the "active" marker.
-    expect(screen.getByText('active')).toBeInTheDocument();
+    // The active language (id 1) carries the "Active" chip.
+    expect(screen.getByText('Active')).toBeInTheDocument();
     // The code badge shows for Spanish (code "es") but not French (null code).
     expect(screen.getByText('es')).toBeInTheDocument();
+    // Each row has a two-letter avatar (from the code, else the name): Spanish "es" → ES, French → FR.
+    expect(screen.getByText('ES')).toBeInTheDocument();
+    expect(screen.getByText('FR')).toBeInTheDocument();
   });
 
   it('clicking a language makes it active', async () => {

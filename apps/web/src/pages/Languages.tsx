@@ -1,15 +1,17 @@
 /**
  * Languages management screen (tasks 4.4.2 + 4.4.3) — the React port of the legacy "Manage
- * languages" sidebar section.
+ * languages" sidebar section, restyled to the Apple grouped-list grammar (redesign PR5).
  *
- * Lists the user's languages (each with a confirm-gated remove) and an add-language form. The list
- * comes from the active-language context (the same `GET /languages` cache the header picker uses), so
- * a create/remove here is reflected everywhere; a freshly added language is also made active.
+ * Two columns on wide screens — the languages list + the add-language form — stacking on mobile.
+ * The list is the active-language context's `GET /languages` cache the header picker shares, so a
+ * create/remove here reflects everywhere; a freshly added language is also made active. Tapping a
+ * row's name sets it active; each row carries a confirm-gated {@link RemoveLanguageDialog}.
  */
-import { Loader2 } from 'lucide-react';
-
-import { useActiveLanguage } from '@/components/active-language-context';
 import { AddLanguageForm } from '@/components/add-language-form';
+import { useActiveLanguage } from '@/components/active-language-context';
+import { EmptyState } from '@/components/empty-state';
+import { ErrorState } from '@/components/error-state';
+import { LoadingState } from '@/components/loading-state';
 import { RemoveLanguageDialog } from '@/components/remove-language-dialog';
 import {
   Card,
@@ -18,6 +20,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import type { LanguageOut } from '@/lib/languages';
+
+/** Two-letter avatar initials — the language code when set, otherwise its name. */
+function languageInitials(language: LanguageOut): string {
+  const source =
+    language.code !== null && language.code.trim() !== ''
+      ? language.code
+      : language.name;
+  return source.replace(/\s+/g, '').slice(0, 2).toUpperCase();
+}
 
 export default function Languages() {
   const {
@@ -26,93 +38,96 @@ export default function Languages() {
     setActiveLanguageId,
     isLoading,
     isError,
+    refetch,
   } = useActiveLanguage();
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
+    <section className="mx-auto max-w-5xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Languages</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-large-title">Languages</h1>
+        <p className="text-subhead text-muted-foreground">
           Add or remove languages. Pick the active one from the header.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your languages</CardTitle>
-          <CardDescription>
-            The active language scopes Generate, Review and your level.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading && (
-            <p
-              className="flex items-center gap-2 text-sm text-muted-foreground"
-              aria-busy="true"
-            >
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Loading languages…
-            </p>
-          )}
+      <div className="grid gap-6 lg:grid-cols-[1fr,380px]">
+        <div className="space-y-3">
+          <h2 className="text-caption uppercase text-muted-foreground">
+            Your languages
+          </h2>
 
-          {isError && (
-            <p role="alert" className="text-sm text-destructive">
-              Couldn&apos;t load your languages. Please refresh.
-            </p>
-          )}
-
-          {!isLoading && !isError && languages.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              You haven&apos;t added any languages yet. Add your first one below
-              to get started.
-            </p>
-          )}
-
-          {languages.length > 0 && (
-            <ul className="divide-y">
-              {languages.map((language) => (
-                <li
-                  key={language.id}
-                  className="flex items-center justify-between gap-2 py-2"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActiveLanguageId(language.id)}
-                    className="flex items-center gap-2 text-left text-sm font-medium hover:underline"
+          {isLoading ? (
+            <LoadingState label="Loading languages…" />
+          ) : isError ? (
+            <ErrorState
+              title="Couldn't load your languages"
+              description="Something went wrong loading your languages. Please refresh."
+              onRetry={refetch}
+            />
+          ) : languages.length === 0 ? (
+            <EmptyState
+              title="No languages yet"
+              description="You haven't added any languages yet. Add your first one to get started."
+            />
+          ) : (
+            <ul className="divide-y overflow-hidden rounded-lg border bg-card shadow-card">
+              {languages.map((language) => {
+                const isActive = language.id === activeLanguageId;
+                const hasCode = language.code !== null && language.code !== '';
+                return (
+                  <li
+                    key={language.id}
+                    className="flex h-14 items-center gap-3 px-5"
                   >
-                    {language.name}
-                    {language.code !== null && language.code !== '' && (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal uppercase text-muted-foreground">
-                        {language.code}
+                    <button
+                      type="button"
+                      onClick={() => setActiveLanguageId(language.id)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left transition-opacity duration-150 hover:opacity-80"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-caption font-semibold text-muted-foreground"
+                      >
+                        {languageInitials(language)}
                       </span>
-                    )}
-                    {language.id === activeLanguageId && (
-                      <span className="text-xs font-normal text-muted-foreground">
-                        active
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-headline">
+                          {language.name}
+                        </span>
+                        {hasCode && (
+                          <span className="shrink-0 rounded bg-secondary px-1.5 text-caption uppercase text-muted-foreground">
+                            {language.code}
+                          </span>
+                        )}
+                        {isActive && (
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-caption font-semibold text-hig-blue-deep">
+                            Active
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </button>
-                  <RemoveLanguageDialog language={language} />
-                </li>
-              ))}
+                    </button>
+                    <RemoveLanguageDialog language={language} />
+                  </li>
+                );
+              })}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add a language</CardTitle>
-          <CardDescription>
-            Choose a starting level — it adapts automatically as you review.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AddLanguageForm
-            onCreated={(language) => setActiveLanguageId(language.id)}
-          />
-        </CardContent>
-      </Card>
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle>Add a language</CardTitle>
+            <CardDescription>
+              Choose a starting level — it adapts automatically as you review.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AddLanguageForm
+              onCreated={(language) => setActiveLanguageId(language.id)}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </section>
   );
 }

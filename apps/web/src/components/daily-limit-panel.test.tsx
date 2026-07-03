@@ -7,7 +7,10 @@ import { ApiError } from '@/lib/api-client';
 describe('DailyLimitPanel', () => {
   it('renders the friendly panel when no error is passed (caller pre-gated)', () => {
     render(<DailyLimitPanel />);
-    expect(screen.getByTestId('daily-limit-panel')).toBeInTheDocument();
+    const panel = screen.getByTestId('daily-limit-panel');
+    expect(panel).toBeInTheDocument();
+    // The orange callout keeps its polite live-region role so it is announced when a call is refused.
+    expect(panel).toHaveAttribute('role', 'status');
     expect(screen.getByText('Daily limit reached')).toBeInTheDocument();
     expect(screen.getByText(/try again\s+tomorrow/i)).toBeInTheDocument();
   });

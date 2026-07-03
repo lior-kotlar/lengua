@@ -10,6 +10,8 @@
  * raw error.
  */
 import { useMemo, useState } from 'react';
+import { m } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -56,11 +58,11 @@ export default function Generate() {
     <section
       dir={directionForCode(activeLanguage?.code)}
       data-testid="generate-content"
-      className="mx-auto max-w-2xl space-y-6"
+      className="mx-auto max-w-2xl space-y-8"
     >
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Generate</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-large-title">Generate</h1>
+        <p className="text-subhead text-muted-foreground">
           Paste vocabulary words and generate natural example sentences
           {activeLanguage !== null ? ` in ${activeLanguage.name}` : ''}.
         </p>
@@ -252,7 +254,7 @@ function WordForm({
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div className="space-y-1.5">
-              <label htmlFor="generate-words" className="text-sm font-medium">
+              <label htmlFor="generate-words" className="text-body font-medium">
                 Words
               </label>
               <Textarea
@@ -262,14 +264,18 @@ function WordForm({
                 onChange={(event) => onRawWordsChange(event.target.value)}
                 disabled={isGenerating}
                 rows={5}
+                className="min-h-[160px]"
                 placeholder={'casa\nperro\nbuenos días'}
                 aria-describedby="generate-words-count"
               />
               <p
                 id="generate-words-count"
                 className={cn(
-                  'text-xs',
-                  overCap ? 'text-destructive' : 'text-muted-foreground',
+                  'text-right text-footnote tabular-nums',
+                  // Warm-orange nudge once you hit the cap (30/30 and beyond).
+                  words.length >= WORDS_PER_REQUEST_CAP
+                    ? 'font-medium text-hig-orange-deep'
+                    : 'text-muted-foreground',
                 )}
               >
                 {words.length} / {WORDS_PER_REQUEST_CAP} words
@@ -284,7 +290,7 @@ function WordForm({
                 {words.map((word, index) => (
                   <li
                     key={`${word}-${index}`}
-                    className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
+                    className="rounded-full bg-secondary px-2.5 py-0.5 text-footnote text-muted-foreground"
                   >
                     <LanguageText
                       as="span"
@@ -298,32 +304,30 @@ function WordForm({
             )}
 
             {overCap && (
-              <p role="alert" className="text-sm text-destructive">
+              <p role="alert" className="text-subhead text-destructive">
                 Too many words. Remove {words.length - WORDS_PER_REQUEST_CAP} to
                 generate up to {WORDS_PER_REQUEST_CAP} at a time.
               </p>
             )}
 
             <div className="flex items-center gap-3">
+              {/* The label stays "Generate" throughout — the spinner swaps in beside it while
+                  in flight, so the button's accessible name never changes (pinned contract).
+                  The live-region line below carries the human "generating…" status. */}
               <Button type="submit" disabled={!canGenerate}>
                 {isGenerating ? (
-                  <>
-                    <Loader2
-                      className="h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                    Generating…
-                  </>
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" aria-hidden="true" />
-                    Generate
-                  </>
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
                 )}
+                Generate
               </Button>
               {isGenerating && (
                 <span
-                  className="text-sm text-muted-foreground"
+                  className="text-subhead text-muted-foreground"
                   aria-live="polite"
                 >
                   Generating sentences… this can take a few seconds.
@@ -404,106 +408,130 @@ function ResultsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Review &amp; save</CardTitle>
-        <CardDescription>
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <h2 className="text-title2">Review &amp; save</h2>
+        <p className="text-subhead text-muted-foreground">
           Pick the sentences to add to your deck. Each becomes two flashcards
           (reading + writing).
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between border-b pb-2">
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleAll}
-              className="h-4 w-4 rounded border-input"
-              aria-label="Select all sentences"
-            />
-            Select all
-          </label>
-          <span className="text-sm text-muted-foreground">
-            {selected.length} of {sentences.length} selected
-          </span>
-        </div>
+        </p>
+      </div>
 
-        <ul className="space-y-3">
-          {sentences.map((sentence) => {
-            const checked = selectedKeys.has(sentence.key);
-            return (
-              <li
-                key={sentence.key}
-                className={cn(
-                  'flex gap-3 rounded-md border p-3',
-                  checked ? 'border-primary/40 bg-accent/40' : 'border-border',
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(sentence.key)}
-                  className="mt-1 h-4 w-4 shrink-0 rounded border-input"
-                  aria-label={`Save this card — ${sentence.translation}`}
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 text-subhead font-medium">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+            className="h-4 w-4 rounded border-input"
+            aria-label="Select all sentences"
+          />
+          Select all
+        </label>
+        <span className="text-subhead tabular-nums text-muted-foreground">
+          {selected.length} of {sentences.length} selected
+        </span>
+      </div>
+
+      {/* Grouped list (iOS inset cells). Rows stagger in on mount; reduced-motion-safe. */}
+      <m.ul
+        className="divide-y overflow-hidden rounded-lg border bg-card shadow-card"
+        initial="hidden"
+        animate="show"
+        variants={RESULTS_LIST_VARIANTS}
+      >
+        {sentences.map((sentence) => {
+          const checked = selectedKeys.has(sentence.key);
+          return (
+            <m.li
+              key={sentence.key}
+              variants={RESULTS_ROW_VARIANTS}
+              className={cn(
+                'flex gap-3 px-5 py-4 transition-colors duration-150',
+                checked && 'bg-primary/[0.04]',
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(sentence.key)}
+                className="mt-1 h-4 w-4 shrink-0 rounded border-input"
+                aria-label={`Save this card — ${sentence.translation}`}
+              />
+              <div className="min-w-0 space-y-1">
+                <LanguageText
+                  className="text-[17px] font-medium leading-snug"
+                  text={sentence.sentence}
+                  language={language}
+                  showVowels={showVowels}
                 />
-                <div className="min-w-0 space-y-1">
-                  <LanguageText
-                    className="font-medium"
-                    text={sentence.sentence}
-                    language={language}
-                    showVowels={showVowels}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    {sentence.translation}
-                  </p>
-                  {sentence.usedWords.length > 0 && (
-                    <ul className="flex flex-wrap gap-1.5 pt-1">
-                      {sentence.usedWords.map((word, index) => (
-                        <li
-                          key={`${word}-${index}`}
-                          className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                        >
-                          <LanguageText
-                            as="span"
-                            text={word}
-                            language={language}
-                            showVowels={showVowels}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                <p className="text-subhead text-muted-foreground">
+                  {sentence.translation}
+                </p>
+                {sentence.usedWords.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5 pt-1">
+                    {sentence.usedWords.map((word, index) => (
+                      <li
+                        key={`${word}-${index}`}
+                        className="rounded-full bg-secondary px-2 py-0.5 text-footnote text-muted-foreground"
+                      >
+                        <LanguageText
+                          as="span"
+                          text={word}
+                          language={language}
+                          showVowels={showVowels}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </m.li>
+          );
+        })}
+      </m.ul>
 
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => onSave(cardsForSentences(selected))}
-            disabled={selected.length === 0 || isSaving}
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Saving…
-              </>
-            ) : (
-              `Save ${selected.length} ${
-                selected.length === 1 ? 'sentence' : 'sentences'
-              }`
-            )}
-          </Button>
-          <Button variant="ghost" onClick={onStartOver} disabled={isSaving}>
-            Start over
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* On mobile this is a sticky action bar pinned just above the tab bar (49px + safe area
+          + 12px), matching PR2's toast offset so it never covers content or lands under the bar;
+          on `sm` and up it is a normal inline row. */}
+      <div className="sticky bottom-[calc(49px+env(safe-area-inset-bottom)+12px)] z-10 -mx-4 flex items-center gap-3 border-t border-border/60 bg-background/85 px-4 py-3 backdrop-blur-lg sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+        <Button
+          onClick={() => onSave(cardsForSentences(selected))}
+          disabled={selected.length === 0 || isSaving}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Saving…
+            </>
+          ) : (
+            `Save ${selected.length} ${
+              selected.length === 1 ? 'sentence' : 'sentences'
+            }`
+          )}
+        </Button>
+        <Button variant="ghost" onClick={onStartOver} disabled={isSaving}>
+          Start over
+        </Button>
+      </div>
+    </div>
   );
 }
+
+// Results grouped-list rows fade/slide up in sequence (~40ms apart) on mount. Under reduced
+// motion (and jsdom) they settle at their final state immediately.
+const RESULTS_LIST_VARIANTS: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.04 } },
+};
+const RESULTS_ROW_VARIANTS: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] },
+  },
+};
 
 interface SavedConfirmationProps {
   count: number;
@@ -512,11 +540,11 @@ interface SavedConfirmationProps {
 
 function SavedConfirmation({ count, onGenerateMore }: SavedConfirmationProps) {
   return (
-    <Card className="border-green-500/50">
+    <Card className="border-hig-green/25">
       <CardHeader>
         <div className="flex items-center gap-2">
           <CheckCircle2
-            className="h-5 w-5 shrink-0 text-green-500"
+            className="h-5 w-5 shrink-0 text-hig-green-deep"
             aria-hidden="true"
           />
           <CardTitle>

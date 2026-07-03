@@ -248,9 +248,9 @@ describe('Generate — generating + results (4.5.2)', () => {
     await user.type(screen.getByLabelText('Words'), 'casa');
     await user.click(generateButton());
 
-    expect(
-      screen.getByRole('button', { name: /generating/i }),
-    ).toBeInTheDocument();
+    // The label stays "Generate" (pinned name) with a spinner beside it — the button just
+    // disables; the live-region status line carries the "generating…" text.
+    expect(generateButton()).toBeDisabled();
     expect(
       screen.getByText(/this can take a few seconds/i),
     ).toBeInTheDocument();

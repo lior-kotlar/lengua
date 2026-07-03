@@ -51,11 +51,11 @@ export default function Discover() {
     <section
       dir={directionForCode(activeLanguage?.code)}
       data-testid="discover-content"
-      className="mx-auto max-w-2xl space-y-6"
+      className="mx-auto max-w-2xl space-y-8"
     >
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Discover</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-large-title">Discover</h1>
+        <p className="text-subhead text-muted-foreground">
           Lengua picks new vocabulary you have not seen yet and turns it into
           example sentences
           {activeLanguage !== null ? ` in ${activeLanguage.name}` : ''}.
@@ -258,7 +258,7 @@ function DiscoverForm({
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <div className="space-y-1.5">
-            <label htmlFor="discover-count" className="text-sm font-medium">
+            <label htmlFor="discover-count" className="text-body font-medium">
               How many words
             </label>
             <Input
@@ -270,15 +270,15 @@ function DiscoverForm({
               value={count}
               onChange={(event) => onCountChange(event.target.value)}
               disabled={isDiscovering}
-              className="max-w-[8rem]"
+              className="w-24 text-center tabular-nums"
               aria-describedby="discover-count-hint"
             />
             <p
               id="discover-count-hint"
               className={
                 countValid
-                  ? 'text-xs text-muted-foreground'
-                  : 'text-xs text-destructive'
+                  ? 'text-footnote text-muted-foreground'
+                  : 'text-footnote text-destructive'
               }
               role={countValid ? undefined : 'alert'}
             >
@@ -287,7 +287,7 @@ function DiscoverForm({
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="discover-topic" className="text-sm font-medium">
+            <label htmlFor="discover-topic" className="text-body font-medium">
               Topic (optional)
             </label>
             <Input
@@ -319,7 +319,7 @@ function DiscoverForm({
             </Button>
             {isDiscovering && (
               <span
-                className="text-sm text-muted-foreground"
+                className="text-subhead text-muted-foreground"
                 aria-live="polite"
               >
                 Choosing new vocabulary… this can take a few seconds.
@@ -375,55 +375,53 @@ function SuggestionsPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Suggested words</CardTitle>
-        <CardDescription>
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <h2 className="text-title2">Suggested words</h2>
+        <p className="text-subhead text-muted-foreground">
           New vocabulary at your level. Use these to generate sentences, or try
           a different set.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <ul
-          data-testid="discover-suggestions"
-          aria-label="Suggested words"
-          className="flex flex-wrap gap-2"
-        >
-          {words.map((word, index) => (
-            <li
-              key={`${word}-${index}`}
-              className="rounded-full bg-muted px-3 py-1 text-sm"
-            >
-              <LanguageText
-                as="span"
-                text={word}
-                language={language}
-                showVowels={showVowels}
-              />
-            </li>
-          ))}
-        </ul>
+        </p>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => onAccept(words)} disabled={isRerolling}>
-            Use these words
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button variant="outline" onClick={onReroll} disabled={isRerolling}>
-            {isRerolling ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Finding…
-              </>
-            ) : (
-              'Try different words'
-            )}
-          </Button>
-          <Button variant="ghost" onClick={onStartOver} disabled={isRerolling}>
-            Start over
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Grouped inset list — one hairline-divided row per word (script-aware). */}
+      <ul
+        data-testid="discover-suggestions"
+        aria-label="Suggested words"
+        className="divide-y overflow-hidden rounded-lg border bg-card shadow-card"
+      >
+        {words.map((word, index) => (
+          <li key={`${word}-${index}`} className="flex h-12 items-center px-5">
+            <LanguageText
+              as="span"
+              className="text-[17px] font-medium"
+              text={word}
+              language={language}
+              showVowels={showVowels}
+            />
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={() => onAccept(words)} disabled={isRerolling}>
+          Use these words
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+        <Button variant="outline" onClick={onReroll} disabled={isRerolling}>
+          {isRerolling ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Finding…
+            </>
+          ) : (
+            'Try different words'
+          )}
+        </Button>
+        <Button variant="ghost" onClick={onStartOver} disabled={isRerolling}>
+          Start over
+        </Button>
+      </div>
+    </div>
   );
 }
