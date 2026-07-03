@@ -137,14 +137,14 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="language-band" className="text-sm font-medium">
+        <label htmlFor="language-band" className="text-body font-medium">
           Starting level
         </label>
         <select
           id="language-band"
           value={band}
           onChange={(event) => setBand(event.target.value)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="select-chevron h-10 w-full rounded-md border border-input bg-card px-3.5 pr-8 text-body transition-[border-color,box-shadow] duration-150 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25 disabled:opacity-50"
         >
           {CEFR_BANDS.map((option) => (
             <option key={option} value={option}>
@@ -154,7 +154,7 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
         </select>
       </div>
 
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-body">
         <input
           type="checkbox"
           checked={vowelized}

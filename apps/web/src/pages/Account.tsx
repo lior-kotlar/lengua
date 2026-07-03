@@ -1,5 +1,6 @@
 /**
- * Account screen (group 4.8) — profile, data export, sign out, and account deletion.
+ * Account screen (group 4.8) — profile, data export, sign out, and account deletion, restyled to
+ * the Apple grouped-list grammar (redesign PR5).
  *
  * Ports the legacy Streamlit account controls onto the Phase 2 endpoints:
  *  - Profile: the signed-in email (read from the auth context) + a sign-out action.
@@ -15,13 +16,6 @@ import { Download, Loader2, LogOut } from 'lucide-react';
 import { useAuth } from '@/components/auth-context';
 import { DeleteAccountDialog } from '@/components/delete-account-dialog';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import {
   ACCOUNT_EXPORT_FILENAME,
@@ -66,50 +60,58 @@ export default function Account() {
   }
 
   return (
-    <section className="mx-auto max-w-2xl space-y-6">
+    <section className="mx-auto max-w-2xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Account</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-large-title">Account</h1>
+        <p className="text-subhead text-muted-foreground">
           Manage your profile, export your data, or delete your account.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>The account you are signed in with.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Email</p>
+      {/* Profile — a grouped list (Email) with the page-level Sign out below it. */}
+      <div className="space-y-3">
+        <h2 className="text-caption uppercase text-muted-foreground">
+          Profile
+        </h2>
+        <div className="overflow-hidden rounded-lg border bg-card shadow-card">
+          <div className="flex items-center justify-between gap-4 px-5 py-4">
+            <p className="shrink-0 text-body font-medium">Email</p>
             <p
-              className="text-sm text-muted-foreground"
+              className="min-w-0 truncate text-right text-subhead text-muted-foreground"
               data-testid="account-email"
             >
               {user?.email ?? 'Not signed in'}
             </p>
           </div>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => void handleSignOut()}
+          disabled={signingOut}
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          {signingOut ? 'Signing out…' : 'Sign out'}
+        </Button>
+      </div>
+
+      {/* Data export */}
+      <div className="space-y-3">
+        <h2 className="text-caption uppercase text-muted-foreground">
+          Your data
+        </h2>
+        <div className="space-y-3 rounded-lg border bg-card p-5 shadow-card">
+          <div className="space-y-1">
+            <p className="text-body font-medium">Export your data</p>
+            <p className="text-subhead text-muted-foreground">
+              Download everything in your account — languages, flashcards,
+              review history, and progress — as a JSON file.
+            </p>
+          </div>
           <Button
             variant="outline"
-            onClick={() => void handleSignOut()}
-            disabled={signingOut}
+            onClick={handleExport}
+            disabled={exportAccount.isPending}
           >
-            <LogOut className="h-4 w-4" aria-hidden="true" />
-            {signingOut ? 'Signing out…' : 'Sign out'}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Export your data</CardTitle>
-          <CardDescription>
-            Download everything in your account — languages, flashcards, review
-            history, and progress — as a JSON file.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={handleExport} disabled={exportAccount.isPending}>
             {exportAccount.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -122,21 +124,26 @@ export default function Account() {
               </>
             )}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle>Delete account</CardTitle>
-          <CardDescription>
-            Permanently delete your account and all of your data. This cannot be
-            undone.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* Danger zone — tinted-red frame; the Delete trigger is tinted destructive, its dialog
+          confirm the solid destructive (both wired inside DeleteAccountDialog). */}
+      <div className="space-y-3 rounded-lg border border-hig-red/25 bg-card p-5 shadow-card">
+        <h2 className="text-caption uppercase text-hig-red-deep">
+          Danger zone
+        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <p className="text-body font-medium">Delete account</p>
+            <p className="text-subhead text-muted-foreground">
+              Permanently delete your account and all of your data. This cannot
+              be undone.
+            </p>
+          </div>
           <DeleteAccountDialog />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </section>
   );
 }

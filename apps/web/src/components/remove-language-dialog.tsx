@@ -63,6 +63,7 @@ export function RemoveLanguageDialog({
         <Button
           variant="ghost"
           size="sm"
+          className="shrink-0 text-muted-foreground hover:bg-hig-red/10 hover:text-hig-red-deep"
           aria-label={`Remove ${language.name}`}
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" />

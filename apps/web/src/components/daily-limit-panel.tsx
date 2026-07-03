@@ -14,15 +14,8 @@
  * (generating / discovering) from the response body's `kind`. Anything we cannot pin down falls back
  * to kind-agnostic copy, so a Discover or kill-switch 429 is never mislabelled as a generation limit.
  */
-import { CalendarClock } from 'lucide-react';
+import { Info } from 'lucide-react';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { isApiError } from '@/lib/api-client';
 import { isDailyLimitError } from '@/lib/llm-error';
 import { cn } from '@/lib/utils';
@@ -102,6 +95,10 @@ const LIMIT_COPY: Record<LimitScope, { description: string; body: string }> = {
  * Returns `null` when an `error` is supplied that is NOT a daily-limit error (so it is inert for
  * other failures), and renders the friendly panel otherwise. A `role="status"` live region means
  * screen-reader users hear it when the call is refused.
+ *
+ * Styled as the Apple redesign's warm orange callout (spec §7) — a friendly limit, not a failure:
+ * soft orange tint with the AA `-deep` text (which re-points at the vivid hue in dark mode, so one
+ * class string is correct in both) and an info glyph, deliberately calmer than the red ErrorState.
  */
 export function DailyLimitPanel({ error, className }: DailyLimitPanelProps) {
   if (error !== undefined && !isDailyLimitError(error)) {
@@ -111,24 +108,20 @@ export function DailyLimitPanel({ error, className }: DailyLimitPanelProps) {
   const { description, body } = LIMIT_COPY[limitScope(error)];
 
   return (
-    <Card
+    <div
       role="status"
       data-testid="daily-limit-panel"
-      className={cn('border-amber-500/50', className)}
+      className={cn(
+        'flex gap-3 rounded-lg border border-hig-orange/25 bg-hig-orange/10 p-4 text-hig-orange-deep',
+        className,
+      )}
     >
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <CalendarClock
-            className="h-5 w-5 shrink-0 text-amber-500"
-            aria-hidden="true"
-          />
-          <CardTitle>Daily limit reached</CardTitle>
-        </div>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">{body}</p>
-      </CardContent>
-    </Card>
+      <Info className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      <div className="min-w-0 space-y-1">
+        <p className="text-body font-semibold">Daily limit reached</p>
+        <p className="text-subhead">{description}</p>
+        <p className="pt-1 text-subhead text-hig-orange-deep/80">{body}</p>
+      </div>
+    </div>
   );
 }
