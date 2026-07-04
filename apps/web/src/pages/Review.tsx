@@ -14,7 +14,7 @@
  * flashes the chosen pill solid; finishing the batch celebrates with a drawn checkmark + count-up.
  * All exits are ≤180ms so the e2e suite never waits on animation.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, m, useIsPresent } from 'framer-motion';
 import { CheckCircle2, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -350,34 +350,44 @@ interface ReviewCardProps {
  * graded card mounted forever — invisible opacity-0 blocks that stacked up in normal flow and grew
  * a white gap above the live card each review. `useIsPresent` just reads the flag and lets the
  * `m.div`'s own exit drive removal (and popLayout's out-of-flow positioning).
+ *
+ * `forwardRef` is REQUIRED, not incidental: with `mode="popLayout"` AnimatePresence pops the
+ * exiting card to `position: absolute` (so the incoming card takes its slot instantly) by MEASURING
+ * it through a ref it attaches to its direct child. That child is this component, so if we don't
+ * forward the ref down to the `m.div`'s DOM node the measurement silently finds nothing, the pop is
+ * skipped, and the outgoing card stays in normal flow for its ~160ms exit — briefly pushing the
+ * incoming card below it before it snaps up (a visible one-beat downward flash on every grade).
  */
-function DeckCard(props: ReviewCardProps) {
-  const isPresent = useIsPresent();
-  return (
-    <m.div
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      animate={{
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        transition: { type: 'spring', stiffness: 380, damping: 30 },
-      }}
-      exit={{
-        opacity: 0,
-        y: -16,
-        scale: 0.97,
-        transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
-      }}
-      aria-hidden={isPresent ? undefined : true}
-      className={cn(
-        'relative rounded-2xl border bg-card text-card-foreground shadow-raised',
-        !isPresent && 'pointer-events-none',
-      )}
-    >
-      <ReviewCard {...props} />
-    </m.div>
-  );
-}
+const DeckCard = forwardRef<HTMLDivElement, ReviewCardProps>(
+  function DeckCard(props, ref) {
+    const isPresent = useIsPresent();
+    return (
+      <m.div
+        ref={ref}
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          transition: { type: 'spring', stiffness: 380, damping: 30 },
+        }}
+        exit={{
+          opacity: 0,
+          y: -16,
+          scale: 0.97,
+          transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
+        }}
+        aria-hidden={isPresent ? undefined : true}
+        className={cn(
+          'relative rounded-2xl border bg-card text-card-foreground shadow-raised',
+          !isPresent && 'pointer-events-none',
+        )}
+      >
+        <ReviewCard {...props} />
+      </m.div>
+    );
+  },
+);
 
 /** One review card: prompt (front), reveal control, then the answer + rating buttons. */
 function ReviewCard({
