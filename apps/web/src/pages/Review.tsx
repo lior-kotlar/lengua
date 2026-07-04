@@ -15,7 +15,7 @@
  * All exits are ≤180ms so the e2e suite never waits on animation.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AnimatePresence, m, usePresence } from 'framer-motion';
+import { AnimatePresence, m, useIsPresent } from 'framer-motion';
 import { CheckCircle2, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -342,10 +342,17 @@ interface ReviewCardProps {
  * treatment), so its still-mounted, still-revealed rating pills never collide with the incoming
  * card's — otherwise a role query (or a click) would match two "Good" buttons mid-exit and a
  * strict Playwright assertion would fail. In jsdom the mocked AnimatePresence has no presence
- * context, so `usePresence` returns true and the card renders normally.
+ * context, so `useIsPresent` returns true and the card renders normally.
+ *
+ * We read presence with `useIsPresent` (read-only), NOT `usePresence`: the latter *registers* this
+ * component with AnimatePresence and then blocks it from unmounting until its `safeToRemove` is
+ * called. Since we only want the boolean (and never call `safeToRemove`), `usePresence` left every
+ * graded card mounted forever — invisible opacity-0 blocks that stacked up in normal flow and grew
+ * a white gap above the live card each review. `useIsPresent` just reads the flag and lets the
+ * `m.div`'s own exit drive removal (and popLayout's out-of-flow positioning).
  */
 function DeckCard(props: ReviewCardProps) {
-  const [isPresent] = usePresence();
+  const isPresent = useIsPresent();
   return (
     <m.div
       initial={{ opacity: 0, y: 12, scale: 0.98 }}
