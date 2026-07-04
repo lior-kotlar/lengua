@@ -62,17 +62,17 @@ export default function AuthCallback() {
   return (
     <AuthCard title="Verification failed">
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-subhead text-muted-foreground">
           {linkError?.description ??
             "We couldn't verify your email. The link may have expired or already been used. Enter your email to get a new verification link."}
         </p>
 
         {resendState === 'sent' ? (
-          <p className="text-sm">
+          <p className="text-subhead">
             Verification email sent — check your inbox, then{' '}
             <Link
               to="/login"
-              className="font-medium underline underline-offset-4"
+              className="font-medium text-primary underline-offset-4 hover:underline"
             >
               log in
             </Link>
@@ -88,6 +88,7 @@ export default function AuthCallback() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               error={emailError}
+              className="h-11"
               required
             />
             {resendState === 'error' && (
@@ -97,7 +98,7 @@ export default function AuthCallback() {
             )}
             <Button
               type="submit"
-              className="w-full"
+              className="h-11 w-full"
               disabled={resendState === 'sending'}
             >
               {resendState === 'sending'

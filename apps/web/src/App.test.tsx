@@ -188,6 +188,12 @@ describe('App routing — unauthenticated', () => {
 
   it('renders the 404 screen for an unknown route', () => {
     renderAt('/does-not-exist');
-    expect(screen.getByRole('heading', { name: '404' })).toBeInTheDocument();
+    // NotFound now wears the EmptyState skin: a tinted 404 numeral (a <p>, not a heading) over a
+    // filled pill back to the Dashboard.
+    expect(screen.getByText('404')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
+      'href',
+      '/',
+    );
   });
 });

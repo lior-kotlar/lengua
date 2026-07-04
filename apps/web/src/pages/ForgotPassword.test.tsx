@@ -24,6 +24,15 @@ beforeEach(() => {
 });
 
 describe('ForgotPassword', () => {
+  it('exposes exactly ONE heading (its h1) — the "Lengua" wordmark is not a heading', () => {
+    renderForgot();
+    expect(screen.getAllByRole('heading')).toHaveLength(1);
+    expect(
+      screen.getByRole('heading', { name: /reset password/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Lengua')).toBeInTheDocument();
+  });
+
   it('validates the email before sending', async () => {
     const user = userEvent.setup();
     renderForgot();

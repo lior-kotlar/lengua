@@ -41,7 +41,7 @@ export default function ForgotPassword() {
   if (sent) {
     return (
       <AuthCard title="Check your email">
-        <div className="space-y-4 text-sm">
+        <div className="space-y-4 text-body">
           <p>
             If an account exists for{' '}
             <span className="font-medium">{email}</span>, we&apos;ve sent a
@@ -50,7 +50,7 @@ export default function ForgotPassword() {
           <p>
             <Link
               to="/login"
-              className="font-medium underline underline-offset-4"
+              className="font-medium text-primary underline-offset-4 hover:underline"
             >
               Back to log in
             </Link>
@@ -74,6 +74,7 @@ export default function ForgotPassword() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           error={emailError}
+          className="h-11"
           required
         />
 
@@ -83,14 +84,17 @@ export default function ForgotPassword() {
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={submitting}>
+        <Button type="submit" className="h-11 w-full" disabled={submitting}>
           {submitting ? 'Sending…' : 'Send reset link'}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-subhead text-muted-foreground">
         Remembered it?{' '}
-        <Link to="/login" className="font-medium underline underline-offset-4">
+        <Link
+          to="/login"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
           Log in
         </Link>
       </p>
