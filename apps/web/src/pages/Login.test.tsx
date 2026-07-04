@@ -51,6 +51,14 @@ describe('Login', () => {
     expect(screen.getByTestId('oauth-buttons')).toBeInTheDocument();
   });
 
+  it('exposes exactly ONE heading (its h1) — the "Lengua" wordmark is not a heading', () => {
+    // The staging navigateTo/auth specs match headings by case-insensitive substring, so any second
+    // heading (wordmark/eyebrow) would collide with the /log in/i lookup — it must stay a <p>.
+    renderLogin();
+    expect(screen.getAllByRole('heading')).toHaveLength(1);
+    expect(screen.getByText('Lengua')).toBeInTheDocument();
+  });
+
   it('submits credentials to signInWithEmail', async () => {
     renderLogin();
     await fillAndSubmit();

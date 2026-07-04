@@ -54,7 +54,7 @@ export default function Signup() {
   if (submittedEmail !== null) {
     return (
       <AuthCard title="Check your email">
-        <div className="space-y-4 text-sm">
+        <div className="space-y-4 text-body">
           <MailCheck className="h-10 w-10 text-primary" aria-hidden="true" />
           <p>
             We sent a verification link to{' '}
@@ -65,7 +65,7 @@ export default function Signup() {
             Didn&apos;t get it? Check your spam folder, or{' '}
             <Link
               to="/login"
-              className="font-medium underline underline-offset-4"
+              className="font-medium text-primary underline-offset-4 hover:underline"
             >
               return to log in
             </Link>{' '}
@@ -87,6 +87,7 @@ export default function Signup() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           error={fieldErrors.email}
+          className="h-11"
           required
         />
         <FormField
@@ -97,6 +98,7 @@ export default function Signup() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           error={fieldErrors.password}
+          className="h-11"
           required
         />
         <FormField
@@ -107,6 +109,7 @@ export default function Signup() {
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
           error={fieldErrors.confirmPassword}
+          className="h-11"
           required
         />
 
@@ -116,7 +119,7 @@ export default function Signup() {
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={submitting}>
+        <Button type="submit" className="h-11 w-full" disabled={submitting}>
           {submitting ? 'Creating account…' : 'Create account'}
         </Button>
       </form>
@@ -125,9 +128,12 @@ export default function Signup() {
         <OAuthButtons disabled={submitting} />
       </div>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-subhead text-muted-foreground">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium underline underline-offset-4">
+        <Link
+          to="/login"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
           Log in
         </Link>
       </p>

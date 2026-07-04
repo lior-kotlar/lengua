@@ -114,8 +114,10 @@ export function OAuthButtons({ disabled = false }: OAuthButtonsProps) {
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t" />
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
+        <div className="relative flex justify-center">
+          {/* The label masks the hairline: it must match the auth CARD fill (white), not the page
+              background, now that cards and canvas are different surfaces. */}
+          <span className="bg-card px-2 text-caption uppercase text-muted-foreground">
             Or continue with
           </span>
         </div>
@@ -128,13 +130,13 @@ export function OAuthButtons({ disabled = false }: OAuthButtonsProps) {
             <Button
               key={provider.id}
               type="button"
-              variant="outline"
+              variant="secondary"
               aria-label={`Continue with ${provider.label}`}
               disabled={!isEnabled || disabled || pending !== null}
               onClick={
                 isEnabled ? () => void handleClick(provider.id) : undefined
               }
-              className={cn('w-full', !isEnabled && 'opacity-70')}
+              className={cn('h-11 w-full', !isEnabled && 'opacity-70')}
             >
               {provider.icon}
               <span>{provider.label}</span>

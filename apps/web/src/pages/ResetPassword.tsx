@@ -53,7 +53,7 @@ export default function ResetPassword() {
   if (linkError !== null) {
     return (
       <AuthCard title="Link expired">
-        <div className="space-y-4 text-sm">
+        <div className="space-y-4 text-body">
           <p>
             {linkError.description ??
               'This password-reset link is invalid or has expired.'}
@@ -61,7 +61,7 @@ export default function ResetPassword() {
           <p>
             <Link
               to="/forgot-password"
-              className="font-medium underline underline-offset-4"
+              className="font-medium text-primary underline-offset-4 hover:underline"
             >
               Request a new reset link
             </Link>
@@ -74,9 +74,9 @@ export default function ResetPassword() {
   if (done) {
     return (
       <AuthCard title="Password updated">
-        <div className="space-y-4 text-sm">
+        <div className="space-y-4 text-body">
           <p>Your password has been changed. You&apos;re all set.</p>
-          <Button asChild className="w-full">
+          <Button asChild className="h-11 w-full">
             <Link to="/">Continue to Lengua</Link>
           </Button>
         </div>
@@ -95,6 +95,7 @@ export default function ResetPassword() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           error={fieldErrors.password}
+          className="h-11"
           required
         />
         <FormField
@@ -105,6 +106,7 @@ export default function ResetPassword() {
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
           error={fieldErrors.confirmPassword}
+          className="h-11"
           required
         />
 
@@ -114,7 +116,7 @@ export default function ResetPassword() {
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={submitting}>
+        <Button type="submit" className="h-11 w-full" disabled={submitting}>
           {submitting ? 'Saving…' : 'Update password'}
         </Button>
       </form>

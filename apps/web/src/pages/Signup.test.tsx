@@ -36,6 +36,12 @@ describe('Signup', () => {
     expect(screen.getByTestId('oauth-buttons')).toBeInTheDocument();
   });
 
+  it('exposes exactly ONE heading (its h1) — the "Lengua" wordmark is not a heading', () => {
+    renderSignup();
+    expect(screen.getAllByRole('heading')).toHaveLength(1);
+    expect(screen.getByText('Lengua')).toBeInTheDocument();
+  });
+
   it('blocks submission and shows field errors when invalid', async () => {
     const user = userEvent.setup();
     renderSignup();

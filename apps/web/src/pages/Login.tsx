@@ -58,6 +58,7 @@ export default function Login() {
           autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+          className="h-11"
           required
         />
         <div className="space-y-1.5">
@@ -67,7 +68,7 @@ export default function Login() {
             </label>
             <Link
               to="/forgot-password"
-              className="text-sm font-medium underline underline-offset-4"
+              className="text-subhead font-medium text-primary underline-offset-4 hover:underline"
             >
               Forgot password?
             </Link>
@@ -78,6 +79,7 @@ export default function Login() {
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            className="h-11"
             required
           />
         </div>
@@ -109,7 +111,7 @@ export default function Login() {
           </div>
         )}
 
-        <Button type="submit" className="w-full" disabled={submitting}>
+        <Button type="submit" className="h-11 w-full" disabled={submitting}>
           {submitting ? 'Logging in…' : 'Log in'}
         </Button>
       </form>
@@ -118,9 +120,12 @@ export default function Login() {
         <OAuthButtons disabled={submitting} />
       </div>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-subhead text-muted-foreground">
         Need an account?{' '}
-        <Link to="/signup" className="font-medium underline underline-offset-4">
+        <Link
+          to="/signup"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
           Sign up
         </Link>
       </p>

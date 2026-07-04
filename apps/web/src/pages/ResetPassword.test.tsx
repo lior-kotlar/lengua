@@ -34,6 +34,15 @@ beforeEach(() => {
 });
 
 describe('ResetPassword', () => {
+  it('exposes exactly ONE heading (its h1) — the "Lengua" wordmark is not a heading', () => {
+    renderReset();
+    expect(screen.getAllByRole('heading')).toHaveLength(1);
+    expect(
+      screen.getByRole('heading', { name: /set a new password/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Lengua')).toBeInTheDocument();
+  });
+
   it('shows an expired-link state when the redirect carried an error', () => {
     readAuthRedirectError.mockReturnValue({
       code: 'otp_expired',
