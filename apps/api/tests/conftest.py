@@ -125,11 +125,27 @@ def pytest_configure(config: pytest.Config) -> None:
     a loud banner. CI runs ``supabase start`` first, so the DB IS reachable there and this
     early-returns — the gate stays at its configured 80. This therefore only ever relaxes a local,
     DB-less run and can never weaken CI.
+
+    Note: ``pytest-cov`` enforces its threshold from the ``_cov`` plugin's own options namespace
+    (the early ``known_args_namespace``), which is a **different** object from ``config.option`` —
+    so we relax it directly on the plugin instance, falling back to ``config.option`` for safety.
     """
     if _db_reachable():
         return  # DB present (CI, or a local `supabase start`): leave the 80% gate untouched.
-    if hasattr(config.option, "cov_fail_under"):
+
+    relaxed = False
+    cov_plugin = config.pluginmanager.get_plugin("_cov")
+    cov_options = getattr(cov_plugin, "options", None)
+    if cov_options is not None and getattr(cov_options, "cov_fail_under", None):
+        cov_options.cov_fail_under = 0
+        relaxed = True
+    if getattr(config.option, "cov_fail_under", None):  # belt-and-suspenders
         config.option.cov_fail_under = 0
+        relaxed = True
+
+    if not relaxed:
+        return  # coverage gate not active (e.g. --no-cov): nothing to relax, stay quiet.
+
     banner = (
         "\n"
         "================================================================================\n"
