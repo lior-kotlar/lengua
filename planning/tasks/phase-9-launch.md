@@ -1,10 +1,10 @@
 # Phase 9 — Launch (all platforms together)
 
 > **Effort:** S  ·  **Depends on:** Phases 0–8 complete (web parity, infra/CI/CD, mobile packaging, compliance & store readiness all done)  ·  **Unlocks:** v1 is live; post-launch backlog
-> **Source:** roadmap Phase 9 (../02-roadmap.md) · deep dive (../00-overview.md)
-> The per-PR quality gate (../09-testing-quality.md) applies to EVERY task below: each lands via a PR that is 100% green + ≥80% coverage (backend & frontend) + Playwright E2E. A task is not done until its tests keep coverage ≥80%.
+> **Context:** phases 0–6 (web + infra/CD, M1–M3 + the M4 staging leg) are recorded in [`../../CHANGELOG.md`](../../CHANGELOG.md); launch coordinates web + iOS + Android.
+> The per-PR quality gate applies to EVERY task below: each lands via a PR that is 100% green + ≥80% coverage (backend & frontend) + Playwright E2E. A task is not done until its tests keep coverage ≥80%.
 
-**Goal:** web + iOS + Android are live on production at the same time, every v1 success criterion in 00-overview.md is met, and the first 48 hours are watched on dashboards/alerts with a rollback ready.
+**Goal:** web + iOS + Android are live on production at the same time, every v1 success criterion (the Phase 9 exit gate below) is met, and the first 48 hours are watched on dashboards/alerts with a rollback ready.
 
 **Status legend:** [ ] todo · [~] in progress · [x] done · [!] blocked
 
@@ -78,7 +78,7 @@ _Context: launch is not "ship and walk away." Watch dashboards/alerts for 48 hou
 
 ## Phase 9 exit gate
 
-Phase 9 is DONE only when all of these hold (mapped to the v1 success criteria in ../00-overview.md):
+Phase 9 is DONE only when all of these hold (these are the v1 launch success criteria):
 
 - [ ] A new user can sign up (email/Google/Apple) on **web, iOS, and Android** and use the full Generate → Save → Review → Discover loop on their own private data — verify: the prod smoke tests in 9.1.1 (web), 9.1.2 (iOS/TestFlight), and 9.1.3 (Android/internal) all pass on real devices against prod, each with data isolation confirmed.
 - [ ] Three environments exist with **auto-staging and gated prod**, and prod is live — verify: a merge to `main` deploys staging automatically while the prod web domain (9.3.1) and prod API (9.3.3) are served only via the gated promotion (Phase 6), both returning 200.
