@@ -67,44 +67,28 @@ for routine version-bump PRs across `apps/api` (uv/pip) and `apps/web` (pnpm).)
 These are tracked in [`tasks/phase-0-foundations.md`](tasks/phase-0-foundations.md) `0.7.x` and
 are **not** part of this "do at the end" set, but listing them here for one owner view:
 
-- **`0.7.7` — add CI secrets `GCP_REGION=europe-west1` and `SENTRY_ORG=kotlar-y7`.** Needed by
-  the deploy pipeline (Phase 6) and observability (Phase 5); not needed for the Phase 0 CI gate.
+- **`0.7.7` — ☑ DONE (verified 2026-07-05).** CI secrets `GCP_REGION=europe-west1` +
+  `SENTRY_ORG=kotlar-y7` are present (`gh secret list`, added 2026-06-25); the armed staging CD
+  consumes them green.
 - **`0.7.8` — confirm Resend custom SMTP delivers in both Supabase projects.** Needed for auth
   sign-up / recovery emails (Phase 2); staging auto-confirm is OFF.
 
-## Live-staging fix-pass review items (2026-06-30) — owner review/apply
+## Live-staging fix-pass review items (2026-06-30) — ☑ RESOLVED
 
-Surfaced by the live-staging validation + fix pass (full triage
-[`staging-validation.md`](staging-validation.md); resume state
-[`staging-fix-handoff.md`](staging-fix-handoff.md)). These need **owner judgment** and so were NOT
-self-merged by the build:
+The live-staging validation + fix pass is complete: **all 22 findings (S1–S22) are fixed or
+accepted**, and the two owner-paused PRs landed — **#91** (S1 right-to-erasure: guarded migration
+`0006` adding `profiles.id → auth.users(id) ON DELETE CASCADE`, applied to the staging DB) and
+**#83** (S16/S17 CORS `Retry-After` expose + security-headers middleware + baseline CSP, verified
+live). **S18** stable Vercel alias resolved (#71). Full record:
+[`../CHANGELOG.md`](../CHANGELOG.md).
 
-- **Review + merge PR #91 (S1 — right-to-erasure), THEN apply migration `0006`.** `DELETE /account`
-  orphaned all of a user's data because the **Alembic-built** staging/prod DB lacks the
-  `profiles → auth.users` FK the canonical `supabase/migrations` SQL declares. #91 adds a guarded,
-  idempotent migration `0006` (adds the FK + cascade) + a defensive profiles-row delete in the
-  service + an erasure integration test. **After merge, apply to the live DBs:**
-  `cd apps/api && uv run alembic -x env=staging upgrade head` then `-x env=prod`. ⚠ `0006` deletes
-  pre-existing orphan `profiles` rows (`WHERE NOT EXISTS auth.users`) before `VALIDATE` — correct
-  GDPR remediation, but it IS a data deletion inside a migration (flagged in the file). Unblocks the
-  privacy/right-to-erasure compliance text (Phase 8).
-- **Review + merge PR #83 (S16/S17 — security headers).** CORS `expose_headers=[Retry-After]` + an
-  API security-headers middleware (nosniff / X-Frame-Options DENY / Referrer-Policy / HSTS) +
-  `apps/web/vercel.json` headers + a **baseline CSP**. CI is green; the auto-build held it for owner
-  review per the pause-on-security/CORS rule. **Sanity-check the CSP `connect-src`** (self,
-  `*.supabase.co`, `*.run.app`, `*.sentry.io`, PostHog) against what the live SPA actually calls
-  before it ships (it only reaches the browser once CD is armed / on the next web deploy).
-- **S2 — set `VITE_OAUTH_PROVIDERS` per env + enable Apple** (Supabase external provider; needs a
-  paid Apple Developer acct) **only if Apple is wanted.** The merged code default is Google-only, so
-  the broken Apple button is hidden today; setting `VITE_OAUTH_PROVIDERS=google,apple` re-enables it
-  once Apple is configured.
-- **S18 — confirm the stable Vercel staging alias** (`lengua-staging.vercel.app`) update path
-  (overlaps §C of [`go-live-activation.md`](go-live-activation.md)).
-- **S20 — confirm intent to gate prod `/docs` `/redoc` `/openapi.json`** (`docs_url=None` unless env
-  in {local,staging}). Acceptable on staging; decide for prod.
+Residual owner follow-ups (still open):
+- **S2 — set `VITE_OAUTH_PROVIDERS` per env + enable Apple** (needs a paid Apple Developer acct; the
+  merged code default is Google-only, so the broken Apple button is hidden today).
+- **S20 — gate prod `/docs` `/redoc` `/openapi.json`** before public launch (accepted on staging).
 
-(Still deferred + tracked elsewhere: arm `DEPLOY_ENABLED` for CD — go-live §E; Phase-5 observability
-live-verify — §G; Google OAuth creds; Resend SMTP + SPF/DKIM/DMARC.)
+(Also tracked elsewhere: Phase-5 observability live-verify — [`go-live-activation.md`](go-live-activation.md) §G;
+Google/Apple OAuth creds; Resend SMTP + SPF/DKIM/DMARC — see `0.7.8` above + [`outstanding-work.md`](outstanding-work.md).)
 
 ## Resolved owner items (for the record)
 

@@ -16,9 +16,56 @@ This **complements** — does not replace:
 
 ---
 
+## ★ What's left to launch — single source of truth (updated 2026-07-05)
+
+Everything **done** is recorded in [`../CHANGELOG.md`](../CHANGELOG.md) (phases 0–6, milestones
+M1–M3, the **M4 staging leg**, and the 22 resolved live-staging findings). What remains is
+**owner-run live provisioning, the prod cutover, mobile, compliance, and launch** — none of it
+blocks implementation. The owner launch runbook (a `verify:` gate on every step) is
+[`go-live-activation.md`](go-live-activation.md); this is the index into it.
+
+- **(A) M4 prod cutover** — owner ([`go-live-activation.md`](go-live-activation.md) §F). Apply the
+  prod DB schema incl. migration `0006` (⚠ first swap `SUPABASE_PROD_DATABASE_URL` to the IPv4
+  **session pooler**, port 5432 — the direct IPv6 host fails on GitHub runners); prod Supabase Auth +
+  API CORS = exact prod origins; create the GitHub **`production` environment + required reviewer**,
+  then promote the exact staging-validated **image digest** (no rebuild); deploy web prod; run the
+  rollback drill (≥2 revisions retained).
+- **(B) Phase-5 live observability** — owner ([`go-live-activation.md`](go-live-activation.md) §G ≡
+  §11 below). Traces in Tempo + per-route p95 in Mimir; logs in Loki + Tempo→Loki jump;
+  RED / cost-guard / product / infra dashboards non-empty; Sentry issues ↔ trace; Grafana + Sentry
+  alert rules firing to a real channel; external uptime monitor; PostHog funnel / D1-D7 retention /
+  feature usage. Needs live Grafana/Sentry/PostHog/uptime creds + a deployed service.
+- **(C) Phase 7 — mobile** ([`tasks/phase-7-mobile.md`](tasks/phase-7-mobile.md)). Paid store
+  accounts (Apple $99/yr — start early; Google Play $25), Capacitor native projects + plugins,
+  OAuth-in-webview, OTA channel, on-device full-loop validation.
+- **(D) Phase 8 — compliance & store** ([`tasks/phase-8-compliance-store.md`](tasks/phase-8-compliance-store.md)).
+  Real GDPR privacy policy (replace the stub) + right-to-erasure text (unblocked by #91) + a deletion
+  form; Apple/Play data-safety declarations, content ratings, listings, closed tests.
+- **(E) Phase 9 — launch** ([`tasks/phase-9-launch.md`](tasks/phase-9-launch.md)). Cross-platform
+  prod smoke, store submit → promote, custom-domain cutover, 48h watch; finalize the runbook On-call
+  + Store-release sections.
+- **(F) Owner setup still open** ([`owner-deferred-tasks.md`](owner-deferred-tasks.md)). Resend custom
+  SMTP + SPF/DKIM/DMARC on a verified domain → **re-enable prod email confirmation** (issue #103);
+  Google (2.1.2) + Apple (2.1.3) OAuth + `VITE_OAUTH_PROVIDERS` per env; branch protection (0.6.3) +
+  Dependabot (0.6.4) at launch; gate prod `/docs` (S20); a dedicated runtime SA (Secret Manager
+  accessor only) in place of the default compute SA; Vercel→Cloudflare host migration
+  ([`go-live-activation.md`](go-live-activation.md) §H, plan-only).
+- **(G) Post-v1 / post-launch backlog** (not blocking launch; migrated 2026-07-05 from the retired
+  `08-open-questions-and-costs.md`): offline review + sync (cache due batch, queue grades offline,
+  flush on reconnect — the stated #1 post-launch item); server push notifications (FCM/APNs; v1 uses
+  on-device local reminders); TTS audio (on-device first); streaks / gamification; import/export &
+  shared decks (beyond Anki import); UI internationalization (the app's own UI is English-only);
+  spaced-repetition insights (progress charts, review forecast); admin / support tooling (support
+  views, abuse review, manual budget override); accessibility pass (screen-reader labels, contrast,
+  font scaling). **Watch:** confirm Supabase free-tier idle-pausing / project limits at setup.
+
+The granular running log (per-phase §11/§12 detail, coverage holes, resolved history) continues below.
+
+---
+
 ## 0. Live-staging validation sweep (2026-06-30) · 22 findings · ☑ ALL fixed/accepted + verified
 
-Full triage (repro/owner/fix per item) in [`staging-validation.md`](staging-validation.md) — a
+Full triage (repro/owner/fix per item) is folded into [`../CHANGELOG.md`](../CHANGELOG.md) (the point-in-time `staging-validation.md` was pruned 2026-07-05) — it was a
 50-agent find-only workflow (35 candidates → 25 kept). The **core loop is verified working
 end-to-end on live staging**; these were the open correctness/UX/hardening items, scoped to
 "live-staging correctness now".
@@ -33,7 +80,7 @@ accepted **S20**. A post-fix adversarial study-flow audit found one further low 
 vowelized Discover dedup), fixed in **#97**. A live Playwright walkthrough of the whole study flow
 (generate→save→review→discover, Spanish + Hebrew RTL, settings, languages) passed with **zero console
 errors / all-200 network**; final `staging_smoke` 13/0/0, `e2e-staging` 6 passed. Detail →
-[`staging-validation.md`](staging-validation.md). **All 22 findings are now ☑ fixed or accepted.**
+[`../CHANGELOG.md`](../CHANGELOG.md). **All 22 findings are now ☑ fixed or accepted.**
 
 | | Item | Sev | Status |
 |---|---|---|---|
@@ -60,8 +107,7 @@ Ran the **FULL learning loop on live staging for 2+ languages incl. account life
 service-role present). Built a reusable Playwright harness
 (`apps/web/e2e-staging/{full-flow,fresh-user-lifecycle,signup}.spec.ts` + `admin-users.ts`,
 `tsconfig.e2e-staging.json`) + a `GET /proficiency/{id}` smoke probe — landed in **PR #100**. Report:
-[`staging-validation/VALIDATION-REPORT.md`](staging-validation/VALIDATION-REPORT.md); rounds in
-`staging-validation/FAILURES-{1,2}.md`.
+[`../CHANGELOG.md`](../CHANGELOG.md) (the point-in-time `staging-validation/` tree was pruned 2026-07-05).
 
 **Result:** the whole loop is green. After the initial round found the sign-up 500, it was fixed (below)
 and the **full Playwright suite is now 10/10 green** + Layer B smoke 12/0/0 (14/0/0 with LLM), **zero test
@@ -79,10 +125,11 @@ fresh users full 2-language loop end-to-end. **Verdict: GO for staging** (see th
 
 ---
 
-## 1. Active phase — Phase 2 (Auth & multi-tenancy) · 🛠 in progress
+## 1. Phase 2 (Auth & multi-tenancy) · ☑ impl complete (M2) — owner OAuth/SMTP residual
 
-Driven by workflow `wf_9f3d03f7-0e5` (sequential per-group PRs). 2.3 done; 24 task boxes + 8
-exit-gate items still open. See [`tasks/phase-2-auth-multitenancy.md`](tasks/phase-2-auth-multitenancy.md).
+2.3–2.8 done (M2 reached). The 8 exit-gate as-code verifies were validated & ticked 2026-07-05 (see
+[`../CHANGELOG.md`](../CHANGELOG.md)); remaining open = owner Google/Apple OAuth (2.1.2/2.1.3) +
+Resend SMTP (2.2.1/2.2.2). See [`tasks/phase-2-auth-multitenancy.md`](tasks/phase-2-auth-multitenancy.md).
 
 | | Item | Where | Status | Noticed |
 |---|---|---|---|---|

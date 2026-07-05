@@ -1,5 +1,7 @@
 # 05 — Infrastructure, Environments & CI/CD
 
+> **Status: IMPLEMENTED (2026-07-05).** Realized in `.github/workflows/` + `infra/` + [`docs/runbook.md`](../docs/runbook.md); the staging leg is live. The host-choice rationale (Cloud Run vs Render/Fly) is preserved in [`../CHANGELOG.md`](../CHANGELOG.md). Retained as historical infra design.
+
 ## Hosting choices (all free-tier)
 
 | Layer | Choice | Free-tier notes |

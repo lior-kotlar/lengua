@@ -3,9 +3,13 @@
 This directory is the **planning workspace** for turning Lengua from a local single-user
 Streamlit app into a real, deployed, multi-user product on **web + iOS + Android**.
 
-> Status: **planning — implementation not started.** These are living documents; update them
-> as decisions firm up. The work is now broken into granular, verifiable, PR-sized tasks in
-> [tasks/](tasks/) — start at [tasks/task-tracker.md](tasks/task-tracker.md).
+> **Status (2026-07-05): productionization delivered through the M4 staging leg.** Phases 0–6 are
+> code-complete; staging is live and CD-armed; the prod cutover, mobile, compliance, and launch
+> remain. **What shipped → [`../CHANGELOG.md`](../CHANGELOG.md); what's left →
+> [`outstanding-work.md`](outstanding-work.md)** (the single source of truth for open work), with the
+> owner launch runbook in [`go-live-activation.md`](go-live-activation.md). The numbered design docs
+> below (`00`–`08`) are now historical/implemented references (each carries a status banner); the
+> live checkbox work is in [`tasks/task-tracker.md`](tasks/task-tracker.md).
 
 ## Decisions locked in
 
@@ -53,20 +57,27 @@ accounts checklist.
 
 ## Files
 
+**Live status & open work (start here):**
+
 | File | What's in it |
 | --- | --- |
-| [00-overview.md](00-overview.md) | Vision, current state, target state, principles, success criteria |
-| [01-architecture.md](01-architecture.md) | Target architecture, data flows, multi-tenant data model, repo layout |
-| [02-roadmap.md](02-roadmap.md) | **Phase index (Phases 0–9)** — one-line goals + links into the task files |
-| [tasks/](tasks/) | **The granular, PR-sized task breakdown** — one file per phase, each task with a `verify:` line + a phase exit gate. Master rollup: [tasks/task-tracker.md](tasks/task-tracker.md) (counts, dependency graph, critical path, milestones) |
-| [03-backend.md](03-backend.md) | FastAPI design, Postgres schema, pluggable LLM provider (Groq/Gemini) + quota subsystem |
-| [04-frontend-mobile.md](04-frontend-mobile.md) | React app + Capacitor packaging, RTL, offline, store assets |
-| [05-infra-deploy.md](05-infra-deploy.md) | Hosting, 3 environments, CI/CD, secrets, free-tier limits |
-| [06-observability.md](06-observability.md) | OpenTelemetry, Grafana, Sentry, dashboards, alerts, SLOs |
-| [07-security-compliance.md](07-security-compliance.md) | AuthN/Z, RLS, abuse, privacy & store legal requirements |
-| [08-open-questions-and-costs.md](08-open-questions-and-costs.md) | Remaining decisions, costs, accounts, and the "what else" backlog |
-| [09-testing-quality.md](09-testing-quality.md) | **Test strategy + the per-PR quality gate (100% pass, 80% coverage, E2E)** |
+| [`../CHANGELOG.md`](../CHANGELOG.md) | **What shipped** — phases 0–6, M1–M3, the M4 staging leg, the resolved live-staging findings, and the preserved locked-decisions/rationale. |
+| [outstanding-work.md](outstanding-work.md) | **What's left** — the single source of truth for open work (prod cutover, live observability, mobile, compliance, launch, backlog). |
+| [go-live-activation.md](go-live-activation.md) | The owner-run launch runbook — a `verify:` gate on every step (§A local → §H host migration). |
+| [owner-deferred-tasks.md](owner-deferred-tasks.md) | Owner-only repo-hardening (branch protection, Dependabot) + owner setup residuals. |
+| [tasks/task-tracker.md](tasks/task-tracker.md) | The master phase rollup (counts, dependency graph, milestones) + the per-phase [tasks/](tasks/) checkbox files. |
 
-Start with **00** for context and **02** for the phase index, then open
-**[tasks/task-tracker.md](tasks/task-tracker.md)** and the per-phase files in **[tasks/](tasks/)**
-for the actual, checkbox-level work.
+**Design references (implemented / historical — see each file's status banner):**
+
+| File | What's in it |
+| --- | --- |
+| [01-architecture.md](01-architecture.md) | Target architecture, data flows, multi-tenant data model, repo layout *(living reference)*. |
+| [07-security-compliance.md](07-security-compliance.md) | AuthN/Z, RLS, abuse, privacy & store legal requirements *(living reference)*. |
+| [09-testing-quality.md](09-testing-quality.md) | Test strategy + the per-PR quality gate (100% pass, ≥80% coverage, E2E) *(living reference)*. |
+| [00-overview.md](00-overview.md) · [02-roadmap.md](02-roadmap.md) | Original vision/scope + phase index *(superseded by CHANGELOG + task-tracker)*. |
+| [03-backend.md](03-backend.md) · [04-frontend-mobile.md](04-frontend-mobile.md) · [05-infra-deploy.md](05-infra-deploy.md) · [06-observability.md](06-observability.md) | Backend / frontend+mobile / infra / observability design *(implemented; realized in code + README + runbook)*. |
+| [08-open-questions-and-costs.md](08-open-questions-and-costs.md) | Original decisions/costs/backlog *(superseded; open items migrated to outstanding-work.md)*. |
+
+For what's done, read **[`../CHANGELOG.md`](../CHANGELOG.md)**; for what's left, read
+**[outstanding-work.md](outstanding-work.md)**; for the checkbox-level task state, open
+**[tasks/task-tracker.md](tasks/task-tracker.md)**.

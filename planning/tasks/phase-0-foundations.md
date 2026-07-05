@@ -140,7 +140,8 @@ _Context: every free-tier account already exists and is verified (2026-06-25): G
       verify: a Groq test call with `llama-3.1-8b-instant` returns 200; `GROQ_API_KEY` and `GEMINI_API_KEY` both present as CI secrets.
 - [x] **0.7.6** Grafana Cloud OTLP + Sentry (lengua-api + lengua-web DSNs) + Resend keys all set as CI secrets. (Verified 2026-06-25.)
       verify: `OTLP`, `SENTRY_DSN` (api + web), and Resend secrets all present in `gh secret list`.
-- [ ] **0.7.7** **OWNER (Kotlar):** Add the two missing CI secrets `GCP_REGION=europe-west1` and `SENTRY_ORG=kotlar-y7`. (Outstanding per ../owner-setup-checklist.html Task 3.)
+- [x] **0.7.7** **OWNER (Kotlar):** Add the two missing CI secrets `GCP_REGION=europe-west1` and `SENTRY_ORG=kotlar-y7`. (Outstanding per ../owner-setup-checklist.html Task 3.) <!-- DONE (owner completed): `gh secret list` shows GCP_REGION + SENTRY_ORG both present (added 2026-06-25); the armed staging CD consumes them green. -->
+
       verify: `gh secret list -R lior-kotlar/lengua` shows both `GCP_REGION` and `SENTRY_ORG`.
 - [ ] **0.7.8** **OWNER (Kotlar):** Confirm Resend custom SMTP is enabled and delivering in BOTH Supabase projects (staging auto-confirm is OFF, so sign-up emails must work). (Outstanding per ../owner-setup-checklist.html Task 5.)
       verify: a recovery/invite email sent from each project (staging + prod) actually arrives in an inbox.
