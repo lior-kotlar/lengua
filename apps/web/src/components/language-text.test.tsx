@@ -32,7 +32,20 @@ describe('LanguageText', () => {
     );
     const el = screen.getByText(HEBREW_VOWELIZED);
     expect(el).toHaveAttribute('dir', 'rtl');
+    expect(el).toHaveAttribute('lang', 'he');
     expect(el.className).toContain('font-hebrew');
+  });
+
+  it('tags the element with the language code so screen readers use the right voice (WCAG 3.1.2)', () => {
+    render(
+      <LanguageText text="Hola mundo" language={{ code: 'es' }} showVowels />,
+    );
+    expect(screen.getByText('Hola mundo')).toHaveAttribute('lang', 'es');
+  });
+
+  it('omits lang when the language has no code', () => {
+    render(<LanguageText text="?" language={{ code: null }} showVowels />);
+    expect(screen.getByText('?')).not.toHaveAttribute('lang');
   });
 
   it('renders the Arabic font for an Arabic language', () => {

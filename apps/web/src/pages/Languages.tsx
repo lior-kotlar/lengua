@@ -82,7 +82,7 @@ export default function Languages() {
                     <button
                       type="button"
                       onClick={() => setActiveLanguageId(language.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left transition-opacity duration-150 hover:opacity-80"
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
                       <span
                         aria-hidden="true"

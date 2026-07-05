@@ -70,7 +70,7 @@ function LanguageTile({ tile, onSelect }: LanguageTileProps) {
       to="/review"
       onClick={() => onSelect(language.id)}
       className={cn(
-        'flex flex-col gap-3 rounded-lg border bg-card p-5 shadow-card transition-all [transition-duration:250ms] ease-apple hover:-translate-y-px hover:shadow-raised',
+        'flex flex-col gap-3 rounded-lg border bg-card p-5 shadow-card transition-all [transition-duration:250ms] ease-apple hover:-translate-y-px hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         isActive && 'ring-1 ring-primary/30',
       )}
     >
