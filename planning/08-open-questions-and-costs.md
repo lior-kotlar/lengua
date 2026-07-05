@@ -1,5 +1,7 @@
 # 08 — Open Questions, Costs & Backlog
 
+> **Status: SUPERSEDED (2026-07-05).** Resolved decisions/costs are historical; the still-open questions + the post-v1 backlog were migrated to [`outstanding-work.md`](outstanding-work.md) (§ "What's left to launch", groups (F)/(G)). Accounts/costs are provisioned — see [`../CHANGELOG.md`](../CHANGELOG.md).
+
 ## Decisions confirmed (planning round 2)
 
 | Decision | Choice | Consequence |

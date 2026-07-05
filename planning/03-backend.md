@@ -1,5 +1,7 @@
 # 03 — Backend (FastAPI)
 
+> **Status: IMPLEMENTED (2026-07-05).** Realized in `apps/api/` + the root [`README.md`](../README.md) + [`docs/runbook.md`](../docs/runbook.md); Alembic `0001–0006` are the schema of record. Design rationale preserved in [`../CHANGELOG.md`](../CHANGELOG.md). Retained as historical design.
+
 ## Stack
 
 - **FastAPI** + **uvicorn** (ASGI), containerized for Cloud Run.

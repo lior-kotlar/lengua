@@ -64,11 +64,11 @@
 ## Progress update — 2026-06-30 (live-staging validation + fix pass · Claude)
 
 A 50-agent **live-staging validation** exercised the deployed stack (web + API + DB) as the demo user
-and found **25** correctness/UX/hardening items (triage:
-[`staging-validation.md`](staging-validation.md)). **The core loop is verified working end-to-end on
+and found **25** correctness/UX/hardening items (all now fixed/accepted — full record in
+[`../CHANGELOG.md`](../CHANGELOG.md)). **The core loop is verified working end-to-end on
 live staging** — login → generate → save → review → discover against real Groq, with CORS + ES256-JWT
 verification + the feature-flag kill-switch all correct and no cross-tenant leakage. A multi-agent fix
-pass then landed most fixes (resume state: [`staging-fix-handoff.md`](staging-fix-handoff.md)):
+pass then landed all fixes (complete — see [`../CHANGELOG.md`](../CHANGELOG.md)):
 
 - **Merged to `main`:** S2 (OAuth → Google-only so the dead-ending Apple button is hidden), **S4** (an
   idempotent `seed-staging.yml` — **dispatched**, demo deck now 12 ES + 6 HE/RTL cards, so review +

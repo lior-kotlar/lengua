@@ -1,5 +1,7 @@
 # 02 — Roadmap (phase index)
 
+> **Status: SUPERSEDED (2026-07-05).** The live phase view is [`tasks/task-tracker.md`](tasks/task-tracker.md); what shipped → [`../CHANGELOG.md`](../CHANGELOG.md); what's left → [`outstanding-work.md`](outstanding-work.md). Kept as the high-level phase index.
+
 > **The detailed, PR-sized task breakdown now lives in [`tasks/`](tasks/).** This file is the
 > high-level **phase index**. For the operational view — per-phase task counts, the dependency
 > graph, the critical path, and milestones — open the master rollup:

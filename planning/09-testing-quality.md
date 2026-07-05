@@ -1,5 +1,7 @@
 # 09 — Testing & Quality Gates (per-PR pipeline)
 
+> **Status: implemented — living reference (2026-07-05).** The per-PR quality gate (100% pass · ≥80% coverage · E2E) is live in `.github/workflows/ci.yml`. Kept as the quality-gate reference.
+
 Every change lands through a Pull Request that must pass a **blocking** quality gate before it
 can merge. No direct pushes to `main`.
 

@@ -1,5 +1,7 @@
 # 04 — Frontend (React) & Mobile (Capacitor)
 
+> **Status: IMPLEMENTED (web) / mobile pending (2026-07-05).** The web app shipped (M3 — see [`../CHANGELOG.md`](../CHANGELOG.md) + [`docs/streamlit-parity.md`](../docs/streamlit-parity.md)); the Capacitor/mobile plan lives in [`tasks/phase-7-mobile.md`](tasks/phase-7-mobile.md). The offline queue-grades-and-flush backlog is in [`outstanding-work.md`](outstanding-work.md).
+
 One React + TypeScript codebase serves the website and, wrapped by **Capacitor**, the iOS and
 Android apps. No separate mobile codebase.
 

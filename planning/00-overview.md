@@ -1,5 +1,7 @@
 # 00 — Overview
 
+> **Status: SUPERSEDED (2026-07-05).** Historical vision/scope narrative. What shipped → [`../CHANGELOG.md`](../CHANGELOG.md); what's left → [`outstanding-work.md`](outstanding-work.md); the locked decisions live in [`README.md`](README.md) + the CHANGELOG "Locked decisions" section.
+
 ## Vision
 
 Take Lengua from a **local, single-user Streamlit app** to a **deployed, multi-user product**

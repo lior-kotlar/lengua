@@ -1,5 +1,7 @@
 # 07 — Security & Compliance
 
+> **Status: implemented — living reference (2026-07-05).** AuthN/Z + RLS + the privacy posture shipped through Phase 2; the compliance/store items are Phase 8. Kept as the security reference.
+
 ## Authentication (Supabase Auth)
 
 - Methods: **email/password with verification**, **Google OAuth**, **Apple OAuth**.

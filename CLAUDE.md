@@ -10,7 +10,7 @@ FSRS-scheduled flashcards (recognition + production). Each language has a CEFR l
 shapes generation and adapts from review answers. See [README.md](README.md) for the full
 overview.
 
-**Status — productionization in progress (Phase 4 complete → M3 reached).** The app is being
+**Status — productionization in progress (Phases 0–6 code-complete → M3 reached; M4 staging leg live, prod cutover pending).** The app is being
 rebuilt into a monorepo (FastAPI [`apps/api`](apps/api) + React [`apps/web`](apps/web) + Supabase +
 Cloud Run). Phases 0–4 are done: the backend core loop (M1); Supabase Auth + RLS multi-tenancy; the
 **LLM cost guard** (per-user daily caps + rate limits + a global daily kill-switch + concurrency
@@ -20,7 +20,11 @@ parity with the legacy Streamlit app (generate → save → review → discover,
 management, settings/account, and RTL/diacritics) — its exit gate closed by an end-to-end full-loop
 Playwright spec — reaching **M3 (React web app at full parity)**. The domain logic now lives in
 [`apps/api/lengua_core/`](apps/api/lengua_core) and the original Streamlit app in
-[`apps/api/legacy_streamlit/`](apps/api/legacy_streamlit) (still runnable). Plan + tasks:
+[`apps/api/legacy_streamlit/`](apps/api/legacy_streamlit) (still runnable). Phases 5–6 (observability +
+infra/CI-CD) are also code-complete, and the **M4 staging leg** is live (auto-deploy on merge to
+`main`, validated 2026-07-05) — the **prod cutover remains** the open leg of M4. What shipped is
+recorded in [`CHANGELOG.md`](CHANGELOG.md); what's left is in
+[`planning/outstanding-work.md`](planning/outstanding-work.md). Plan + tasks:
 [`planning/`](planning) and [`planning/tasks/task-tracker.md`](planning/tasks/task-tracker.md).
 See **Autonomous build protocol** below.
 

@@ -1,5 +1,7 @@
 # 01 — Architecture
 
+> **Status: implemented — living reference (2026-07-05).** The target architecture is realized (M1–M3 + the M4 staging leg — see [`../CHANGELOG.md`](../CHANGELOG.md)). Kept as the architecture reference.
+
 ## System overview
 
 ```

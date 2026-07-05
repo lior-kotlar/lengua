@@ -1,5 +1,7 @@
 # 06 — Observability (OpenTelemetry, logs, traces, metrics)
 
+> **Status: IMPLEMENTED as-code; live dashboards owner-pending (2026-07-05).** Realized in code + `infra/grafana` + `infra/uptime` + [`docs/runbook.md`](../docs/runbook.md). The SLO targets are preserved in [`../CHANGELOG.md`](../CHANGELOG.md); the live verify is [`go-live-activation.md`](go-live-activation.md) §G.
+
 Goal: every request is traceable end-to-end, logs are correlated, key metrics are dashboarded,
 and real alerts fire — all on free tiers. **Instrument as you build (from Phase 1), don't bolt
 it on at the end.**
