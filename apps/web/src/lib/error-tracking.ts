@@ -15,8 +15,6 @@
  * a flag a production build never sets) it records the capture on `window` so an E2E step can assert
  * "the capture fired" with zero network egress, even when no DSN is configured.
  */
-import * as Sentry from '@sentry/react';
-
 /** `window` key the debug-tools build records captures on, for the E2E assertion (never in prod). */
 export const SENTRY_TEST_CAPTURES_KEY = '__SENTRY_TEST_CAPTURES__';
 
@@ -118,10 +116,17 @@ export function errorTrackingTracesSampleRate(
 let client: SentryLike | null = null;
 let initialized = false;
 
-/** Options for {@link initErrorTracking}; both default to the production sources. */
+/**
+ * Options for {@link initErrorTracking}. `env` defaults to `import.meta.env`; `sentry` is loaded
+ * lazily (`@sentry/react`) only on the DSN-configured path, unless a fake is injected in tests.
+ */
 export interface InitErrorTrackingOptions {
   env?: ErrorTrackingEnv;
-  /** Sentry SDK to initialise (defaults to `@sentry/react`); injected as a fake in tests. */
+  /**
+   * Sentry SDK to initialise. Injected as a fake in tests (synchronous path). When omitted, the real
+   * `@sentry/react` SDK is loaded lazily via dynamic `import()` on the DSN-configured path only, so
+   * it never enters the initial bundle of a no-DSN (dev/CI/E2E) build.
+   */
   sentry?: SentryLike;
 }
 
@@ -134,7 +139,7 @@ export interface InitErrorTrackingOptions {
  */
 export function initErrorTracking({
   env = import.meta.env,
-  sentry = Sentry,
+  sentry,
 }: InitErrorTrackingOptions = {}): boolean {
   if (initialized) {
     return false;
@@ -143,18 +148,37 @@ export function initErrorTracking({
   if (dsn === undefined) {
     return false;
   }
-  sentry.init({
-    dsn,
-    environment: errorTrackingEnvironment(env),
-    // Captures performance transactions + Web Vitals (LCP/CLS/INP/…). The sample rate is build-time
-    // tunable via VITE_SENTRY_TRACES_SAMPLE_RATE (CD sets ~0.1 for prod to cap volume/cost) and
-    // defaults to 1.0 (capture everything) for dev/staging.
-    integrations: [sentry.browserTracingIntegration()],
-    tracesSampleRate: errorTrackingTracesSampleRate(env),
-    sendDefaultPii: false,
-  });
-  client = sentry;
+  // Set the once-guard synchronously so a re-entrant/second call (incl. one racing the async import
+  // below) no-ops instead of double-initialising.
   initialized = true;
+
+  const applyInit = (sdk: SentryLike): void => {
+    sdk.init({
+      dsn,
+      environment: errorTrackingEnvironment(env),
+      // Captures performance transactions + Web Vitals (LCP/CLS/INP/…). The sample rate is build-time
+      // tunable via VITE_SENTRY_TRACES_SAMPLE_RATE (CD sets ~0.1 for prod to cap volume/cost) and
+      // defaults to 1.0 (capture everything) for dev/staging.
+      integrations: [sdk.browserTracingIntegration()],
+      tracesSampleRate: errorTrackingTracesSampleRate(env),
+      sendDefaultPii: false,
+    });
+    client = sdk;
+  };
+
+  // Injected (test) path — fully synchronous, so the seam contract (sync init + sync
+  // captureException forwarding through `client`) is preserved.
+  if (sentry !== undefined) {
+    applyInit(sentry);
+    return true;
+  }
+
+  // Production path: `@sentry/react` is imported ONLY here and ONLY when a DSN is set, so bundlers
+  // split it into its own chunk that no-DSN (dev/CI/E2E) builds never fetch — keeping it out of the
+  // initial bundle. Mirrors the lazy-load pattern in ./posthog.
+  void import('@sentry/react').then((sentryModule) => {
+    applyInit(sentryModule);
+  });
   return true;
 }
 
