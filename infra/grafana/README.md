@@ -39,7 +39,7 @@ environment's Prometheus/Mimir (and Loki) source on import. Two ways to load the
 
 Dashboards must reference the **real emitted** metric names — the provider-agnostic `llm_*`/`*_total`
 names, never the stale `gemini_*` names from the original plan text (reconciliation in
-[`planning/outstanding-work.md`](../../planning/outstanding-work.md) §11). The
+[`planning/outstanding-work.md`](../../planning/outstanding-work.md)). The
 [`apps/api/tests/obs/test_dashboards.py`](../../apps/api/tests/obs/test_dashboards.py) drift test
 fails CI if a panel references a metric the backend does not emit, cross-referencing every PromQL
 metric name against the instruments discovered in
@@ -86,4 +86,4 @@ time (owner/Phase-6 — see below).
 - **Owner / Phase-6 (deferred, not ticked here):** the live "renders non-empty after a load script"
   confirmation needs a deployed service + live Grafana Cloud creds. The **infra dashboard (5.6.4)**
   is a skeleton that depends entirely on the Cloud Run deploy. Both are logged in
-  [`planning/outstanding-work.md`](../../planning/outstanding-work.md) §11.
+  [`planning/outstanding-work.md`](../../planning/outstanding-work.md).

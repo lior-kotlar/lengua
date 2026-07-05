@@ -20,7 +20,7 @@ workflows under `.github/workflows/`):
 (`gh variable set DEPLOY_ENABLED -b true`). Every job is gated `if: vars.DEPLOY_ENABLED == 'true'`,
 so with the variable unset each push to `main` runs a green no-op. See
 [`planning/go-live-activation.md`](../../planning/go-live-activation.md) for the owner activation
-runbook and [`planning/outstanding-work.md`](../../planning/outstanding-work.md) §12 for the
+runbook and [`planning/outstanding-work.md`](../../planning/outstanding-work.md) for the
 live-deferred verifies.
 
 ## `rollback.sh` — one-click rollback (task 6.8.2)

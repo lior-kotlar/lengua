@@ -26,5 +26,5 @@ alert on failure to the on-call contact (the same channel as
   `/health` green at the interval and flips to **DOWN** with a notification when the endpoint fails —
   needs the **real prod URL (the Cloud Run deploy, Phase 6) and a free-prober account (owner)**. The
   `${PROD_BASE_URL}` placeholder is filled at deploy. Logged in
-  [`planning/outstanding-work.md`](../../planning/outstanding-work.md) §11 and summarized in
+  [`planning/outstanding-work.md`](../../planning/outstanding-work.md) and summarized in
   [`docs/runbook.md`](../../docs/runbook.md).

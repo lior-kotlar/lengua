@@ -1,9 +1,8 @@
 # Branch protection & required status checks
 
 This documents the branch-protection policy for `main` and the **exact** required status-check
-names so the configuration is committed, not tribal. It mirrors the per-PR quality gate in
-[`planning/09-testing-quality.md`](../planning/09-testing-quality.md) and the workflow in
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+names so the configuration is committed, not tribal. It mirrors the per-PR quality gate defined
+as-code in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
 > **Owner action (Kotlar).** Enabling protection on `main` is task **0.6.3** and is intentionally
 > deferred to just before launch — turning it on now would block the autonomous self-merge flow
@@ -59,7 +58,7 @@ These run on every PR for visibility but are intentionally **excluded** from the
 | `coverage delta (PR comment)` | `coverage-comment` | Posts a backend + frontend coverage comment; informational only. |
 
 Do **not** add the advisory checks to required status checks — doing so would make a tuning/comment
-job gate merges, which contradicts the "start advisory" decision in `09-testing-quality.md`.
+job gate merges, which contradicts the deliberate "start advisory" decision.
 
 ## Applying the policy (owner, at launch)
 

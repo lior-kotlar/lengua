@@ -71,7 +71,7 @@ two-user RLS check proves isolation (`pytest apps/api/tests/test_rls.py` pointed
 
 > **The live apply is owner-run.** Running this against the hosted staging/prod DBs needs the live
 > connection strings + project refs and is tracked in
-> [`planning/outstanding-work.md`](../../planning/outstanding-work.md) §12 (tasks 6.2.2–6.2.4).
+> [`planning/outstanding-work.md`](../../planning/outstanding-work.md) (tasks 6.2.2–6.2.4).
 
 ## Seeding per environment (task 6.2.5)
 
@@ -99,4 +99,4 @@ in either way.
 
 > **The live seed run is owner-run.** Running this against hosted staging (reviewer created on first
 > run, no duplicate on the second, reviewer logs in) is tracked in
-> [`planning/outstanding-work.md`](../../planning/outstanding-work.md) §12 (task 6.2.5).
+> [`planning/outstanding-work.md`](../../planning/outstanding-work.md) (task 6.2.5).

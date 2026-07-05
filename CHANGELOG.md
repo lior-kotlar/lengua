@@ -7,13 +7,39 @@ This is the source of truth for **what is done**; open work lives in
 [`planning/go-live-activation.md`](planning/go-live-activation.md).
 
 > The productionization ran trunk-based, one PR per task, in phase order (PRs #1 → #114), so the
-> PR ranges below map to phases by merge order. Milestones: **M1** = backend loop over HTTP;
+> PR ranges below map to phases by merge order (the top-of-log post-close-out fixes reach #119).
+> Milestones: **M1** = backend loop over HTTP;
 > **M2** = multi-user (auth + RLS) with the LLM cost guard armed; **M3** = React web app at full
 > parity; **M4** = deployed to staging **and** prod (staging leg live; prod leg = owner cutover).
 
 ---
 
-## 2026-07-05 — Planning close-out (staging-leg validation)
+## 2026-07-05 — Post-close-out hardening — PRs #117, #119
+
+Two agent-implemented, CI-verified fix PRs landed right after the planning close-out, hardening the
+API boot path and the web tap-a-word / accessibility surface.
+
+- **API (#117).** A **boot-time config guard** logs `CRITICAL` when `env ∈ {staging, prod}` and
+  `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_URL` is unset, so a misconfigured `DELETE /account`
+  surfaces loudly at startup instead of failing only on the first deletion (a strict no-op for
+  `local`/`ci`/`test`/`e2e`, which run without the key by design). The dark `GET /experimental/*`
+  route is now **hidden from the public OpenAPI** (`include_in_schema=False`) — kept out of
+  `openapi.json` and the generated `api-types` client while it ships dark, with the runtime
+  404-until-flag behavior unchanged. The coverage gate is **DB-reachability-aware**: a no-DB local
+  `pytest` skips the integration tests and relaxes `--cov-fail-under` (loud banner) instead of a
+  false red, while CI (Postgres up) still enforces ≥80%. And the in-process rate-limiter reclaims a
+  user's window entry once it empties, so its map stays **bounded** (mirroring the size-capped
+  discover cache).
+- **Web (#119).** Fixed a **tap-a-word bug** — the explain-word query cached by `(languageId, word)`,
+  so a word recurring across cards showed the first card's explanation; the query key now includes
+  the sentence/card, giving each card its own note. Accessibility: `LanguageText` / `TappableSentence`
+  now emit `lang={language.code}` (WCAG 3.1.2) so screen readers pronounce foreign text correctly;
+  the tap-a-word popover manages focus (move-in / restore-to-trigger); and the Languages row plus the
+  dashboard tiles/quick-actions gained the app focus-visible ring.
+
+---
+
+## 2026-07-05 — Planning close-out (staging-leg validation) — PRs #115–#116
 
 Validated every **as-code** and **staging-live** acceptance criterion that could be checked now
 (read-only against live staging + local/CI test runs), and ticked it with evidence. **No prod

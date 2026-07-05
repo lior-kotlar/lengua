@@ -65,24 +65,26 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   asyncpg's prepared-statement cache breaks against the Supabase **transaction** pooler (6543) —
   use the **session** pooler (5432) or `statement_cache_size=0`. Confirm prod `DATABASE_URL` before
   the cutover (folds into (A)).
-- **Account-deletion has no boot check.** Add a boot/readiness check that `SUPABASE_SERVICE_ROLE_KEY`
-  is set — without it `DELETE /account` (a store-compliance requirement) is silently broken in a
-  misconfigured prod until first exercised. (`apps/api/app/services/account.py`)
 - **Runtime service account.** The hand-deployed staging revision uses the **default compute SA** —
   move Cloud Run to a dedicated runtime SA with `secretmanager.secretAccessor` **only** (6.1.6).
 - **Coverage carve-outs.** `lengua_core/{models,prompts}.py`, `app/settings.py`, the whole
   `legacy_streamlit/`, and the web `src/main.tsx` + `src/components/ui/**` are excluded from the 80%
-  gate; ~20 backend modules are `@pytest.mark.integration` (auto-skip offline) so the gate is only
-  truly met in CI with Postgres up — local coverage ≠ CI coverage.
-- **Dark `/experimental/*` is in the public OpenAPI.** Runtime is correctly dark (404 until
-  `word_of_the_day` is on), but the path + schema still appear in `openapi.json` / `/docs`. Exclude
-  it from the canonical public schema before it ships.
+  gate; ~20 backend modules are `@pytest.mark.integration` (auto-skip offline), so the 80% gate is
+  only truly enforced in CI with Postgres up. A local run without a reachable DB now auto-relaxes
+  `--cov-fail-under` to 0 with a loud banner (`tests/conftest.py::pytest_configure`) instead of
+  false-failing red — so local coverage still ≠ CI coverage, but a DB-less run is no longer a false red.
 - **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — bump the `python:3.12-slim`
   digest during deploy hardening or via Dependabot once enabled.
 - **Test nits:** export-under-real-RLS assertion + a deleted-but-unexpired-token behavior test; the
   RLS migration drift test hardcodes predicate strings instead of parsing the canonical SQL.
-- **Doc stubs:** `docs/README.md` + `infra/README.md` end with `> Placeholder.`; the runbook's
-  **On-call** + **Store-release** sections are finalized at launch (Phase 9).
+- **Doc stubs:** `docs/privacy-policy.md` is a Phase 0 stub (`> Placeholder.`), replaced by the real
+  GDPR policy in Phase 8 (item (D)); the runbook's **On-call** + **Store-release** sections are
+  finalized at launch (Phase 9).
+- **Stale code-comment doc citations.** A few source comments still cite planning design docs deleted
+  in #115/#116 — `03-backend.md` (`app/quota.py`, `app/repositories/__init__.py`),
+  `08-open-questions-and-costs.md` (`lengua_core/llm/keys.py`), `09-testing-quality.md`
+  (`.github/workflows/ci.yml`), and `staging-validation*` (`e2e-staging/signup.spec.ts`, migration
+  `0006`). Non-user-facing and build-safe; repoint to `CHANGELOG.md` when each area is next touched.
 - **Observability follow-ups** (do alongside (B)): export the browser client span to Tempo (today the
   web only injects `traceparent`); unify web-Sentry ↔ Tempo by `trace_id`; add a `proficiency_cefr_band`
   metric to light up the CEFR dashboard panel; move the process-local product metrics
@@ -90,8 +92,6 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   one Cloud Run instance; revisit the `opentelemetry.sdk._logs.LoggingHandler` deprecation when the
   OTel logs signal stabilizes; confirm the exact `http_server_duration*` metric name in Grafana at
   deploy (the drift test tolerates suffixed/unsuffixed).
-- **Repo hygiene:** untracked `study-flow.html` at the repo root — owner decide: commit, `.gitignore`,
-  or delete.
 
 ---
 

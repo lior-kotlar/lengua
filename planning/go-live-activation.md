@@ -11,7 +11,7 @@
 > ("validate before"). Work **staging fully green → then prod**.
 >
 > Completing §G also closes the deferred **Phase 5** live observability verifies
-> ([outstanding-work.md §11](outstanding-work.md)).
+> ([outstanding-work.md](outstanding-work.md)).
 
 ---
 
@@ -34,7 +34,7 @@
 
 ---
 
-## Progress update — 2026-06-28 (Ben ran §A + §B; see [outstanding-work §13](outstanding-work.md))
+## Progress update — 2026-06-28 (Ben ran §A + §B)
 
 **Live now / done (✅):**
 - **§A1–A5 local fast-path is GREEN** — staging schema applied (0001→0005, `current==heads`), RLS +
@@ -156,7 +156,7 @@ web locally against the hosted **staging** Supabase.
 
 ## G. Close the deferred Phase 5 live observability verifies (now that it's deployed) · **Ben + Kotlar**
 
-Each is as-code-done; this lights up the live half (see [outstanding-work.md §11](outstanding-work.md)).
+Each is as-code-done; this lights up the live half (see [outstanding-work.md](outstanding-work.md)).
 
 - **G1** — trace appears in Grafana Tempo, searchable by `service.name=lengua-api` (5.1.5); per-route p95 in Mimir (5.2.6).
 - **G2** — structured log line in Loki filtered by `service_name=lengua-api` (5.3.1); Tempo→Loki trace-to-logs jump (5.3.3).
