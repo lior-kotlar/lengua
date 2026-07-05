@@ -4,9 +4,12 @@
  *
  * Used on production review cards: each whitespace token becomes a button; tapping one opens a
  * popover anchored to that word and fetches its explanation via `POST /explain` (keyed by word +
- * language, served from the card's pre-generated note when present). A single tap (mouse or touch —
- * a tap synthesises a click) selects the word; tapping it again, the close button, `Escape`, or
- * anywhere outside dismisses the popover.
+ * language + card, since the backend explains a word *within its sentence*, served from the card's
+ * pre-generated note when present). The popover is an announced `role="dialog"` with **managed
+ * focus**: focus moves into it on open and is restored to the triggering word on `Escape` / close,
+ * so a keyboard/SR user lands on the explanation instead of having to tab across the sentence to
+ * reach it. A single tap (mouse or touch — a tap synthesises a click) selects the word; tapping it
+ * again, the close button, `Escape`, or anywhere outside dismisses the popover.
  *
  * RTL + diacritics (4.9): direction + script font come from the language code, so an Arabic/Hebrew
  * sentence reads right-to-left in a harakat/nikkud-correct font and the popover anchors to the
@@ -15,7 +18,7 @@
  * one WITH its marks ({@link SentenceSegment.bare}), so a stripped display still matches the cached
  * explanation key.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
 import {
@@ -33,6 +36,12 @@ import type { LanguageOut } from '@/lib/languages';
 import { cn } from '@/lib/utils';
 
 export interface TappableSentenceProps {
+  /**
+   * The card this sentence belongs to — scopes the explanation cache so the note stays matched to
+   * this card's sentence (the backend explains a word *within a sentence*, so the same word can have
+   * a different explanation on another card).
+   */
+  cardId: number;
   /** The target-language sentence (the production card's back). */
   text: string;
   /** Its English gloss (the production card's front), sent with the explain request. */
@@ -52,6 +61,7 @@ interface Selection {
 }
 
 export function TappableSentence({
+  cardId,
   text,
   translation,
   language,
@@ -60,15 +70,23 @@ export function TappableSentence({
 }: TappableSentenceProps) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const rootRef = useRef<HTMLParagraphElement>(null);
+  // The word button that opened the current popover — focus is restored here on Escape / close so it
+  // never strands on the removed dialog (WCAG 2.4.3).
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverId = useId();
   const segments = segmentSentence(text);
   const dir = directionForCode(language.code);
   const fontClass = scriptFontClass(language.code);
+  // Screen readers read the whole document as `lang="en"`; tag the target-language text so an
+  // Arabic/Hebrew/Spanish sentence isn't sounded out with English phonetics (WCAG 3.1.2).
+  const lang = language.code || undefined;
 
   const explainParams: ExplainParams | null =
     selection === null
       ? null
       : {
           languageId: language.id,
+          cardId,
           word: selection.word,
           sentence: text,
           translation,
@@ -89,6 +107,8 @@ export function TappableSentence({
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setSelection(null);
+        // Return focus to the word that opened the dialog (the button stays mounted).
+        triggerRef.current?.focus();
       }
     }
     function onPointerDown(event: PointerEvent) {
@@ -117,6 +137,7 @@ export function TappableSentence({
     <p
       ref={rootRef}
       dir={dir}
+      lang={lang}
       className={cn('text-xl font-medium leading-relaxed', fontClass)}
     >
       {segments.map((segment, index) => {
@@ -130,9 +151,14 @@ export function TappableSentence({
               type="button"
               // The looked-up word is the canonical bare form WITH marks; only the glyphs honour the
               // vowel-marks toggle.
-              onClick={() => toggle(segment.bare, index)}
+              onClick={(event) => {
+                // Remember this button so focus can be restored to it when the dialog closes.
+                triggerRef.current = event.currentTarget;
+                toggle(segment.bare, index);
+              }}
               aria-expanded={isOpen}
               aria-haspopup="dialog"
+              aria-controls={isOpen ? popoverId : undefined}
               className={cn(
                 'rounded px-0.5 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isOpen && 'bg-accent text-accent-foreground',
@@ -142,13 +168,19 @@ export function TappableSentence({
             </button>
             {isOpen && (
               <WordPopover
+                id={popoverId}
                 word={displayText(selection.word, showVowels)}
                 explanation={explain.data?.explanation}
                 isLoading={explain.isLoading}
                 isError={explain.isError}
                 dir={dir}
+                lang={lang}
                 fontClass={fontClass}
-                onClose={() => setSelection(null)}
+                onClose={() => {
+                  setSelection(null);
+                  // Restore focus to the word that opened the dialog.
+                  triggerRef.current?.focus();
+                }}
               />
             )}
           </span>
@@ -159,38 +191,60 @@ export function TappableSentence({
 }
 
 interface WordPopoverProps {
+  /** The id the trigger word references via `aria-controls`. */
+  id: string;
   word: string;
   explanation: string | undefined;
   isLoading: boolean;
   isError: boolean;
   dir: 'ltr' | 'rtl';
+  /** The target-language code, so the headword is read in the right language (WCAG 3.1.2). */
+  lang: string | undefined;
   fontClass: string;
   onClose: () => void;
 }
 
-/** The floating explanation card anchored above a tapped word. */
+/**
+ * The floating explanation card anchored above a tapped word.
+ *
+ * An announced `role="dialog"` with managed focus: it grabs focus on mount (the container is
+ * `tabIndex={-1}` and named by `aria-label`), so a keyboard/SR user lands on the explanation the
+ * dialog announces instead of having to hunt for it; the trigger restores focus to itself on close.
+ */
 function WordPopover({
+  id,
   word,
   explanation,
   isLoading,
   isError,
   dir,
+  lang,
   fontClass,
   onClose,
 }: WordPopoverProps) {
+  const ref = useRef<HTMLSpanElement>(null);
+  // Move focus into the dialog on open (it is announced, so focus must land inside it).
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
   return (
     <span
+      ref={ref}
+      id={id}
       role="dialog"
       aria-label={`Explanation of ${word}`}
+      tabIndex={-1}
       data-testid="word-popover"
       dir={dir}
       className={cn(
-        'absolute bottom-full z-30 mb-2 block w-64 rounded-md border bg-popover p-3 text-left text-sm font-normal text-popover-foreground shadow-md',
+        'absolute bottom-full z-30 mb-2 block w-64 rounded-md border bg-popover p-3 text-left text-sm font-normal text-popover-foreground shadow-md focus-visible:outline-none',
         dir === 'rtl' ? 'right-0' : 'left-0',
       )}
     >
       <span className="flex items-start justify-between gap-2">
-        <span className={cn('font-semibold', fontClass)}>{word}</span>
+        <span lang={lang} className={cn('font-semibold', fontClass)}>
+          {word}
+        </span>
         <button
           type="button"
           onClick={onClose}

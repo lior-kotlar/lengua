@@ -5,7 +5,7 @@
  * The loop: `GET /review/due` returns today's batch split into never-reviewed (`new`) vs. `due`
  * cards; the user reveals each card's answer and rates it Again/Hard/Good/Easy, which `POST`s an
  * FSRS rating (1..4) to `/review/{card_id}/grade` and advances. On production cards, tapping a word
- * fetches a short explanation via `POST /explain` (cached per word). Everything goes through
+ * fetches a short explanation via `POST /explain` (cached per card + word). Everything goes through
  * `getApiClient()` (auth + 401-retry) and `unwrap()` (typed data / typed
  * {@link import('@/lib/api-client').ApiError}); Supabase is auth-only.
  */
@@ -232,6 +232,8 @@ export function useGradeCard() {
 /** Parameters for an explanation request (a tapped word in a production card's sentence). */
 export interface ExplainParams {
   languageId: number;
+  /** The card whose sentence is being explained — scopes the cache so the note matches the card. */
+  cardId: number;
   /** The bare tapped word. */
   word: string;
   /** The target-language sentence (the production card's back). */
@@ -241,30 +243,35 @@ export interface ExplainParams {
 }
 
 /**
- * Query key for a tapped-word explanation — keyed by word + language (group 4.6.4).
+ * Query key for a tapped-word explanation — keyed by word + language + card (group 4.6.4).
  *
- * An explanation of a word in a language is stable, so this is all the identity the cache needs; the
- * backend likewise caches per bare word. Keying this way means tapping the same word twice never
- * re-fetches.
+ * The backend's `explain_word` is **sentence-specific** (it stores a distinct note per card's
+ * sentence), so the same word can legitimately have different explanations on different cards.
+ * Keying by the card id (stable, 1:1 with its sentence) keeps each card's explanation isolated while
+ * preserving the on-card cache benefit — re-tapping the SAME word on the SAME card never re-fetches.
  */
-export function explainKey(languageId: number, word: string) {
-  return ['explain', languageId, word] as const;
+export function explainKey(languageId: number, cardId: number, word: string) {
+  return ['explain', languageId, cardId, word] as const;
 }
 
 /**
- * Fetch the explanation for a tapped word (`POST /explain`), keyed by word + language.
+ * Fetch the explanation for a tapped word (`POST /explain`), keyed by word + language + card.
  *
- * Disabled until a word is selected (`params === null`). Explanations never go stale (a word's gloss
- * doesn't change), so the query is fetched once per word and then served from cache. When the card
- * already carries a pre-generated note for the word (`initialExplanation`), it is used as initial
- * data so the popover is instant and no request is made at all.
+ * Disabled until a word is selected (`params === null`). An explanation of a word within one card's
+ * sentence never goes stale, so the query is fetched once per (card, word) and then served from
+ * cache. When the card already carries a pre-generated note for the word (`initialExplanation`), it
+ * is used as initial data so the popover is instant and no request is made at all.
  */
 export function useExplainWord(
   params: ExplainParams | null,
   initialExplanation?: string,
 ) {
   return useQuery({
-    queryKey: explainKey(params?.languageId ?? -1, params?.word ?? ''),
+    queryKey: explainKey(
+      params?.languageId ?? -1,
+      params?.cardId ?? -1,
+      params?.word ?? '',
+    ),
     queryFn: () =>
       unwrap(
         getApiClient().POST('/explain', {

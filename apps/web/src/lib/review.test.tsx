@@ -187,8 +187,14 @@ describe('query keys', () => {
     expect(dueKey(7)).toEqual(['review', 'due', 7]);
   });
 
-  it('explainKey is keyed by word + language', () => {
-    expect(explainKey(3, 'casa')).toEqual(['explain', 3, 'casa']);
+  it('explainKey is keyed by language + card + word', () => {
+    expect(explainKey(3, 7, 'casa')).toEqual(['explain', 3, 7, 'casa']);
+  });
+
+  it('explainKey isolates the same word across different cards', () => {
+    // The backend explains a word within its sentence, so the same word on two cards must not
+    // collide in the cache.
+    expect(explainKey(3, 7, 'casa')).not.toEqual(explainKey(3, 8, 'casa'));
   });
 });
 
@@ -241,12 +247,13 @@ describe('useGradeCard', () => {
 describe('useExplainWord', () => {
   const params = {
     languageId: 2,
+    cardId: 7,
     word: 'silla',
     sentence: 'El gato duerme en la silla.',
     translation: 'The cat sleeps on the chair.',
   };
 
-  it('POSTs /explain with word + sentence + translation and caches under the word+language key', async () => {
+  it('POSTs /explain with word + sentence + translation and caches under the card+word+language key', async () => {
     post.mockReturnValue(ok({ word: 'silla', explanation: 'a chair' }));
     const { queryClient, wrapper } = makeClient();
 
@@ -262,8 +269,8 @@ describe('useExplainWord', () => {
       },
     });
     expect(result.current.data?.explanation).toBe('a chair');
-    // Cached under the word + language key.
-    expect(queryClient.getQueryData(explainKey(2, 'silla'))).toMatchObject({
+    // Cached under the language + card + word key.
+    expect(queryClient.getQueryData(explainKey(2, 7, 'silla'))).toMatchObject({
       explanation: 'a chair',
     });
   });

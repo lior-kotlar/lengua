@@ -457,6 +457,7 @@ function ReviewCard({
           >
             {production ? (
               <TappableSentence
+                cardId={card.id}
                 text={card.back}
                 translation={card.front}
                 language={language}
