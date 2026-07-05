@@ -1,8 +1,8 @@
 # Phase 7 — Mobile packaging (Capacitor → iOS + Android)
 
 > **Effort:** M  ·  **Depends on:** Phase 4 (React web app — Capacitor wraps the web build) and Phase 6 (prod API + web deployed, so native builds point at real prod)  ·  **Unlocks:** Phase 8 (compliance & store readiness) and Phase 9 (launch)
-> **Source:** roadmap Phase 7 (../02-roadmap.md) · deep dive (../04-frontend-mobile.md)
-> The per-PR quality gate (../09-testing-quality.md) applies to EVERY task below: each lands via a PR that is 100% green + ≥80% coverage (backend & frontend) + Playwright E2E. A task is not done until its tests keep coverage ≥80%.
+> **Context:** what shipped in phases 0–6 (incl. the React web app this wraps) is recorded in [`../../CHANGELOG.md`](../../CHANGELOG.md).
+> The per-PR quality gate applies to EVERY task below: each lands via a PR that is 100% green + ≥80% coverage (backend & frontend) + Playwright E2E. A task is not done until its tests keep coverage ≥80%.
 
 **Goal:** signed iOS and Android builds install and run the full Generate→Review→Discover loop against prod — with OAuth completing inside the native webview, a daily review reminder firing on-device, and OTA web-bundle updates reaching a test channel without a store cycle.
 

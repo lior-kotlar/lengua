@@ -1,8 +1,8 @@
 # Phase 8 — Compliance & store readiness
 
 > **Effort:** M  ·  **Depends on:** Phase 7 complete (signed iOS + Android Capacitor builds installing and running the full loop against prod) — overlaps Phase 7  ·  **Unlocks:** Phase 9 (launch)
-> **Source:** roadmap Phase 8 (../02-roadmap.md) · deep dive (../07-security-compliance.md)
-> The per-PR quality gate (../09-testing-quality.md) applies to EVERY task below: each lands via a PR that is 100% green + ≥80% coverage (backend & frontend) + Playwright E2E. A task is not done until its tests keep coverage ≥80%.
+> **Context:** the shipped security/privacy posture (auth, RLS, account export + delete) is recorded in [`../../CHANGELOG.md`](../../CHANGELOG.md); this phase adds the compliance/store layer.
+> The per-PR quality gate applies to EVERY task below: each lands via a PR that is 100% green + ≥80% coverage (backend & frontend) + Playwright E2E. A task is not done until its tests keep coverage ≥80%.
 
 **Goal:** Every launch-blocker in the 07 store-legal checklist is satisfied — published privacy & support URLs, GDPR consent + EU residency + in-app export/delete, in-app account deletion plus an external web deletion form, Apple nutrition labels + Play Data Safety, age ratings, Apple encryption declaration, complete store listings with screenshots for web and every required device size — and a closed test build is running on TestFlight (iOS) and Play internal testing and passes internal review.
 

@@ -214,11 +214,10 @@ env injection (client-safe only) · ☐ custom domain + auto SSL · ☐ **both o
    Vercel ones) — else email-confirm/OAuth redirects break.
 7. **⚠️ Update ALL relevant files (docs + config) so nothing still says "Vercel"** — do this as part of
    the same change, not after:
-   - this file (§C, §E2, §F4, the Ownership-split row) · `planning/owner-setup-checklist.html` (item 4 +
-     the Kotlar copy-paste prompt) · `planning/outstanding-work.md` (§12 Vercel secrets, §13) ·
-     `planning/05-infra-deploy.md` (the "locked decision" that named Vercel — re-decide + record why) ·
-     `planning/tasks/phase-6-infra-cicd.md` (tasks 6.3.1 link, 6.4.2 env, 6.6.4 / 6.7.x deploy steps) ·
-     `README.md` (any deploy/host mention) · `apps/web/.env.example` if it references Vercel.
+   - this file (§C, §E2, §F4, the Ownership-split row) · `planning/outstanding-work.md` (the Vercel
+     items under "What's left") · the CD workflows `.github/workflows/deploy-{staging,prod}.yml`
+     (`deploy-web-*` jobs) · `README.md` (any deploy/host mention) · `apps/web/.env.example` if it
+     references Vercel. (The infra locked-decision that named Vercel now lives in `../CHANGELOG.md`.)
    - grep the repo for `vercel`/`VERCEL_`/`Vercel` and reconcile every hit.
 8. **Keep the old Vercel project alive until parity is verified**, then decommission it (delete project +
    remove the 3 secrets) so there's a clean rollback if cutover fails.
@@ -239,6 +238,6 @@ and administer the host** on the free tier · ☐ CI's `deploy-web-*` job is gre
 | **Kotlar** (account admin / paid / dashboards) | Resend SMTP + SPF/DKIM/DMARC DNS, Grafana/Sentry/PostHog dashboard + alert-channel config, **approve prod promotion** (GitHub `production` env reviewer), Apple/Play accounts + domain (Phase 7). |
 
 ## Cross-links
-- Phase 6 as-code tasks (CD workflows, Dockerfile, /ready, feature flags): [tasks/phase-6-infra-cicd.md](tasks/phase-6-infra-cicd.md)
-- Owner-deferred live verifies (Phase 5): [outstanding-work.md §11](outstanding-work.md); (Phase 6): §12.
-- Infra design (locked decisions): [05-infra-deploy.md](05-infra-deploy.md)
+- Phase 6 CD (workflows, Dockerfile, /ready, feature flags): shipped — see [`../CHANGELOG.md`](../CHANGELOG.md).
+- Owner-deferred live verifies (Phase 5 observability + Phase 6 remaining): [outstanding-work.md](outstanding-work.md) → "What's left" + "Phase-5 / Phase-6 remaining".
+- Infra locked decisions (Cloud Run vs Render/Fly, etc.): [`../CHANGELOG.md`](../CHANGELOG.md) "Locked decisions & rationale".

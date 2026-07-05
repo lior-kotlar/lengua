@@ -9,7 +9,7 @@ relies on (it self-merges low-risk green PRs with 0 approvals).
 
 > **Owner:** Lior Kotlar (repo admin). Ben (`benartzi4@gmail.com`) cannot do these without admin.
 > **Status:** deferred — *non-blocking*. When done, tick the matching boxes in
-> [`tasks/phase-0-foundations.md`](tasks/phase-0-foundations.md) (`0.6.3`, `0.6.4`).
+> this file (`0.6.3` branch protection, `0.6.4` Dependabot) — the phase-0 task file was retired post-completion (see [`../CHANGELOG.md`](../CHANGELOG.md)).
 
 ---
 
@@ -64,7 +64,7 @@ for routine version-bump PRs across `apps/api` (uv/pip) and `apps/web` (pnpm).)
 
 ## Still-outstanding owner items elsewhere (not deferred — needed by later phases, still non-blocking for Phase 0)
 
-These are tracked in [`tasks/phase-0-foundations.md`](tasks/phase-0-foundations.md) `0.7.x` and
+These were tracked as phase-0 `0.7.x` (that task file is now retired — see [`../CHANGELOG.md`](../CHANGELOG.md)) and
 are **not** part of this "do at the end" set, but listing them here for one owner view:
 
 - **`0.7.7` — ☑ DONE (verified 2026-07-05).** CI secrets `GCP_REGION=europe-west1` +
