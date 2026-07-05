@@ -7,6 +7,9 @@
   call within the window returns **429** ``{"code": "rate_limited"}`` with a ``Retry-After`` header,
   and a later call after the window has elapsed is allowed again. The fake clock makes the window
   deterministic (no sleeping).
+* :func:`test_reclaims_entry_when_all_timestamps_age_out` /
+  :func:`test_disabled_limiter_does_not_accumulate_entries` prove the map is bounded: an entry
+  whose window empties (aged out, or a limit-0 limiter) is dropped rather than leaked per user id.
 * :func:`test_default_rate_limiter_is_singleton` covers the process-wide singleton dependency.
 """
 
@@ -46,6 +49,38 @@ def test_window_counts() -> None:
 
     # The window is per-user — a different id keeps its own independent count.
     assert limiter.hit(uuid.uuid4()).count == 1
+
+
+def test_reclaims_entry_when_all_timestamps_age_out() -> None:
+    """When a user's whole window ages out, its dict entry is reclaimed (bounded memory)."""
+    clock = FakeClock(1000.0)
+    limiter = InProcessRateLimiter(limit=3, window_seconds=60.0, clock=clock)
+    user = uuid.uuid4()
+
+    # A first hit records a timestamp and creates the user's entry.
+    assert limiter.hit(user).allowed is True
+    assert user in limiter._hits
+    original = limiter._hits[user]
+
+    # Once the whole window has elapsed, the next hit finds every timestamp aged out: the empty
+    # entry is reclaimed and then re-created for the fresh hit, so the stored deque is a NEW object
+    # — proof the stale (empty) one was dropped from the map rather than left lingering.
+    clock.advance(120)
+    assert limiter.hit(user).count == 1
+    assert limiter._hits[user] is not original
+
+
+def test_disabled_limiter_does_not_accumulate_entries() -> None:
+    """A limit of 0 rejects every hit without leaving a per-user entry behind.
+
+    Even when hammered by many distinct user ids, the map stays empty — the reclaim keeps its size
+    bounded rather than growing one permanent slot per id ever seen.
+    """
+    clock = FakeClock(1000.0)
+    limiter = InProcessRateLimiter(limit=0, window_seconds=60.0, clock=clock)
+    for _ in range(100):
+        assert limiter.hit(uuid.uuid4()).allowed is False
+    assert len(limiter._hits) == 0
 
 
 def test_default_rate_limiter_is_singleton() -> None:

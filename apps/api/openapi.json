@@ -1093,30 +1093,6 @@
         ],
         "title": "ValidationError",
         "type": "object"
-      },
-      "WordOfTheDayOut": {
-        "description": "The experimental 'word of the day' payload (gated by the ``word_of_the_day`` flag).\n\nA placeholder shape for a not-yet-finished feature: it carries no user data and no secrets, so\nthe route is safe to ship dark. When the flag is off the route 404s (as if absent); flipping the\nflag on exposes this payload.",
-        "properties": {
-          "note": {
-            "title": "Note",
-            "type": "string"
-          },
-          "translation": {
-            "title": "Translation",
-            "type": "string"
-          },
-          "word": {
-            "title": "Word",
-            "type": "string"
-          }
-        },
-        "required": [
-          "word",
-          "translation",
-          "note"
-        ],
-        "title": "WordOfTheDayOut",
-        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1326,33 +1302,6 @@
         "summary": "Accept",
         "tags": [
           "discover"
-        ]
-      }
-    },
-    "/experimental/word-of-the-day": {
-      "get": {
-        "description": "Experimental 'word of the day' — only reachable when the ``word_of_the_day`` flag is on.",
-        "operationId": "word_of_the_day_experimental_word_of_the_day_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WordOfTheDayOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Word Of The Day",
-        "tags": [
-          "experimental"
         ]
       }
     },

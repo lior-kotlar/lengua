@@ -117,26 +117,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/experimental/word-of-the-day": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Word Of The Day
-         * @description Experimental 'word of the day' — only reachable when the ``word_of_the_day`` flag is on.
-         */
-        get: operations["word_of_the_day_experimental_word_of_the_day_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/explain": {
         parameters: {
             query?: never;
@@ -902,22 +882,6 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /**
-         * WordOfTheDayOut
-         * @description The experimental 'word of the day' payload (gated by the ``word_of_the_day`` flag).
-         *
-         *     A placeholder shape for a not-yet-finished feature: it carries no user data and no secrets, so
-         *     the route is safe to ship dark. When the flag is off the route 404s (as if absent); flipping the
-         *     flag on exposes this payload.
-         */
-        WordOfTheDayOut: {
-            /** Note */
-            note: string;
-            /** Translation */
-            translation: string;
-            /** Word */
-            word: string;
-        };
     };
     responses: never;
     parameters: never;
@@ -1060,26 +1024,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    word_of_the_day_experimental_word_of_the_day_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WordOfTheDayOut"];
                 };
             };
         };
