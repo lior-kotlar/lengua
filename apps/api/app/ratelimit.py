@@ -67,8 +67,10 @@ class InProcessRateLimiter:
 
     Per user it keeps the monotonic timestamps of the requests inside the current window; each
     :meth:`hit` first evicts timestamps older than the window, then either records the new request
-    (when under the limit) or rejects it. The clock is injectable so tests advance time without
-    sleeping; the default is :func:`time.monotonic` (immune to wall-clock jumps).
+    (when under the limit) or rejects it. When a user's window empties (all timestamps aged out, or
+    a disabled limiter that never records any), its dict entry is reclaimed so the map stays bounded
+    rather than growing one slot per distinct user id ever seen. The clock is injectable so tests
+    advance time without sleeping; the default is :func:`time.monotonic` (immune to clock jumps).
     """
 
     def __init__(
@@ -96,6 +98,13 @@ class InProcessRateLimiter:
         while hits and hits[0] <= cutoff:
             hits.popleft()
 
+        if not hits:
+            # Every timestamp aged out (or a disabled limiter with limit 0 never records any): drop
+            # the now-empty deque so the map can't grow by one permanent slot per distinct user id
+            # ever seen. A later hit simply re-creates the entry via the defaultdict. Bounds memory,
+            # mirroring the size-capped app.discover_cache.
+            del self._hits[user_id]
+
         if len(hits) >= self._limit:
             # Seconds until the oldest in-window hit ages out (== a slot frees). When the limit is 0
             # the window can never have room, so wait a whole window. Floor of 1s so the client
@@ -106,6 +115,7 @@ class InProcessRateLimiter:
                 allowed=False, count=len(hits), limit=self._limit, retry_after=retry_after
             )
 
+        hits = self._hits[user_id]  # re-create the entry if it was just reclaimed, then record.
         hits.append(now)
         return RateLimitDecision(allowed=True, count=len(hits), limit=self._limit, retry_after=0)
 

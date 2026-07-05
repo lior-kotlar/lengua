@@ -14,6 +14,7 @@ for a real provider, so it cannot appear in dev/staging/prod.
 
 from __future__ import annotations
 
+import logging
 import os
 
 from fastapi import FastAPI, Response, status
@@ -39,12 +40,53 @@ from app.routers import (
     settings,
 )
 from app.security_headers import configure_security_headers
-from app.settings import get_settings
+from app.settings import Settings, get_settings
+
+logger = logging.getLogger(__name__)
+
+#: Deployment environments where the RLS-bypassing Supabase service-role key is REQUIRED (the
+#: account-deletion path needs it). ``local``/``ci``/``test``/``e2e`` run WITHOUT it by design
+#: (FakeLLM + the E2E stack never hard-delete a real auth user), so the boot check is a strict no-op
+#: there and only fires for a real deployment.
+_SECRET_REQUIRED_ENVS = frozenset({"staging", "prod"})
 
 
 def _llm_provider() -> str:
     """The configured LLM provider name (``LLM_PROVIDER`` env, default ``groq``)."""
     return os.getenv("LLM_PROVIDER", "groq").strip().lower()
+
+
+def _check_deployment_secrets(app_settings: Settings) -> None:
+    """Log a CRITICAL at boot when a real deployment is missing Supabase admin credentials.
+
+    :class:`app.services.account.AccountDeletionService` fails closed only when a user first calls
+    ``DELETE /account``: with an empty ``SUPABASE_SERVICE_ROLE_KEY`` / ``SUPABASE_URL`` a
+    misconfigured staging/prod otherwise looks perfectly healthy until that first deletion. This
+    surfaces the misconfiguration loudly at startup instead.
+
+    Strictly gated on ``settings.env``: a **no-op** for ``local``/``ci``/``test``/``e2e`` (which run
+    without the key by design). It intentionally does NOT crash the app — a boot crash over an
+    ops-fixable config gap is a worse failure mode than a loud CRITICAL log (every other route stays
+    up; only account deletion is affected until the key is set).
+    """
+    if app_settings.env.strip().lower() not in _SECRET_REQUIRED_ENVS:
+        return
+    service_role_key = app_settings.supabase_service_role_key.get_secret_value()
+    missing = [
+        name
+        for name, value in (
+            ("SUPABASE_SERVICE_ROLE_KEY", service_role_key),
+            ("SUPABASE_URL", app_settings.supabase_url),
+        )
+        if not value
+    ]
+    if missing:
+        logger.critical(
+            "Supabase admin config missing in env=%s: %s unset/empty. Account deletion "
+            "(DELETE /account) will fail until this is configured.",
+            app_settings.env,
+            ", ".join(missing),
+        )
 
 
 def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
@@ -57,6 +99,11 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     test) so the committed ``openapi.json`` never depends on the runtime LLM provider.
     """
     application = FastAPI(title="Lengua API")
+
+    # Boot-time config guard: in a real deployment (staging/prod), a missing Supabase service-role
+    # key / URL is a latent failure that only bites the first DELETE /account. Surface it loudly at
+    # startup. A strict no-op for local/ci/test/e2e (see _check_deployment_secrets).
+    _check_deployment_secrets(get_settings())
 
     # Observability (Phase 1.7): OTel tracing (FastAPI/SQLAlchemy/httpx auto-instrumentation,
     # no-op exporter unless OTEL_EXPORTER_OTLP_ENDPOINT is set) + one structured JSON access-log
