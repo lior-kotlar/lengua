@@ -76,8 +76,12 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   false-failing red — so local coverage still ≠ CI coverage, but a DB-less run is no longer a false red.
 - **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — bump the `python:3.12-slim`
   digest during deploy hardening or via Dependabot once enabled.
-- **Test nits:** export-under-real-RLS assertion + a deleted-but-unexpired-token behavior test; the
-  RLS migration drift test hardcodes predicate strings instead of parsing the canonical SQL.
+- **Test nits (account-lifecycle, CI-only):** two integration tests remain — an export-under-real-RLS
+  assertion (drive `GET /account/export` through the un-overridden scoped `get_db` so RLS, not just
+  the app-layer filter, enforces scoping) and a deleted-but-unexpired-token behavior test (a
+  still-valid JWT for a just-deleted account returns a 200 empty bundle, never a leak or 500). Both
+  need the live Postgres + Supabase-auth fixtures, so they run only in CI. (The RLS-migration drift
+  test now parses predicates from the canonical SQL — done.)
 - **Doc stubs:** `docs/privacy-policy.md` is a Phase 0 stub (`> Placeholder.`), replaced by the real
   GDPR policy in Phase 8 (item (D)); the runbook's **On-call** + **Store-release** sections are
   finalized at launch (Phase 9).
