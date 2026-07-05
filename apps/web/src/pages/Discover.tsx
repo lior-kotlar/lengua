@@ -62,7 +62,9 @@ export default function Discover() {
         </p>
       </div>
 
-      <VowelMarksToggle />
+      <div className="flex justify-end">
+        <VowelMarksToggle />
+      </div>
 
       {isLoading ? (
         <LoadingState label="Loading your languages…" />

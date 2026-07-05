@@ -160,7 +160,7 @@ export function TappableSentence({
               aria-haspopup="dialog"
               aria-controls={isOpen ? popoverId : undefined}
               className={cn(
-                'rounded px-0.5 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'rounded-sm px-0.5 underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isOpen && 'bg-accent text-accent-foreground',
               )}
             >
@@ -237,12 +237,12 @@ function WordPopover({
       data-testid="word-popover"
       dir={dir}
       className={cn(
-        'absolute bottom-full z-30 mb-2 block w-64 rounded-md border bg-popover p-3 text-left text-sm font-normal text-popover-foreground shadow-md focus-visible:outline-none',
+        'absolute bottom-full z-30 mb-2 block max-w-xs rounded-lg border bg-popover p-4 text-left font-normal text-popover-foreground shadow-raised focus-visible:outline-none',
         dir === 'rtl' ? 'right-0' : 'left-0',
       )}
     >
       <span className="flex items-start justify-between gap-2">
-        <span lang={lang} className={cn('font-semibold', fontClass)}>
+        <span lang={lang} className={cn('text-body font-semibold', fontClass)}>
           {word}
         </span>
         <button
@@ -254,7 +254,10 @@ function WordPopover({
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       </span>
-      <span className="mt-1 block text-muted-foreground" aria-live="polite">
+      <span
+        className="mt-1 block text-subhead text-muted-foreground"
+        aria-live="polite"
+      >
         {isLoading && 'Explaining…'}
         {isError && "Couldn't load an explanation right now."}
         {explanation !== undefined && explanation}

@@ -28,7 +28,7 @@ export function FormField({
   const errorId = hasError ? `${id}-error` : undefined;
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+      <label htmlFor={id} className="text-body font-medium">
         {label}
       </label>
       <Input
@@ -39,7 +39,7 @@ export function FormField({
         {...props}
       />
       {hasError && (
-        <p id={errorId} className="text-sm text-destructive">
+        <p id={errorId} className="text-footnote text-destructive">
           {error}
         </p>
       )}

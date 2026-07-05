@@ -141,7 +141,9 @@ export function OAuthButtons({ disabled = false }: OAuthButtonsProps) {
               {provider.icon}
               <span>{provider.label}</span>
               {!isEnabled && (
-                <span className="text-xs text-muted-foreground">(soon)</span>
+                <span className="text-footnote text-muted-foreground">
+                  (soon)
+                </span>
               )}
             </Button>
           );
@@ -149,7 +151,7 @@ export function OAuthButtons({ disabled = false }: OAuthButtonsProps) {
       </div>
 
       {error !== null && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-footnote text-destructive">
           {error}
         </p>
       )}

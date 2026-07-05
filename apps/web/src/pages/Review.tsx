@@ -475,7 +475,7 @@ function ReviewCard({
               </p>
             )}
             {production && (
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-footnote text-muted-foreground">
                 Tap any word for a quick explanation.
               </p>
             )}

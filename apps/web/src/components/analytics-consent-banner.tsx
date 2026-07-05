@@ -29,7 +29,7 @@ export function AnalyticsConsentBanner() {
       className="fixed inset-x-0 bottom-[calc(49px+env(safe-area-inset-bottom))] z-50 border-t bg-background p-4 shadow-lg sm:bottom-0"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-subhead text-muted-foreground">
           Lengua can use privacy-friendly product analytics to understand how
           the app is used and improve it. Nothing is collected until you opt in,
           and you can change your mind any time.

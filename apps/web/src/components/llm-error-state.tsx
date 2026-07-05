@@ -54,7 +54,7 @@ export function LlmErrorState({ error, transientHint }: LlmErrorStateProps) {
       </CardHeader>
       {transient && transientHint !== undefined && (
         <CardContent>
-          <p className="text-sm text-muted-foreground">{transientHint}</p>
+          <p className="text-subhead text-muted-foreground">{transientHint}</p>
         </CardContent>
       )}
     </Card>

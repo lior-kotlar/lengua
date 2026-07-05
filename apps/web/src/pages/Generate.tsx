@@ -68,7 +68,9 @@ export default function Generate() {
         </p>
       </div>
 
-      <VowelMarksToggle />
+      <div className="flex justify-end">
+        <VowelMarksToggle />
+      </div>
 
       {isLoading ? (
         <LoadingState label="Loading your languages…" />
@@ -494,7 +496,7 @@ function ResultsPanel({
       {/* On mobile this is a sticky action bar pinned just above the tab bar (49px + safe area
           + 12px), matching PR2's toast offset so it never covers content or lands under the bar;
           on `sm` and up it is a normal inline row. */}
-      <div className="sticky bottom-[calc(49px+env(safe-area-inset-bottom)+12px)] z-10 -mx-4 flex items-center gap-3 border-t border-border/60 bg-background/85 px-4 py-3 backdrop-blur-lg sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+      <div className="sticky bottom-[calc(49px+env(safe-area-inset-bottom)+12px)] z-10 -mx-4 flex items-center gap-3 border-t border-border frosted px-4 py-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
         <Button
           onClick={() => onSave(cardsForSentences(selected))}
           disabled={selected.length === 0 || isSaving}

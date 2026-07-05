@@ -85,7 +85,10 @@ export default function Login() {
         </div>
 
         {error !== null && (
-          <div role="alert" className="space-y-2 text-sm text-destructive">
+          <div
+            role="alert"
+            className="space-y-2 text-footnote text-destructive"
+          >
             <p>{error}</p>
             {unverified && resendState !== 'sent' && (
               <Button
