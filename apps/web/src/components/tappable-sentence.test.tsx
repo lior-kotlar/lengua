@@ -277,7 +277,9 @@ describe('TappableSentence — per-card explanation cache (bug fix)', () => {
       defaultOptions: { queries: { retry: false } },
     });
     // Card A explains "gato" first and its note is cached under the (card 10, gato) key.
-    post.mockReturnValueOnce(okResult({ word: 'gato', explanation: 'cat on card A' }));
+    post.mockReturnValueOnce(
+      okResult({ word: 'gato', explanation: 'cat on card A' }),
+    );
     render(
       <QueryClientProvider client={queryClient}>
         <TappableSentence
@@ -305,7 +307,9 @@ describe('TappableSentence — per-card explanation cache (bug fix)', () => {
 
     // The SAME word on a DIFFERENT card fetches its own explanation (a second request), rather than
     // being served card A's stale note from cache — this is the bug the per-card key fixes.
-    post.mockReturnValueOnce(okResult({ word: 'gato', explanation: 'cat on card B' }));
+    post.mockReturnValueOnce(
+      okResult({ word: 'gato', explanation: 'cat on card B' }),
+    );
     await user.click(gatos[1]);
 
     expect(await screen.findByText('cat on card B')).toBeInTheDocument();
@@ -369,7 +373,9 @@ describe('TappableSentence — popover focus management (a11y dialog)', () => {
     await user.click(word);
     await screen.findByTestId('word-popover');
 
-    await user.click(screen.getByRole('button', { name: /close explanation/i }));
+    await user.click(
+      screen.getByRole('button', { name: /close explanation/i }),
+    );
     expect(screen.queryByTestId('word-popover')).not.toBeInTheDocument();
     expect(word).toHaveFocus();
   });
