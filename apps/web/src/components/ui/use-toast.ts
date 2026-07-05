@@ -2,7 +2,8 @@
  * Toast state hook (adapted from shadcn/ui, itself based on react-hot-toast).
  *
  * A tiny global store + reducer drives the `<Toaster />` viewport. Call `toast({ title, ... })`
- * from anywhere to enqueue one. Coverage-excluded (lives under components/ui/**).
+ * from anywhere to enqueue one. Unlike the presentational ui/ primitives this carries real logic,
+ * so it is under coverage (see use-toast.test.ts).
  */
 import * as React from 'react';
 

@@ -67,8 +67,9 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   the cutover (folds into (A)).
 - **Runtime service account.** The hand-deployed staging revision uses the **default compute SA** —
   move Cloud Run to a dedicated runtime SA with `secretmanager.secretAccessor` **only** (6.1.6).
-- **Coverage carve-outs.** `lengua_core/{models,prompts}.py`, `app/settings.py`, the whole
-  `legacy_streamlit/`, and the web `src/main.tsx` + `src/components/ui/**` are excluded from the 80%
+- **Coverage carve-outs.** `lengua_core/models.py`, `app/settings.py`, the whole
+  `legacy_streamlit/`, and the web `src/main.tsx` + the `src/components/ui/**` presentational
+  primitives (`.tsx`) are excluded from the 80%
   gate; ~20 backend modules are `@pytest.mark.integration` (auto-skip offline), so the 80% gate is
   only truly enforced in CI with Postgres up. A local run without a reachable DB now auto-relaxes
   `--cov-fail-under` to 0 with a loud banner (`tests/conftest.py::pytest_configure`) instead of

@@ -127,14 +127,14 @@ follow_imports = "skip"
 
 # ── Pytest + coverage ─────────────────────────────────────────────────────────
 # Coverage is scoped to the FastAPI shell (`app`), the provider-agnostic LLM seam
-# (`lengua_core.llm`, added in 0.4.2), and the pure domain modules ported in Phase 1.1
-# (`scheduler`, `proficiency`, `cards`, `config`). The legacy SQLite modules
+# (`lengua_core.llm`, added in 0.4.2), the constant prompt assembly (`prompts`), and the pure
+# domain modules ported in Phase 1.1 (`scheduler`, `proficiency`, `cards`, `config`). The legacy SQLite modules
 # (`lengua_core` gemini + everything under `legacy_streamlit`) are pre-existing/legacy and
 # intentionally OUT of this gate (see the ruff/mypy scoping note above), so they are not
 # measured here.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=app --cov=lengua_core/llm --cov=lengua_core.scheduler --cov=lengua_core.proficiency --cov=lengua_core.cards --cov=lengua_core.config --cov-branch --cov-fail-under=80 --cov-report=term-missing"
+addopts = "--cov=app --cov=lengua_core/llm --cov=lengua_core.prompts --cov=lengua_core.scheduler --cov=lengua_core.proficiency --cov=lengua_core.cards --cov=lengua_core.config --cov-branch --cov-fail-under=80 --cov-report=term-missing"
 # Explicit (non-auto) asyncio mode: async tests/fixtures are opt-in via the asyncio marker /
 # pytest_asyncio.fixture, so the sync suite is unaffected. One event loop per test function.
 asyncio_mode = "strict"
@@ -147,6 +147,7 @@ markers = [
 source = [
     "app",
     "lengua_core/llm",
+    "lengua_core.prompts",
     "lengua_core.scheduler",
     "lengua_core.proficiency",
     "lengua_core.cards",

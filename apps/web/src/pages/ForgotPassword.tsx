@@ -79,7 +79,7 @@ export default function ForgotPassword() {
         />
 
         {error !== null && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-footnote text-destructive">
             {error}
           </p>
         )}

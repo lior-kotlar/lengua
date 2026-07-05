@@ -7,17 +7,18 @@ This is the source of truth for **what is done**; open work lives in
 [`planning/go-live-activation.md`](planning/go-live-activation.md).
 
 > The productionization ran trunk-based, one PR per task, in phase order (PRs #1 → #114), so the
-> PR ranges below map to phases by merge order (the top-of-log post-close-out fixes reach #119).
+> PR ranges below map to phases by merge order (the top-of-log post-close-out fixes reach #122).
 > Milestones: **M1** = backend loop over HTTP;
 > **M2** = multi-user (auth + RLS) with the LLM cost guard armed; **M3** = React web app at full
 > parity; **M4** = deployed to staging **and** prod (staging leg live; prod leg = owner cutover).
 
 ---
 
-## 2026-07-05 — Post-close-out hardening — PRs #117, #119
+## 2026-07-05 — Post-close-out hardening, perf & polish — PRs #117, #119, #121, #122
 
-Two agent-implemented, CI-verified fix PRs landed right after the planning close-out, hardening the
-API boot path and the web tap-a-word / accessibility surface.
+A run of agent-implemented, CI-verified PRs landed right after the planning close-out — hardening the
+API boot path and the web tap-a-word / accessibility surface, then trimming the web bundle and paying
+down UI-polish + test-coverage debt.
 
 - **API (#117).** A **boot-time config guard** logs `CRITICAL` when `env ∈ {staging, prod}` and
   `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_URL` is unset, so a misconfigured `DELETE /account`
@@ -36,6 +37,19 @@ API boot path and the web tap-a-word / accessibility surface.
   now emit `lang={language.code}` (WCAG 3.1.2) so screen readers pronounce foreign text correctly;
   the tap-a-word popover manages focus (move-in / restore-to-trigger); and the Languages row plus the
   dashboard tiles/quick-actions gained the app focus-visible ring.
+- **Web perf (#121).** Route-level code splitting — the authenticated non-landing screens are
+  `React.lazy` chunks fetched on first navigation (auth screens + Dashboard stay eager), with the
+  `Suspense` skeleton around the app-shell `<Outlet />` so the nav stays mounted. Sentry now loads via
+  dynamic `import()` only when a DSN is set (out of the initial bundle), stable vendor chunks
+  (react + router / react-query / supabase) are split out, and the stock Vite favicon is replaced by a
+  real one.
+- **Web polish & test coverage (#122).** An Apple-HIG className pass on the surfaces the redesign had
+  missed — the tap-a-word popover moves to the design system (`rounded-lg` / `shadow-raised`, dotted-
+  underline word affordances), a `text-body` / `text-subhead` / `text-footnote` type-scale sweep across
+  the auth + dialog + helper text, the Generate save bar on the shared `.frosted` utility, and
+  right-aligned vowel-marks toggles. Plus coverage debt: `lengua_core.prompts` enters the gate with a
+  (vowelized × level) / (known-words × topic) branch matrix, and `use-toast.ts` is carved out of the
+  web `ui/` coverage exclusion with a reducer + store test.
 
 ---
 

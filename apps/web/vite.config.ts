@@ -44,7 +44,9 @@ export default defineConfig({
         'src/**/*.{test,spec}.{ts,tsx}',
         'src/main.tsx',
         'src/vite-env.d.ts',
-        'src/components/ui/**',
+        // Exclude the presentational shadcn primitives (all .tsx), but keep use-toast.ts — the one
+        // .ts module here, a real reducer/store with its own unit test (use-toast.test.ts).
+        'src/components/ui/**/*.tsx',
       ],
       thresholds: {
         lines: 80,

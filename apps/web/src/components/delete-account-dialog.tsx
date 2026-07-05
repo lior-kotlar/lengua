@@ -116,7 +116,7 @@ export function DeleteAccountDialog() {
 
         <form onSubmit={handleSubmit} className="space-y-3" noValidate>
           <div className="space-y-1.5">
-            <label htmlFor="delete-confirm" className="text-sm font-medium">
+            <label htmlFor="delete-confirm" className="text-body font-medium">
               Type{' '}
               <span className="font-mono font-semibold">
                 {DELETE_CONFIRM_PHRASE}
@@ -137,7 +137,7 @@ export function DeleteAccountDialog() {
               <p
                 id="delete-error"
                 role="alert"
-                className="text-sm text-destructive"
+                className="text-footnote text-destructive"
               >
                 {apiErrorMessage(
                   error,
