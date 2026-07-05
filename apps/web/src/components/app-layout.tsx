@@ -13,11 +13,13 @@
  * `button "Sign out"` that App.test.tsx and the staging specs click with no menu open.
  */
 import { m } from 'framer-motion';
+import { Suspense } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { ActiveLanguageProvider } from '@/components/active-language-provider';
 import { CefrPanel } from '@/components/cefr-panel';
 import { LanguagePicker } from '@/components/language-picker';
+import { LoadingState } from '@/components/loading-state';
 import { MobileTabBar } from '@/components/mobile-tab-bar';
 import { NAV_ITEMS } from '@/components/nav-items';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -98,7 +100,11 @@ export function AppLayout() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
               >
-                <Outlet />
+                {/* Route-level code splitting: the authenticated screens are React.lazy (App.tsx),
+                    so a chunk load shows the shared skeleton here while the shell stays mounted. */}
+                <Suspense fallback={<LoadingState label="Loading…" />}>
+                  <Outlet />
+                </Suspense>
               </m.div>
             </main>
           </div>

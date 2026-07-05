@@ -143,9 +143,13 @@ describe('App routing — authenticated', () => {
     ['/languages', 'Languages'],
     ['/settings', 'Settings'],
     ['/account', 'Account'],
-  ])('mounts the %s screen', (path, heading) => {
+  ])('mounts the %s screen', async (path, heading) => {
     renderAt(path);
-    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
+    // These screens are React.lazy (App.tsx), so they suspend on first mount — await the heading
+    // once the chunk resolves (the shell + Suspense skeleton render synchronously meanwhile).
+    expect(
+      await screen.findByRole('heading', { name: heading }),
+    ).toBeInTheDocument();
   });
 });
 

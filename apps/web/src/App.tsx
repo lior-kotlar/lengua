@@ -1,21 +1,28 @@
+import { lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
 
 import { AppLayout } from '@/components/app-layout';
 import { AuthLayout } from '@/components/auth-layout';
 import { RedirectIfAuthed, RequireAuth } from '@/components/route-guards';
-import Account from '@/pages/Account';
 import AuthCallback from '@/pages/AuthCallback';
 import Dashboard from '@/pages/Dashboard';
-import Discover from '@/pages/Discover';
 import ForgotPassword from '@/pages/ForgotPassword';
-import Generate from '@/pages/Generate';
-import Languages from '@/pages/Languages';
 import Login from '@/pages/Login';
 import NotFound from '@/pages/NotFound';
-import Review from '@/pages/Review';
 import ResetPassword from '@/pages/ResetPassword';
-import Settings from '@/pages/Settings';
 import Signup from '@/pages/Signup';
+
+// Code-split the authenticated, non-landing screens: each becomes its own chunk fetched on first
+// navigation, so the initial load (auth pages + Dashboard) ships less JavaScript. Every page is an
+// `export default`, so React.lazy consumes it directly. The Suspense fallback lives around the app
+// shell's <Outlet /> (see AppLayout), so only the routed content shows the skeleton while a chunk
+// loads — the header + nav stay mounted. Dashboard, the auth screens, and NotFound stay eager.
+const Account = lazy(() => import('@/pages/Account'));
+const Discover = lazy(() => import('@/pages/Discover'));
+const Generate = lazy(() => import('@/pages/Generate'));
+const Languages = lazy(() => import('@/pages/Languages'));
+const Review = lazy(() => import('@/pages/Review'));
+const Settings = lazy(() => import('@/pages/Settings'));
 
 export default function App() {
   return (

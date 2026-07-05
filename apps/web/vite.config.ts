@@ -10,6 +10,21 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks: framework code lands in long-lived chunks so app-code edits don't
+        // bust them, and the React.lazy route chunks (App.tsx) don't each re-bundle React. Keep
+        // react + react-dom + the router together so ONE React instance is shared (a duplicated
+        // React across chunks breaks hooks).
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'react-query': ['@tanstack/react-query'],
+          supabase: ['@supabase/supabase-js'],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
