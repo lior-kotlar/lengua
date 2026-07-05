@@ -1,5 +1,5 @@
 <!--
-Definition of Done — from planning/09-testing-quality.md.
+Definition of Done — the per-PR quality gate (defined as-code in .github/workflows/ci.yml).
 Tick every box that applies; strike through (~~…~~) any that genuinely don't, with a one-line why.
 A PR is mergeable only when the per-PR quality gate is green (100% tests pass + ≥80% backend & frontend coverage + E2E).
 -->
@@ -12,7 +12,7 @@ A PR is mergeable only when the per-PR quality gate is green (100% tests pass + 
 
 - [ ] Tests added/updated; backend & frontend coverage stay **≥ 80%** (line + branch); all checks green.
 - [ ] Behavior change? **README updated** (per the `CLAUDE.md` rule) and **OpenAPI + generated TS types regenerated**.
-- [ ] New critical path is **observable** — spans/metrics/logs added (see planning/06-observability.md).
+- [ ] New critical path is **observable** — spans/metrics/logs added (see CHANGELOG.md, "Phase 5 — Observability").
 - [ ] **Security**: no secret in the client bundle; inputs validated; queries scoped to the authenticated user.
 - [ ] Schema change includes a **backwards-compatible Alembic migration** (+ RLS policy).
 - [ ] Quota-affecting change keeps the **LLM cost guard** intact (Groq dev/CI · Gemini prod · FakeLLM in E2E with zero real LLM calls).

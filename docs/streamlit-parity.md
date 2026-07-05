@@ -38,7 +38,7 @@ The legacy sidebar is always-present. In React it splits between the **app shell
 sidebar checkbox could toggle the generation-vocalization flag on the active language at any time;
 in React it is set at language-creation time. The backend already supports the change
 (`PATCH /languages/{id}` toggles `vowelized`), so this is a small UI-wiring follow-up, not a missing
-capability — logged in [`planning/outstanding-work.md`](../planning/outstanding-work.md) §10. It does
+capability — logged in [`planning/outstanding-work.md`](../planning/outstanding-work.md). It does
 not affect the daily loop on the demo account (its languages are seeded with the correct flag), and
 the separate **display** vowel-marks toggle (§6) is fully present.
 

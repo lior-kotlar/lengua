@@ -59,5 +59,5 @@ environment, so set:
   the real channel (5.7.1); a forced 5xx / latency / budget / uptime condition on **staging traffic**
   fires the alert to that channel (5.7.2 – 5.7.5) — need live Grafana Cloud creds + a deployed
   Cloud Run service (Phase 6). They are logged in
-  [`planning/outstanding-work.md`](../../../planning/outstanding-work.md) §11 and summarized in
+  [`planning/outstanding-work.md`](../../../planning/outstanding-work.md) and summarized in
   [`docs/runbook.md`](../../../docs/runbook.md).

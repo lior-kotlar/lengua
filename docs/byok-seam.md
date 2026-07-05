@@ -2,8 +2,8 @@
 
 **Status: DESIGN ONLY. No BYOK feature is built.** This note records *how* a future
 "bring your own key" (BYOK) capability would plug into the seam that already exists, so the
-hook is in place now and the growth escape hatch (see
-[`planning/08-open-questions-and-costs.md`](../planning/08-open-questions-and-costs.md)) is a
+hook is in place now and the growth escape hatch (see "Locked decisions & rationale" in
+[`../CHANGELOG.md`](../CHANGELOG.md)) is a
 later, additive change — not a rewrite. Nothing here is implemented: there is **no** key storage,
 **no** UI, **no** new `profiles` columns, and **no** per-user key branching today.
 

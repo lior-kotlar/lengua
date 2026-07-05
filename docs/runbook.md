@@ -5,7 +5,7 @@
 > concrete commands; **On-call** and the **Store-release checklist** are finalized at launch
 > (Phase 9). The procedures are buildable-as-code now; their **live execution** against deployed
 > cloud resources is owner-run and tracked in
-> [`planning/outstanding-work.md`](../planning/outstanding-work.md) §§11–12.
+> [`planning/outstanding-work.md`](../planning/outstanding-work.md) ("Phase-5 / Phase-6 remaining").
 
 ## Health checks
 
@@ -113,7 +113,7 @@ last-line "is the site even up?" signal and the source of the prod-`/health` upt
 
 > **Live wiring is Phase 6 + owner.** Finding the trace in Tempo, the log in Loki, a dashboard
 > rendering non-empty, and an alert reaching a real channel each need live Grafana Cloud creds and a
-> deployed Cloud Run service — tracked in [`planning/outstanding-work.md`](../planning/outstanding-work.md) §11.
+> deployed Cloud Run service — tracked in [`planning/outstanding-work.md`](../planning/outstanding-work.md).
 
 ## Deploy
 
@@ -320,7 +320,7 @@ dashboard, `gh secret set <NAME>`, re-run a deploy to confirm, revoke the old.
 > **Live rotation is owner + a deployed service.** The end-to-end verify (rotate the **staging**
 > Groq key, redeploy, confirm the service serves on the new key and the old one no longer works)
 > needs the live Cloud Run service + Secret Manager and is owner-run — tracked in
-> [`planning/outstanding-work.md`](../planning/outstanding-work.md) §12.
+> [`planning/outstanding-work.md`](../planning/outstanding-work.md).
 
 ## Respond to a budget-exhausted alert
 
@@ -386,7 +386,7 @@ psql "$SCRATCH_DATABASE_URL" -c "select count(*) from reviews"
 
 > **The actual restore drill is owner-run (task 6.8.4).** Running a real `pg_dump` of prod and
 > restoring it into a scratch DB needs the live prod connection string + a scratch target — tracked
-> in [`planning/outstanding-work.md`](../planning/outstanding-work.md) §12. The procedure above is
+> in [`planning/outstanding-work.md`](../planning/outstanding-work.md). The procedure above is
 > the script to follow when it is exercised.
 
 ## Store-release checklist
