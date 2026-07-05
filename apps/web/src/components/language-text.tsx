@@ -37,7 +37,13 @@ export function LanguageText({
 }: LanguageTextProps) {
   const dir = directionForCode(language.code);
   return (
-    <Tag dir={dir} className={cn(scriptFontClass(language.code), className)}>
+    <Tag
+      dir={dir}
+      // Tag the target-language text (the whole doc is `lang="en"`), so a screen reader sounds
+      // Arabic/Hebrew/Spanish with the right voice instead of English phonetics (WCAG 3.1.2).
+      lang={language.code || undefined}
+      className={cn(scriptFontClass(language.code), className)}
+    >
       {displayText(text, showVowels)}
     </Tag>
   );
