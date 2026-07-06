@@ -7,7 +7,10 @@ Project documentation: privacy policy, legal, and operational runbooks.
 - [`runbook.md`](runbook.md) — operational runbook: health checks, deploy, rollback, run a
   migration, rotate a secret, respond to a budget-exhausted alert, restore from backup, store-release
   checklist, on-call (Phase 9), and the legacy SQLite → Postgres import.
-- [`privacy-policy.md`](privacy-policy.md) — privacy policy (Phase 0 stub; completed in Phase 8).
+- [`privacy-policy.md`](privacy-policy.md) — the GDPR privacy policy (Phase 8): data collected,
+  Supabase (EU) storage, the LLM provider (Gemini), lawful bases, sub-processors, retention, and how
+  to export/delete your data. Published at `/privacy` on the web app.
 - [`byok-seam.md`](byok-seam.md) — bring-your-own-key design note (Phase 3 seam).
 
-Some sections (`privacy-policy.md`, `runbook.md`) are Phase 0 placeholders filled in later phases.
+The `runbook.md` On-call and Store-release sections remain Phase-0 placeholders filled in at launch
+(Phase 9). Relative links across these docs are checked in CI (`scripts/check_doc_links.py`).
