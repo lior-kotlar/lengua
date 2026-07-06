@@ -149,3 +149,84 @@ async def test_export_for_user_without_a_profile_is_empty_not_leaky(
     assert bundle.reviews == []
     assert bundle.proficiency == []
     assert bundle.settings == {}
+
+
+async def test_export_under_real_rls_is_scoped_by_postgres_not_just_the_app_filter() -> None:
+    """``GET /account/export`` stays scoped under the **authenticated** role with Postgres RLS on.
+
+    ``test_export_is_scoped_to_the_token_user`` above proves the app-layer ``WHERE user_id`` filter,
+    but it runs through the ``multiuser_client`` fixture whose ``get_db`` is a **superuser** session
+    that *bypasses* RLS — so the database never actually enforces the boundary there. Nothing else
+    proves the export succeeds and stays scoped under the real ``authenticated`` role with Postgres
+    RLS enforcing.
+
+    This drives the export through the **un-overridden scoped ``get_db``** (authenticated role, RLS
+    on), mirroring the ``test_real_get_db_scopes_an_http_request_end_to_end`` pattern in
+    ``tests/test_rls_session.py``: two committed users A and B are seeded via privileged psycopg
+    (``seed_user``), and ONLY the raw session sub-dependency is swapped for a loop-local engine so
+    the scoped ``get_db`` still binds A's RLS identity for real (``SET LOCAL ROLE authenticated`` +
+    A's JWT claims). A's export must be ``200``, carry A's profile + rows, and contain **none** of
+    B's rows/text — proving Postgres RLS, not merely the app filter, scopes it.
+    """
+    from collections.abc import AsyncIterator
+
+    import psycopg
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.db.session import async_dsn
+    from app.db.session import get_db as raw_get_db
+    from app.deps import get_llm_provider
+    from app.main import create_app
+    from lengua_core.llm.fake import FakeLLM
+    from tests.auth_helpers import authenticate_as
+    from tests.conftest import _skip_if_db_unreachable, database_url
+    from tests.rls_helpers import delete_users, seed_user
+
+    _skip_if_db_unreachable()
+    with psycopg.connect(database_url(), autocommit=True) as conn:
+        a = seed_user(conn)
+        b = seed_user(conn)
+
+    engine = create_async_engine(async_dsn(database_url()))
+    sessionmaker = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+    async def _raw_session() -> AsyncIterator[AsyncSession]:
+        async with sessionmaker() as session:
+            yield session
+
+    app = create_app()
+    # Swap ONLY the raw session sub-dependency (for a loop-local engine); the scoped get_db that
+    # binds the RLS identity still runs for real. Authenticate as A; FakeLLM is unused by the read.
+    app.dependency_overrides[raw_get_db] = _raw_session
+    app.dependency_overrides[get_llm_provider] = lambda: FakeLLM()
+    authenticate_as(app, a.id)
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            resp = await client.get("/account/export")
+        assert resp.status_code == 200, resp.text
+
+        bundle = AccountExport.model_validate(resp.json())
+        assert bundle.profile is not None and bundle.profile.id == a.id
+        # A's own committed graph, scoped by RLS to A.
+        assert {lang.id for lang in bundle.languages} == {a.language_id}
+        assert {c.id for c in bundle.cards} == set(a.card_ids)
+        assert bundle.reviews, "A's seeded graph includes a review row"
+        assert all(r.card_id in set(a.card_ids) for r in bundle.reviews)
+        assert [p.language_id for p in bundle.proficiency] == [a.language_id]
+        assert bundle.settings == {"daily_goal": "20"}
+
+        # None of B's rows/text leak into A's export — RLS, not just the app filter, scopes it.
+        # ``seed_user`` names B's language/cards after B's own id hex, so its 8-char prefix appears
+        # in every one of B's text fields; asserting it is absent covers B's language + card text.
+        text_body = resp.text
+        assert str(b.id) not in text_body
+        assert b.id.hex[:8] not in text_body
+        assert b.language_id not in {lang.id for lang in bundle.languages}
+        assert set(b.card_ids).isdisjoint({c.id for c in bundle.cards})
+    finally:
+        app.dependency_overrides.clear()
+        await engine.dispose()
+        with psycopg.connect(database_url(), autocommit=True) as conn:
+            delete_users(conn, a, b)
