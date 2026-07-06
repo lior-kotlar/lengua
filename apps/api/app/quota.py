@@ -1,7 +1,7 @@
 """LLM cost-guard gates (Phase 3).
 
 Every LLM-spending request passes a *gate chain* before the provider is called. The documented
-order (``planning/03-backend.md``) is::
+order (recorded in the root ``CHANGELOG.md`` — the Phase 3 cost guard) is::
 
     email-verified  →  rate-limit  →  daily-cap  →  global-budget
 
@@ -330,7 +330,7 @@ class QuotaGuard:
     async def check(self) -> None:
         """Run the gate chain in documented order; raise on the first (highest-priority) failure.
 
-        Order (``planning/03-backend.md``): **email-verified → rate-limit → daily-cap →
+        Order: **email-verified → rate-limit → daily-cap →
         global-budget**. The rate-limit token is consumed once the request passes the email gate,
         even if the daily-cap gate then blocks (rate limiting is about frequency, not success).
 
@@ -548,7 +548,7 @@ async def _global_budget_handler(request: Request, exc: Exception) -> JSONRespon
     """Render :class:`GlobalBudgetReached` as the friendly kill-switch body with HTTP 429.
 
     Status **429** (Too Many Requests) keeps the kill-switch consistent with the other quota gates
-    (``rate_limited`` / ``daily_cap_reached``); ``planning/03-backend.md`` lists "503/429" for this
+    (``rate_limited`` / ``daily_cap_reached``); the cost-guard design allowed "503/429" for this
     gate without mandating 503, so we use 429 across the cost guard. The body is the exact contract
     shape ``{"code": "daily_limit_reached", "message": <friendly>}``.
     """

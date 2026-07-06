@@ -2,7 +2,7 @@
 
 Each repository wraps an :class:`~sqlalchemy.ext.asyncio.AsyncSession` and exposes async,
 ``user_id``-scoped methods; all SQL lives here so services and routers stay query-free and
-``lengua_core`` stays DB-agnostic (the Phase 1 boundary rule from ``03-backend.md``).
+``lengua_core`` stays DB-agnostic (the Phase 1 boundary rule; see the root ``CHANGELOG.md``).
 """
 
 from __future__ import annotations

@@ -9,7 +9,7 @@ import { expect, test } from './fixtures';
  *   - confirmation ON  → the "Check your email" verification notice renders; or
  *   - confirmation OFF → the user is auto-confirmed and lands in the authenticated app shell.
  * (Staging currently runs with confirmation OFF as an interim unblock while custom SMTP is
- * unconfigured — see planning/staging-validation/VALIDATION-REPORT.md §4 and issue #103.) In the
+ * unconfigured — see the root CHANGELOG.md (live-staging validation) and issue #103.) In the
  * confirmation-OFF case it then proves the full register -> sign out -> log back in loop with the same
  * credentials. It never clicks an email verification link.
  *

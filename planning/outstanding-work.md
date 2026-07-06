@@ -79,11 +79,11 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
 - **Doc stubs:** `docs/privacy-policy.md` is a Phase 0 stub (`> Placeholder.`), replaced by the real
   GDPR policy in Phase 8 (item (D)); the runbook's **On-call** + **Store-release** sections are
   finalized at launch (Phase 9).
-- **Stale code-comment doc citations.** A few source comments still cite planning design docs deleted
-  in #115/#116 — `03-backend.md` (`app/quota.py`, `app/repositories/__init__.py`),
-  `08-open-questions-and-costs.md` (`lengua_core/llm/keys.py`), `09-testing-quality.md`
-  (`.github/workflows/ci.yml`), and `staging-validation*` (`e2e-staging/signup.spec.ts`, migration
-  `0006`). Non-user-facing and build-safe; repoint to `CHANGELOG.md` when each area is next touched.
+- **Stale code-comment doc citation (migration only).** The applied migration
+  `migrations/versions/20260630_0006_*.py` still cites the deleted `staging-validation.md` (finding
+  S1). Migrations are off-limits even for comments, so this one lingers by design; every other stale
+  citation (`app/quota.py`, `app/repositories/__init__.py`, `lengua_core/llm/keys.py`,
+  `.github/workflows/ci.yml`, `e2e-staging/signup.spec.ts`) was repointed to `CHANGELOG.md`.
 - **Observability follow-ups** (do alongside (B)): export the browser client span to Tempo (today the
   web only injects `traceparent`); unify web-Sentry ↔ Tempo by `trace_id`; add a `proficiency_cefr_band`
   metric to light up the CEFR dashboard panel; move the process-local product metrics

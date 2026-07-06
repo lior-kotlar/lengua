@@ -14,7 +14,7 @@ built here: no key storage, no UI, no new ``profiles`` columns, no per-user bran
 
 ## BYOK design note (task 3.9.2 — how the seam would be used later; NOT implemented)
 
-The growth escape hatch (see ``planning/08-open-questions-and-costs.md``): let a paid user spend
+The growth escape hatch (see the root ``CHANGELOG.md`` locked decisions): let a paid user spend
 their *own* provider key so heavy usage doesn't cost the operator. The plug-in points:
 
 * **Key resolution.** A real implementation branches inside :func:`resolve_llm_key` on the

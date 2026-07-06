@@ -1,6 +1,6 @@
 # Lengua — per-PR quality gate (Phase 0 group 0.5).
 #
-# Encodes the blocking pipeline from planning/09-testing-quality.md as a single multi-job
+# Encodes the blocking per-PR quality gate (see the root CHANGELOG.md, Phase 0) as a single multi-job
 # workflow. Every PR must be 100% green on the REQUIRED jobs before it can merge:
 #
 #   lint-and-types · backend-tests · frontend-tests · build · e2e · security
