@@ -33,10 +33,11 @@ Conventions: ☐ open · 🔒 blocked-on-owner · ◐ as-code-done / live-owner-
   OAuth-in-webview, OTA channel, on-device full-loop validation.
 - **(D) Phase 8 — compliance & store** ([`tasks/phase-8-compliance-store.md`](tasks/phase-8-compliance-store.md)).
   The **buildable/CI-verifiable code slice is being pulled forward** (see `CHANGELOG.md`): ◐ 8.1.1
-  real GDPR privacy policy done (#130) with a `docs` link-check CI job. **Still open:** the public
-  `/delete-account` request form + `/privacy` + `/support` routes (8.1.2/8.3.1); the launch-blocker
-  export/delete/consent E2E assertions (8.2.1/8.2.3/8.2.4); the `docs/store-listing.md`
-  data-inventory + copy + EU-residency record (8.4.1/8.7.1/8.2.2). **Owner-blocked (store/prod):**
+  real GDPR privacy policy done (#130) with a `docs` link-check CI job; ◐ 8.1.2 + 8.3.1 the public
+  `/delete-account` form + `/privacy` + `/support` routes + the request→confirm→cascade API done
+  (#131, review-requested). **Still open:** the launch-blocker export/delete/consent E2E assertions
+  (8.2.1/8.2.3/8.2.4); the `docs/store-listing.md` data-inventory + copy + EU-residency record
+  (8.4.1/8.7.1/8.2.2). **Owner-blocked (store/prod):**
   Apple App Privacy labels + encryption declaration, Play Data Safety, age ratings, store-console
   listing entry, device screenshots, and the TestFlight/Play closed tests — all need the paid store
   accounts + the deployed prod app.
@@ -86,6 +87,18 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   digest during deploy hardening or via Dependabot once enabled.
 - **Doc stubs:** `docs/privacy-policy.md` is now the real GDPR policy (Phase 8, #130); the runbook's
   **On-call** + **Store-release** sections are still finalized at launch (Phase 9).
+- **Public deletion endpoint — DoS hardening (low / latent, #131).** The adversarial security review
+  of `POST /account/deletion-request` confirmed the security invariants hold (no unauthorized delete,
+  no token forgery, no response-body enumeration, correct cascade) and that the mailer-transport 500
+  oracle is fixed. Three residual **low, latent** hardening items remain (all safe at the current
+  <200-user scale — 1:1 amplification today): (1) `AccountDeletionService.find_auth_user_id_by_email`
+  pages the GoTrue Admin API linearly (O(N), capped at 100 pages) — replace with an indexed
+  `auth.users` lookup or GoTrue's get-by-email so the unauthenticated endpoint can't fan out to the
+  upstream Admin API; (2) add a **per-IP / global** rate limit on that endpoint (today only a per-email
+  cap exists, which distinct-email floods bypass); (3) `InProcessRateLimiter` (`app/ratelimit.py`) only
+  reclaims a key's entry on re-hit, so one-shot distinct keys (attacker-varied emails) accumulate —
+  cap the map size or add a TTL sweep. Do these when the user base approaches store-scale (folds into
+  the same shared-store move as the process-local rate-limiter / discover-cache).
 - **Stale code-comment doc citation (migration only).** The applied migration
   `migrations/versions/20260630_0006_*.py` still cites the deleted `staging-validation.md` (finding
   S1). Migrations are off-limits even for comments, so this one lingers by design; every other stale

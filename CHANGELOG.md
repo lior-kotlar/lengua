@@ -30,6 +30,22 @@ Mobile/Capacitor, prod cutover, secrets, and migrations are untouched.
   `privacy@lengua.app`. Added `scripts/check_doc_links.py` (stdlib, no network) + a `docs` CI job that
   asserts every relative markdown link across `docs/**` + `README.md` + `CHANGELOG.md` resolves
   (67 links, 7 files) — the "link-check in CI" the task's verify calls for.
+- **Public deletion form + legal routes (#131, 8.1.2 + 8.3.1).** The store-required public compliance
+  surfaces. **API:** two intentionally-**public** endpoints behind the external deletion path Google
+  Play requires — `POST /account/deletion-request` (rate-limited per email, a generic
+  **non-enumerating** ack, emails a signed one-hour HMAC token) and `POST /account/deletion-confirm`
+  (verifies the token, then runs the **same** two-step cascade as in-app `DELETE /account`: domain
+  rows on the privileged session → the Supabase `auth.users` record). Ownership is proven by the
+  emailed token, not a session, so both are exempted from the route-auth / no-guest guards (like
+  `/feature-flags`). A **mailer seam** (`app/mailer.py`: `LoggingMailer` no-egress default,
+  `ResendMailer` when `RESEND_API_KEY` is set) mirrors the LLM seam — no SMTP to build/test; real
+  delivery activates at the owner's Resend setup (issue #103). **Web:** `/privacy` (the published GDPR
+  policy), `/support`, and the public `/delete-account` form, all in a sign-in-free `StaticLayout`; a
+  site footer (Privacy + Support) on every shell and Account-screen links to both. A 6-vector
+  adversarial security review held (no unauthorized deletion / token forgery / body-enumeration; correct
+  cascade); it also found and this PR **fixed** a latent mailer-transport-error enumeration oracle, and
+  **logged** the residual low/latent DoS-amplification hardening in `outstanding-work.md`. OpenAPI +
+  `api-types` regenerated.
 
 ## 2026-07-06 — Round-2 doable-now sweep — PRs #126, #127, #128
 
