@@ -3,7 +3,7 @@
 # Encodes the blocking per-PR quality gate (see the root CHANGELOG.md, Phase 0) as a single multi-job
 # workflow. Every PR must be 100% green on the REQUIRED jobs before it can merge:
 #
-#   lint-and-types · backend-tests · frontend-tests · build · e2e · security
+#   lint-and-types · backend-tests · frontend-tests · build · e2e · security · docs
 #
 # Advisory (non-blocking) jobs add visibility without gating merges:
 #
@@ -553,6 +553,20 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: 'false'
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
           GITLEAKS_ENABLE_SUMMARY: 'true'
+
+  # ── 0.5.10 — docs link check (published markdown has no dead relative links) — task 8.1.1 ─────
+  # Fast, hermetic, dependency-free gate: a stdlib-only script (scripts/check_doc_links.py) asserts
+  # every relative markdown link across docs/ + the two root records (README.md, CHANGELOG.md)
+  # resolves to a real file. External links (http/mailto) and in-page anchors are skipped by design
+  # (no network, deterministic). Satisfies the Phase-8 privacy-policy "link-check in CI" verify so a
+  # published legal/support page never ships a broken intra-repo link.
+  docs:
+    name: docs (markdown link check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check documentation links (no dead relative links)
+        run: python3 scripts/check_doc_links.py
 
   # ── 0.5.8 — advisory a11y + perf budgets (axe + Lighthouse CI) — NON-BLOCKING ────────────────
   a11y-perf:
