@@ -14,6 +14,34 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-06 — Round-2 doable-now sweep — PRs #126, #127, #128
+
+A second post-close-out sweep clearing the last non-owner/prod/mobile items from
+`planning/outstanding-work.md`: CI-only test debt, the advisory-a11y broadening, and code-comment
+hygiene.
+
+- **API tests (#126).** Landed the two account-lifecycle integration tests deferred from #123: an
+  export-under-**real-RLS** test that drives `GET /account/export` through the un-overridden scoped
+  `get_db` (authenticated role, Postgres RLS enforcing — not just the app-layer `WHERE user_id`
+  filter) and proves A's export is scoped to A with none of B's rows; and a
+  deleted-but-unexpired-token test proving a still-valid JWT for a just-deleted account reads a `200`
+  **empty** bundle (never a leak or `500`) inside the stateless-JWKS `exp` window. Both are
+  `@pytest.mark.integration` (live Postgres + Supabase auth), so they execute in CI's backend job.
+- **a11y CI (#127).** Broadened the advisory accessibility pass beyond the static `/login` page: a
+  new `@axe-core/playwright` sweep (`apps/web/e2e/a11y.spec.ts`) logs in as the seeded demo user under
+  the FakeLLM e2e harness and runs axe on Dashboard / Generate / Review / Discover / Settings, logging
+  + attaching violations without ever asserting. Wired into the `e2e` job as an advisory run (the
+  required run `--grep-invert`s the `@a11y` tag; the advisory run is `|| echo`-guarded), so it is
+  never a merge gate. Its first run surfaced serious `color-contrast` violations on every
+  authenticated surface — tracked under the post-v1 accessibility-pass backlog.
+- **Docs (#128).** Repointed the code-comment citations of the planning design docs deleted in
+  #115/#116 (`app/quota.py` ×3, `app/repositories/__init__.py`, `lengua_core/llm/keys.py`,
+  `.github/workflows/ci.yml`, `apps/web/e2e-staging/signup.spec.ts`) to the root `CHANGELOG.md` /
+  self-documenting text. The applied migration `0006`'s comment is left as-is (migrations are
+  off-limits even for comments). Comment-only, no behavior change.
+
+---
+
 ## 2026-07-05 — Post-close-out hardening, perf & polish — PRs #117, #119, #121, #122
 
 A run of agent-implemented, CI-verified PRs landed right after the planning close-out — hardening the
