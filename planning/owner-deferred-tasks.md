@@ -62,38 +62,18 @@ for routine version-bump PRs across `apps/api` (uv/pip) and `apps/web` (pnpm).)
 
 ---
 
-## Still-outstanding owner items elsewhere (not deferred — needed by later phases, still non-blocking for Phase 0)
+## Other open owner items (tracked in `outstanding-work.md`)
 
-These were tracked as phase-0 `0.7.x` (that task file is now retired — see [`../CHANGELOG.md`](../CHANGELOG.md)) and
-are **not** part of this "do at the end" set, but listing them here for one owner view:
+The remaining owner residuals live in [`outstanding-work.md`](outstanding-work.md) §(F); listed
+here only so this file gives one owner view alongside the two end-of-build hardening actions above:
 
-- **`0.7.7` — ☑ DONE (verified 2026-07-05).** CI secrets `GCP_REGION=europe-west1` +
-  `SENTRY_ORG=kotlar-y7` are present (`gh secret list`, added 2026-06-25); the armed staging CD
-  consumes them green.
-- **`0.7.8` — confirm Resend custom SMTP delivers in both Supabase projects.** Needed for auth
-  sign-up / recovery emails (Phase 2); staging auto-confirm is OFF.
+- **Resend custom SMTP + SPF/DKIM/DMARC** on a verified domain → re-enable prod email confirmation
+  (issue #103); staging runs the interim `mailer_autoconfirm=true`, which must NOT ship to prod.
+- **Google + Apple OAuth** creds + `VITE_OAUTH_PROVIDERS` per env (Apple needs a paid account; the
+  merged default is Google-only, so the Apple button is hidden today).
+- **Gate prod `/docs` `/redoc` `/openapi.json`** before public launch (accepted on staging).
 
-## Live-staging fix-pass review items (2026-06-30) — ☑ RESOLVED
-
-The live-staging validation + fix pass is complete: **all 22 findings (S1–S22) are fixed or
-accepted**, and the two owner-paused PRs landed — **#91** (S1 right-to-erasure: guarded migration
-`0006` adding `profiles.id → auth.users(id) ON DELETE CASCADE`, applied to the staging DB) and
-**#83** (S16/S17 CORS `Retry-After` expose + security-headers middleware + baseline CSP, verified
-live). **S18** stable Vercel alias resolved (#71). Full record:
+Completed owner items — `0.7.7` (CI secrets `GCP_REGION`/`SENTRY_ORG`), `0.7.9` (Vercel access),
+`0.7.10` (Grafana/Sentry onboarding), and the resolved live-staging findings **S1–S22** (incl.
+#91 erasure-cascade, #83 security-headers/CORS, #71 stable Vercel alias) — are recorded in
 [`../CHANGELOG.md`](../CHANGELOG.md).
-
-Residual owner follow-ups (still open):
-- **S2 — set `VITE_OAUTH_PROVIDERS` per env + enable Apple** (needs a paid Apple Developer acct; the
-  merged code default is Google-only, so the broken Apple button is hidden today).
-- **S20 — gate prod `/docs` `/redoc` `/openapi.json`** before public launch (accepted on staging).
-
-(Also tracked elsewhere: Phase-5 observability live-verify — [`go-live-activation.md`](go-live-activation.md) §G;
-Google/Apple OAuth creds; Resend SMTP + SPF/DKIM/DMARC — see `0.7.8` above + [`outstanding-work.md`](outstanding-work.md).)
-
-## Resolved owner items (for the record)
-
-- **`0.7.9` Vercel access — RESOLVED (2026-06-25).** On the **free** tier a project has a single
-  manager seat; Ben (`benartzi4@gmail.com`) is the account holder/manager for `lengua`. Not
-  blocking — proceeding as-is.
-- **`0.7.10` Grafana Cloud + Sentry — DONE (2026-06-25).** Ben joined Grafana Cloud and both
-  Sentry projects (lengua-api, lengua-web).
