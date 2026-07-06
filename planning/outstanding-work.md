@@ -76,10 +76,6 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   false-failing red — so local coverage still ≠ CI coverage, but a DB-less run is no longer a false red.
 - **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — bump the `python:3.12-slim`
   digest during deploy hardening or via Dependabot once enabled.
-- **Advisory a11y CI covers only `/login`.** The `a11y-perf` job (`.github/workflows/ci.yml`,
-  `continue-on-error`) runs axe against the login page only. Broaden it to the authenticated routes
-  via the FakeLLM e2e harness + `@axe-core/playwright` so the review / generate / discover / dashboard
-  surfaces also get an axe pass. (Advisory — never a merge gate.)
 - **Doc stubs:** `docs/privacy-policy.md` is a Phase 0 stub (`> Placeholder.`), replaced by the real
   GDPR policy in Phase 8 (item (D)); the runbook's **On-call** + **Store-release** sections are
   finalized at launch (Phase 9).

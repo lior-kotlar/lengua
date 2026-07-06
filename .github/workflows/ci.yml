@@ -484,7 +484,13 @@ jobs:
             if [ "$i" = "30" ]; then echo "web preview did not start"; cat ../../preview.log; exit 1; fi
             sleep 1
           done
-          pnpm exec playwright test
+          # REQUIRED auth E2E — excludes the advisory @a11y sweep so a11y findings never gate merges.
+          pnpm exec playwright test --grep-invert "@a11y"
+          # ADVISORY: broaden the axe pass beyond /login onto the authenticated surfaces (dashboard/
+          # generate/review/discover/settings) against the same live stack while the preview server is
+          # still up. Never blocks — the @a11y spec only logs+attaches violations, and `|| echo` keeps
+          # even an axe/page error non-fatal (mirrors the a11y-perf job's advisory intent).
+          pnpm exec playwright test --grep "@a11y" || echo "a11y advisory — violations logged, not blocking"
 
       - name: API logs (on failure)
         if: failure()
@@ -583,7 +589,11 @@ jobs:
             --collect.staticDistDir=./dist \
             --collect.numberOfRuns=1 \
             --upload.target=temporary-public-storage || echo "Lighthouse advisory — not blocking"
-      - name: axe accessibility (advisory)
+      # axe over the static bundle = the unauthenticated /login page only (this job has no API/DB
+      # stack). The AUTHENTICATED surfaces (dashboard/generate/review/discover/settings) get their
+      # own advisory axe sweep in the `e2e` job (apps/web/e2e/a11y.spec.ts, @axe-core/playwright),
+      # which has the seeded FakeLLM stack to log in against.
+      - name: axe accessibility — login/static page (advisory)
         working-directory: apps/web
         run: |
           nohup pnpm exec vite preview --port 4173 --strictPort > ../../preview.log 2>&1 &
