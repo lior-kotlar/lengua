@@ -32,9 +32,17 @@ Conventions: ☐ open · 🔒 blocked-on-owner · ◐ as-code-done / live-owner-
   accounts (Apple $99/yr — start early; Google Play $25), Capacitor native projects + plugins,
   OAuth-in-webview, OTA channel, on-device full-loop validation.
 - **(D) Phase 8 — compliance & store** ([`tasks/phase-8-compliance-store.md`](tasks/phase-8-compliance-store.md)).
-  Real GDPR privacy policy (replace the `docs/privacy-policy.md` stub) + right-to-erasure text
-  (unblocked by #91) + a deletion form; Apple/Play data-safety declarations, content ratings,
-  listings, closed tests.
+  The **buildable/CI-verifiable code slice is being pulled forward** (see `CHANGELOG.md`): ◐ 8.1.1
+  real GDPR privacy policy done (#130) with a `docs` link-check CI job. **Still open:** the public
+  `/delete-account` request form + `/privacy` + `/support` routes (8.1.2/8.3.1); the launch-blocker
+  export/delete/consent E2E assertions (8.2.1/8.2.3/8.2.4); the `docs/store-listing.md`
+  data-inventory + copy + EU-residency record (8.4.1/8.7.1/8.2.2). **Owner-blocked (store/prod):**
+  Apple App Privacy labels + encryption declaration, Play Data Safety, age ratings, store-console
+  listing entry, device screenshots, and the TestFlight/Play closed tests — all need the paid store
+  accounts + the deployed prod app.
+  - **Placeholder to confirm at launch:** the privacy policy + `/support` + `/delete-account` use
+    `privacy@lengua.app` and `https://lengua.app`. Before public launch the contact address must
+    point to a **monitored inbox** and the host must match the real prod web domain (owner cutover).
 - **(E) Phase 9 — launch** ([`tasks/phase-9-launch.md`](tasks/phase-9-launch.md)). Cross-platform
   prod smoke, store submit → promote, custom-domain cutover, 48h watch; finalize the runbook On-call
   + Store-release sections.
@@ -76,9 +84,8 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   false-failing red — so local coverage still ≠ CI coverage, but a DB-less run is no longer a false red.
 - **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — bump the `python:3.12-slim`
   digest during deploy hardening or via Dependabot once enabled.
-- **Doc stubs:** `docs/privacy-policy.md` is a Phase 0 stub (`> Placeholder.`), replaced by the real
-  GDPR policy in Phase 8 (item (D)); the runbook's **On-call** + **Store-release** sections are
-  finalized at launch (Phase 9).
+- **Doc stubs:** `docs/privacy-policy.md` is now the real GDPR policy (Phase 8, #130); the runbook's
+  **On-call** + **Store-release** sections are still finalized at launch (Phase 9).
 - **Stale code-comment doc citation (migration only).** The applied migration
   `migrations/versions/20260630_0006_*.py` still cites the deleted `staging-validation.md` (finding
   S1). Migrations are off-limits even for comments, so this one lingers by design; every other stale

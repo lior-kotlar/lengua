@@ -14,6 +14,23 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-06 — Phase 8 compliance & store (buildable code slice)
+
+Pulling the **CI-verifiable** half of Phase 8 (compliance & store readiness) forward, ahead of the
+owner-run store/prod work (App Store Connect / Play Console entry, device screenshots, publishing).
+Mobile/Capacitor, prod cutover, secrets, and migrations are untouched.
+
+- **Privacy policy (#130, 8.1.1).** Replaced the Phase-0 `docs/privacy-policy.md` stub with a
+  complete **GDPR privacy policy**: data categories (account email, learning content, content sent
+  for AI generation, opt-in analytics, error diagnostics, technical/local storage); **Supabase (EU)**
+  as the primary store; **Google Gemini** as the production **LLM provider** (Groq dev-only); lawful
+  bases (contract / consent / legitimate interest); international transfers (SCCs/adequacy) + a
+  sub-processor table; retention; the full data-subject rights; and a dedicated **export / delete**
+  section (in-app Account actions + the public `/delete-account` form). Controller "Lengua", contact
+  `privacy@lengua.app`. Added `scripts/check_doc_links.py` (stdlib, no network) + a `docs` CI job that
+  asserts every relative markdown link across `docs/**` + `README.md` + `CHANGELOG.md` resolves
+  (67 links, 7 files) — the "link-check in CI" the task's verify calls for.
+
 ## 2026-07-06 — Round-2 doable-now sweep — PRs #126, #127, #128
 
 A second post-close-out sweep clearing the last non-owner/prod/mobile items from
