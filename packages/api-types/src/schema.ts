@@ -35,7 +35,7 @@ export interface paths {
         put?: never;
         /**
          * Confirm Account Deletion
-         * @description Complete a public account deletion: verify the emailed token, then cascade-delete the account.
+         * @description Complete a public account deletion: verify the emailed token, then cascade-delete the user.
          *
          *     A malformed / tampered / expired token → ``400`` (a generic "invalid or expired" message, never
          *     distinguishing which). A verified token runs the same hard delete as ``DELETE /account``; a

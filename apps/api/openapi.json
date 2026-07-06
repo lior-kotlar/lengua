@@ -1183,7 +1183,7 @@
     },
     "/account/deletion-confirm": {
       "post": {
-        "description": "Complete a public account deletion: verify the emailed token, then cascade-delete the account.\n\nA malformed / tampered / expired token → ``400`` (a generic \"invalid or expired\" message, never\ndistinguishing which). A verified token runs the same hard delete as ``DELETE /account``; a\nbackend failure surfaces ``502`` (retryable), never a false success.",
+        "description": "Complete a public account deletion: verify the emailed token, then cascade-delete the user.\n\nA malformed / tampered / expired token → ``400`` (a generic \"invalid or expired\" message, never\ndistinguishing which). A verified token runs the same hard delete as ``DELETE /account``; a\nbackend failure surfaces ``502`` (retryable), never a false success.",
         "operationId": "confirm_account_deletion_account_deletion_confirm_post",
         "requestBody": {
           "content": {
