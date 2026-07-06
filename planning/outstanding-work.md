@@ -76,12 +76,6 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   false-failing red — so local coverage still ≠ CI coverage, but a DB-less run is no longer a false red.
 - **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — bump the `python:3.12-slim`
   digest during deploy hardening or via Dependabot once enabled.
-- **Test nits (account-lifecycle, CI-only):** two integration tests remain — an export-under-real-RLS
-  assertion (drive `GET /account/export` through the un-overridden scoped `get_db` so RLS, not just
-  the app-layer filter, enforces scoping) and a deleted-but-unexpired-token behavior test (a
-  still-valid JWT for a just-deleted account returns a 200 empty bundle, never a leak or 500). Both
-  need the live Postgres + Supabase-auth fixtures, so they run only in CI. (The RLS-migration drift
-  test now parses predicates from the canonical SQL — done.)
 - **Advisory a11y CI covers only `/login`.** The `a11y-perf` job (`.github/workflows/ci.yml`,
   `continue-on-error`) runs axe against the login page only. Broaden it to the authenticated routes
   via the FakeLLM e2e harness + `@axe-core/playwright` so the review / generate / discover / dashboard

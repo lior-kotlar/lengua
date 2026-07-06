@@ -438,3 +438,88 @@ async def test_delete_user_erases_all_domain_data_without_the_auth_cascade() -> 
             )
         finally:
             delete_user(http, user.id)  # real cleanup: removes the lingering auth.users row
+
+
+# ── The still-valid access token of a just-deleted account (stateless JWKS window) ────────────
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_deleted_but_unexpired_token_reads_an_empty_bundle_not_a_leak() -> None:
+    """A still-valid JWT for a just-deleted account reads a ``200`` EMPTY bundle — never a leak/500.
+
+    The app verifies bearer tokens statelessly via JWKS, so A's access token keeps verifying until
+    its ``exp`` even after ``DELETE /account`` has removed the account server-side (the sibling
+    ``…_twice_is_idempotent_over_http`` relies on exactly this property). Existing tests cover
+    GoTrue's *session* rejection and the idempotent second ``DELETE``, but nothing pins what one of
+    the app's OWN read endpoints returns inside that within-``exp`` window.
+
+    Here A (with a live neighbour B) is created + seeded, A logs in, ``DELETE /account`` → ``204``,
+    then the SAME still-valid token hits ``GET /account/export``: it must still authenticate (not
+    ``401``) and return ``200`` with an EMPTY bundle (``profile is None``, every list ``[]``,
+    ``settings == {}``), never a ``500`` and never B's data. Only the raw session sub-dependency is
+    swapped for a loop-local engine so the scoped ``get_db`` (which the export uses) stays on this
+    test's event loop while still binding A's real RLS identity.
+
+    Design contract: this asserts the *current* stateless behavior (200 + empty bundle). A hard
+    ``401`` for a deleted-but-unexpired token would need a stateful revocation check the JWKS path
+    deliberately does not perform.
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.session import get_db as raw_get_db
+    from app.deps import get_usage_db
+    from app.main import create_app
+    from app.schemas.account import AccountExport
+    from app.settings import get_settings
+    from tests.supabase_auth import create_confirmed_user, delete_user, login
+
+    with httpx.Client(timeout=30.0) as http:
+        user_a = create_confirmed_user(http, email=f"del-tok-a-{uuid.uuid4().hex[:8]}@lengua.test")
+        user_b = create_confirmed_user(http, email=f"del-tok-b-{uuid.uuid4().hex[:8]}@lengua.test")
+        try:
+            _seed_committed_graph(user_a.id, "A-Spanish")
+            _seed_committed_graph(user_b.id, "B-French")
+            token_a = login(http, user_a.email, user_a.password)
+            assert token_a
+
+            engine = create_async_engine(async_dsn(database_url()))
+            sessionmaker = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+            async def _raw_session() -> AsyncIterator[AsyncSession]:
+                async with sessionmaker() as session:
+                    yield session
+
+            app = create_app(include_test_routes=False)
+            app.dependency_overrides[get_settings] = _real_stack_settings
+            app.dependency_overrides[get_usage_db] = _fresh_usage_db  # fresh-engine privileged sess
+            app.dependency_overrides[raw_get_db] = _raw_session  # loop-local scoped read for export
+            try:
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                    headers = {"Authorization": f"Bearer {token_a}"}
+                    deleted = await client.delete("/account", headers=headers)
+                    assert deleted.status_code == 204, deleted.text
+
+                    # Same still-valid token: the stateless JWKS path still verifies it (not 401),
+                    # and the app answers a 200 EMPTY bundle — no leak of A's (now-erased) rows or
+                    # of B's data, and no 500.
+                    export = await client.get("/account/export", headers=headers)
+                    assert export.status_code == 200, export.text
+                    bundle = AccountExport.model_validate(export.json())
+                    assert bundle.profile is None
+                    assert bundle.languages == []
+                    assert bundle.cards == []
+                    assert bundle.reviews == []
+                    assert bundle.proficiency == []
+                    assert bundle.settings == {}
+
+                    # Never a neighbour's data.
+                    assert "B-French" not in export.text
+                    assert user_b.id not in export.text
+            finally:
+                app.dependency_overrides.clear()
+                await engine.dispose()
+        finally:
+            delete_user(http, user_a.id)  # already gone (404 tolerated) — defensive
+            delete_user(http, user_b.id)  # cascades B's committed graph away
