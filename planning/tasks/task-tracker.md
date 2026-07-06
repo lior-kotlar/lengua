@@ -12,11 +12,7 @@ decisions live in [`../../CHANGELOG.md`](../../CHANGELOG.md). This tracker now c
 
 | Phase | Focus | Status |
 |------:|-------|--------|
-| 0 | Monorepo, tooling, CI quality gate | ✅ DONE — see CHANGELOG |
-| 1 | FastAPI + Postgres core loop, LLM seam, OpenAPI (**M1**) | ✅ DONE — see CHANGELOG |
-| 2 | Supabase Auth, per-user scoping, RLS, account lifecycle | ✅ DONE — see CHANGELOG (owner OAuth/SMTP residual) |
-| 3 | LLM quota, rate-limit, cost-guard kill-switch (**M2**) | ✅ DONE — see CHANGELOG |
-| 4 | React web app — parity with Streamlit (**M3**) | ✅ DONE — see CHANGELOG |
+| 0–4 | Monorepo/CI · core loop **M1** · auth+RLS+account · cost guard **M2** · React web **M3** | ✅ DONE — see CHANGELOG (owner OAuth/SMTP residual in outstanding-work §F) |
 | 5 | Tracing, logs, metrics, dashboards, alerts | ◐ as-code DONE; live dashboards owner-deferred ([go-live §G](../go-live-activation.md)) |
 | 6 | Environments, CI gate, CD pipeline, rollback | ◐ as-code DONE; **M4 staging leg live**; prod cutover owner ([go-live §F](../go-live-activation.md)) |
 | 7 | [phase-7-mobile.md](phase-7-mobile.md) — Capacitor → signed iOS + Android, OTA | ☐ not started |

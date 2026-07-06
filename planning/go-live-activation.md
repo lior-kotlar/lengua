@@ -15,80 +15,6 @@
 
 ---
 
-## Status snapshot — verified via CLI on 2026-06-27
-
-**Already provisioned (inputs ✅):**
-- **GCP** project `lengua-prod` (gcloud authed as benartzi4@gmail.com); deployer SA in `GCP_SA_JSON`; **Artifact Registry repo `lengua` (DOCKER) exists**.
-- **Supabase** both projects exist, EU: `lengua-staging` (West EU/Ireland, ref `rydclyotzdwcbbeyitcx`, CLI-linked) + `lengua-prod` (Central EU/Frankfurt, ref `ptyqlxjykbprfzhnxgla`).
-- **GitHub Actions secrets** — full set: `GCP_PROJECT_ID/REGION/SA_JSON`, `VERCEL_TOKEN/ORG_ID/PROJECT_ID`, `SUPABASE_STAGING_*` + `SUPABASE_PROD_*` (URL/ANON/SERVICE_ROLE/JWT/DB_URL/PROJECT_REF) + `SUPABASE_ACCESS_TOKEN`, `RESEND_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID/SECRET`, `OTEL_EXPORTER_OTLP_ENDPOINT/HEADERS`, `SENTRY_DSN_API/WEB`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `GROQ_API_KEY`, `GEMINI_API_KEY`.
-- Local `.env`: Groq key, staging Supabase (DB/URL/anon/service-role/JWT), both Sentry DSNs. **DB reachable** (`select 1` OK).
-- **Correction to stale tracking:** `GCP_REGION` + `SENTRY_ORG` secrets ARE set now (memory/outstanding-work still list them open — fix on landing).
-
-**Missing — purely the outputs of a deploy that has never run (❌):**
-1. **Staging Supabase DB has no schema** — `public` has 0 tables, no `alembic_version`. (Prod likely same.)
-2. **No Cloud Run service** — `lengua-api-staging/prod` absent in every EU region (registry+SA+project ready, just nothing deployed).
-3. **No Vercel project** linked/deployed — `vercel projects ls` empty, no `.vercel/project.json` (token/org/project secrets exist).
-4. **No `apps/web/.env`** — only `.env.example`; the web app has no local config.
-5. **CD pipeline as-code** — **COMMITTED + GATED** (`.github/workflows/deploy-staging.yml` + `deploy-prod.yml`, group G6); every job is gated `if: vars.DEPLOY_ENABLED == 'true'` and the `DEPLOY_ENABLED` repo variable is **not set yet** (§E1 flips it) → the workflows are inert/green no-ops until then. The `production` environment reviewer (§F3) is also not yet added.
-6. Minor: `pnpm` not installed locally (repo uses `corepack pnpm`).
-
----
-
-## Progress update — 2026-06-28 (Ben ran §A + §B)
-
-**Live now / done (✅):**
-- **§A1–A5 local fast-path is GREEN** — staging schema applied (0001→0005, `current==heads`), RLS +
-  trigger confirmed, demo account seeded (`demo@lengua.test` / `demo-password-123`, 6 due cards),
-  `apps/web/.env` created, and the **full loop verified end-to-end against staging**: login (JWKS
-  ES256) → `/languages` → `/review/due` → **Groq `/generate`** all 200. Run it:
-  `cd apps/api && uv run uvicorn app.main:app --port 8000` + `corepack pnpm --filter web dev` → open
-  `http://localhost:5173`.
-- **§B API deployed to Cloud Run staging** — `lengua-api-staging` (europe-west1), image built via
-  Cloud Build, rev `00002-8kg`, `/health`+`/ready` 200. URL:
-  `https://lengua-api-staging-1083154360111.europe-west1.run.app`.
-- **🐞 Fixed a real CD bug:** the Supabase projects sign tokens with **ES256/JWKS**, not the legacy
-  HS256 secret, but neither deploy workflow set `SUPABASE_JWKS_URL` → a CD-deployed API would 401
-  every real token. Added it (derived from `SUPABASE_*_URL`) to `deploy-staging.yml` + `deploy-prod.yml`.
-
-**Blocked on Kotlar (🔒) before the deployed web works end-to-end:**
-1. **Make the Cloud Run staging API public** (one of): Kotlar (Owner) runs
-   `gcloud run services add-iam-policy-binding lengua-api-staging --region=europe-west1 --project lengua-prod --member=allUsers --role=roles/run.invoker`;
-   OR grant Ben `roles/run.admin`; OR just turn CD on — the `github-ci` SA already has `run.admin`.
-   (Ben is `roles/editor`, which lacks `run.services.setIamPolicy`, so he cannot do it.)
-2. **Vercel web** — the canonical project is on Kotlar's account; deploy via the CD (his `VERCEL_*`
-   secrets) or from his account. Set `STAGING_WEB_ORIGIN` so CORS allows the browser.
-3. Supabase Auth wiring (§D), `DEPLOY_ENABLED=true` (§E), prod promotion (§F) — as below.
-
----
-
-## Progress update — 2026-06-30 (live-staging validation + fix pass · Claude)
-
-A 50-agent **live-staging validation** exercised the deployed stack (web + API + DB) as the demo user
-and found **25** correctness/UX/hardening items (all now fixed/accepted — full record in
-[`../CHANGELOG.md`](../CHANGELOG.md)). **The core loop is verified working end-to-end on
-live staging** — login → generate → save → review → discover against real Groq, with CORS + ES256-JWT
-verification + the feature-flag kill-switch all correct and no cross-tenant leakage. A multi-agent fix
-pass then landed all fixes (complete — see [`../CHANGELOG.md`](../CHANGELOG.md)):
-
-- **Merged to `main`:** S2 (OAuth → Google-only so the dead-ending Apple button is hidden), **S4** (an
-  idempotent `seed-staging.yml` — **dispatched**, demo deck now 12 ES + 6 HE/RTL cards, so review +
-  RTL are testable), **S5** (Sentry per-env tag + trace sample rate), S6/S8/S13/S15/S19
-  (review/discover/RTL/limit-copy). **S21** = benign (Cloud Run 4xx access logs, not app warnings).
-- **Open fix PRs (CI → merge):** #88 (S3/S12/S14 languages), #89 (S7/S11 generate), #90 (S9/S10 settings).
-- **⏸ Paused for OWNER review** (details in [`owner-deferred-tasks.md`](owner-deferred-tasks.md)):
-  - **#91 — S1 right-to-erasure.** `DELETE /account` orphaned all user data because the
-    Alembic-built staging/prod DB lacks the `profiles → auth.users` FK. Guarded migration `0006` +
-    defensive delete + erasure test. **Owner: review, merge, then apply `0006`** to staging+prod
-    (`alembic -x env=staging|prod upgrade head`) — gates §F prod promotion + the erasure/privacy text.
-  - **#83 — S16/S17.** Security headers + CORS `Retry-After` expose + `vercel.json` baseline CSP. CI
-    green; **owner sanity-checks the CSP `connect-src`** before it ships (feeds §C/§E web deploys).
-- **Owner follow-ups:** S2 env (`VITE_OAUTH_PROVIDERS`)/Apple, **S18** (stable Vercel alias — overlaps
-  §C), S20 (gate prod `/docs`).
-
-Net: staging is hardened on the path to **§E (CD arming)** → **§F (prod promotion)** → **M4**.
-
----
-
 ## A. Watch it locally NOW (fast path, ~10 min) — staging Supabase + local servers · **Ben** · ✅ DONE 2026-06-28 (full loop green)
 
 The quickest way to *see and click* the real app today, before any deploy. Runs the real API +
@@ -108,7 +34,7 @@ web locally against the hosted **staging** Supabase.
 
 ---
 
-## B. Deploy the API to Cloud Run — **staging** · **Ben** (uses the as-code CD once it lands) · ✅ DEPLOYED 2026-06-28 (rev `00002-8kg`; 🔒 public access pending Kotlar — see Progress update)
+## B. Deploy the API to Cloud Run — **staging** · **Ben** (uses the as-code CD once it lands) · ✅ DEPLOYED 2026-06-28 (rev `00002-8kg`; public access resolved once CD armed — the `github-ci` SA self-publishes via `--allow-unauthenticated`)
 
 - **B1 — Build + push image** to `…-docker.pkg.dev/lengua-prod/lengua` tagged with the commit SHA. **verify:** `gcloud artifacts docker images list …/lengua` shows the SHA tag.
 - **B2 — Apply staging migrations** as a discrete step (skip if A1 done). **verify:** `alembic current` == `heads` against `SUPABASE_STAGING_DATABASE_URL`.
