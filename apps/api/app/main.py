@@ -27,6 +27,7 @@ from app.observability import configure_observability
 from app.quota import register_quota_handlers
 from app.routers import (
     account,
+    account_deletion,
     cards,
     discover,
     experimental,
@@ -173,6 +174,10 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     application.include_router(settings.router)
     # Account lifecycle (export + hard delete), scoped to current_user (task 2.8).
     application.include_router(account.router)
+    # Public account-deletion request/confirm (Phase 8, task 8.3.1): intentionally UNauthenticated —
+    # the external web deletion path Google Play requires. Ownership is proven by an emailed signed
+    # token, not a session (see app/routers/account_deletion.py).
+    application.include_router(account_deletion.router)
 
     # Feature flags (Phase 6.9): the public, secret-free flag map (no JWT) + the experimental
     # flag-gated routes that ship dark (still JWT-protected; 404 until their flag is flipped on).

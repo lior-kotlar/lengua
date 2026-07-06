@@ -56,6 +56,12 @@ from app.settings import Settings
 #: ``404`` = the user is already gone (idempotent — the desired end state already holds).
 _DELETE_OK = frozenset({200, 204, 404})
 
+#: Admin "list users" pagination (used to resolve an email → auth-user id for the public deletion
+#: form). ``per_page`` is GoTrue's max; the page cap bounds a pathological scan (100 * 200 = 20k
+#: users) so a lookup can never spin unbounded — far above the expected user count for v1.
+_ADMIN_USERS_PER_PAGE = 200
+_ADMIN_USERS_MAX_PAGES = 100
+
 
 class AccountAdminError(RuntimeError):
     """The Supabase Auth Admin API call failed (the router maps this to HTTP ``502``)."""
@@ -179,3 +185,42 @@ class AccountDeletionService:
 
         if response.status_code not in _DELETE_OK:
             raise AccountAdminError(f"auth admin delete returned {response.status_code}")
+
+    async def find_auth_user_id_by_email(self, email: str) -> uuid.UUID | None:
+        """Resolve a Supabase Auth user id from an email via the service-role Admin API.
+
+        Used by the **public** ``/delete-account`` request flow (task 8.3.1) to find which account a
+        deletion link should be mailed to. Returns ``None`` — never raising — when the admin
+        credentials are unset, when no user matches, or on any admin-API error, so the caller can
+        always answer the same generic acknowledgement without disclosing whether the email exists
+        (no account enumeration). Matching is case-insensitive on the normalized address.
+        """
+        base_url = (self._settings.supabase_url or "").rstrip("/")
+        service_key = self._settings.supabase_service_role_key.get_secret_value()
+        if not base_url or not service_key:
+            return None
+
+        target = email.strip().lower()
+        url = f"{base_url}/auth/v1/admin/users"
+        headers = {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
+        try:
+            async with httpx.AsyncClient(transport=self._transport, timeout=30.0) as client:
+                for page in range(1, _ADMIN_USERS_MAX_PAGES + 1):
+                    response = await client.get(
+                        url,
+                        headers=headers,
+                        params={"page": page, "per_page": _ADMIN_USERS_PER_PAGE},
+                    )
+                    if response.status_code != 200:
+                        return None
+                    users = response.json().get("users", [])
+                    for user in users:
+                        if str(user.get("email") or "").strip().lower() == target:
+                            return uuid.UUID(str(user["id"]))
+                    if len(users) < _ADMIN_USERS_PER_PAGE:
+                        break  # last page reached; email not found
+        except (httpx.HTTPError, ValueError, KeyError):
+            # Network/parse/JSON failure — treat as "not found" so we never leak existence via an
+            # error path (the endpoint's generic ack is returned regardless).
+            return None
+        return None

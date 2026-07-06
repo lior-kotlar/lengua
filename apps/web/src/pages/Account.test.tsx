@@ -154,3 +154,16 @@ describe('Account — delete (4.8.3)', () => {
     expect(del).not.toHaveBeenCalled();
   });
 });
+
+describe('Account — legal & support links (8.1.2)', () => {
+  it('links to the published Privacy policy and Support pages', () => {
+    renderAccount();
+    expect(
+      screen.getByRole('link', { name: /privacy policy/i }),
+    ).toHaveAttribute('href', '/privacy');
+    expect(screen.getByRole('link', { name: /support/i })).toHaveAttribute(
+      'href',
+      '/support',
+    );
+  });
+});

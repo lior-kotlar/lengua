@@ -131,6 +131,19 @@ class Settings(BaseSettings):
     supabase_jwks_url: str = ""
     supabase_jwt_aud: str = "authenticated"
 
+    # ── Transactional email (Phase 8, task 8.3.1) ─────────────────────────────
+    # Resend API key for outbound mail — today only the public /delete-account confirmation link.
+    # Unset → ``LoggingMailer`` (no egress; the local/CI/E2E path and the prod path until the owner
+    # configures Resend, issue #103). Set → ``ResendMailer`` sends for real. Typed ``SecretStr`` so
+    # it is masked in repr/logs. Mirrors the LLM seam: a config flip, never a code change.
+    resend_api_key: SecretStr = SecretStr("")
+    # The From address for that mail (used only when a mail provider is configured).
+    email_from: str = "Lengua <privacy@lengua.app>"
+    # Public web origin used to build ABSOLUTE links in outbound mail (the /delete-account confirm
+    # URL). Empty in dev/CI (mail is suppressed there anyway); set to the real prod web host at
+    # cutover so the emailed confirmation link is clickable.
+    public_web_url: str = ""
+
     # ── CORS (Phase 2.3.4) ────────────────────────────────────────────────────
     # Allowlisted browser/app origins for cross-origin requests. Accepts a JSON array or a
     # comma-separated string in the environment (``CORS_ALLOW_ORIGINS=https://a,https://b``).

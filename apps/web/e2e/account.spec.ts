@@ -58,6 +58,23 @@ test.describe('account screen (ephemeral stack)', () => {
     expect(download.suggestedFilename()).toBe('lengua-export.json');
   });
 
+  test('links to the published Privacy policy and Support pages (8.1.2)', async ({
+    page,
+  }) => {
+    await login(page);
+    await gotoAccount(page);
+
+    // Scope to the main content region so we assert the Account-screen links, not the footer's.
+    const main = page.getByRole('main');
+    await expect(
+      main.getByRole('link', { name: 'Privacy Policy' }),
+    ).toHaveAttribute('href', '/privacy');
+    await expect(main.getByRole('link', { name: 'Support' })).toHaveAttribute(
+      'href',
+      '/support',
+    );
+  });
+
   test('the delete dialog is confirm-typed and, once confirmed, signs out to /login', async ({
     page,
   }) => {

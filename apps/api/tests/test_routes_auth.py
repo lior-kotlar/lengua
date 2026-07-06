@@ -31,7 +31,20 @@ _NON_DOMAIN_PATHS = frozenset({"/openapi.json", "/docs", "/docs/oauth2-redirect"
 # PUBLIC flag map (booleans), which the web reads to gate dark UI before/without a session. The
 # flag-gated ``/experimental/*`` routes are deliberately NOT listed here — they still require a JWT
 # (auth is their first dependency), so they are asserted as protected domain routes below.
-_PUBLIC_PATHS = frozenset({"/health", "/ready", "/feature-flags"})
+#
+# ``/account/deletion-request`` + ``/account/deletion-confirm`` (task 8.3.1) are ALSO intentionally
+# public: the external web deletion path Google Play requires must be usable without signing in.
+# They take no JWT — ownership is proven by an emailed signed token — so they are exempted here (the
+# same way ``/feature-flags`` is) rather than asserted as JWT-protected.
+_PUBLIC_PATHS = frozenset(
+    {
+        "/health",
+        "/ready",
+        "/feature-flags",
+        "/account/deletion-request",
+        "/account/deletion-confirm",
+    }
+)
 # Methods Starlette adds automatically; auth is not asserted for them.
 _SKIP_METHODS = frozenset({"HEAD", "OPTIONS"})
 
