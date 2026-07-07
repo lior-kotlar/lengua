@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from typing import cast
 
 import httpx
 import psycopg
@@ -28,6 +29,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deletion_tokens import (
     DELETION_TOKEN_TTL_SECONDS,
@@ -242,8 +244,8 @@ async def test_find_user_by_email_uses_the_indexed_db_lookup_when_a_session_is_g
     svc = AccountDeletionService(
         _ADMIN, transport=httpx.MockTransport(lambda _req: httpx.Response(500))
     )
-    found = await svc.find_auth_user_id_by_email("found@example.com", db=_FakeDBSession(row=(uid,)))
-    assert found == uid
+    db = cast(AsyncSession, _FakeDBSession(row=(uid,)))
+    assert await svc.find_auth_user_id_by_email("found@example.com", db=db) == uid
 
 
 @pytest.mark.asyncio
@@ -254,10 +256,8 @@ async def test_find_user_by_email_db_lookup_returns_none_for_no_match() -> None:
     svc = AccountDeletionService(
         _ADMIN, transport=_users_page([[{"id": str(uid), "email": "ghost@example.com"}]])
     )
-    assert (
-        await svc.find_auth_user_id_by_email("ghost@example.com", db=_FakeDBSession(row=None))
-        is None
-    )
+    db = cast(AsyncSession, _FakeDBSession(row=None))
+    assert await svc.find_auth_user_id_by_email("ghost@example.com", db=db) is None
 
 
 @pytest.mark.asyncio
@@ -268,8 +268,8 @@ async def test_find_user_by_email_falls_back_to_admin_when_the_db_query_is_denie
     svc = AccountDeletionService(
         _ADMIN, transport=_users_page([[{"id": str(uid), "email": "x@example.com"}]])
     )
-    found = await svc.find_auth_user_id_by_email("x@example.com", db=_FakeDBSession(raises=True))
-    assert found == uid
+    db = cast(AsyncSession, _FakeDBSession(raises=True))
+    assert await svc.find_auth_user_id_by_email("x@example.com", db=db) == uid
 
 
 # ── Public endpoint unit tests (offline, ASGI with overrides) ────────────────────────────────────
