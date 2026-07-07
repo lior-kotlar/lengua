@@ -53,6 +53,16 @@ Mobile/Capacitor, prod cutover, secrets, and migrations are untouched.
   asserted **reachable via in-app navigation only** (no external URL) and to **clear the session**.
   The gate-blocks-even-with-a-key invariant stays unit-covered in `src/lib/analytics.test.ts`, and the
   real delete cascade in the backend integration tests.
+- **Store-listing & data-safety source of truth (#133, 8.4.1 + 8.7.1 + 8.2.2).** Added
+  `docs/store-listing.md` as the single source both stores reference: the published URLs; the
+  store-listing copy (name / subtitle / short + full description / keywords / category) capped at the
+  **shorter** of the Apple/Play limits and validated in CI by `scripts/check_store_listing.py` (wired
+  into the `docs` job) so one copy fits both; the **data-inventory matrix** the Apple App Privacy +
+  Play Data Safety answers derive from (email / user content / analytics / crash diagnostics /
+  identifiers × purpose / linked? / tracking?, tracking = No throughout); and per-processor **data
+  residency**. Added a Data-residency (GDPR) record (EU regions) to `docs/runbook.md`, and updated the
+  README (public deletion endpoints + public pages) + docs index. **This completes the buildable,
+  CI-verifiable Phase-8 slice; everything remaining is the owner store/prod cutover.**
 
 ## 2026-07-06 — Round-2 doable-now sweep — PRs #126, #127, #128
 
