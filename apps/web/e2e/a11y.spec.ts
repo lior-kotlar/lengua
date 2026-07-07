@@ -67,6 +67,41 @@ async function navigateTo(page: Page, name: string) {
 }
 
 /**
+ * Wait for the screen to reach its RESTING colours before auditing. Two transient sources otherwise
+ * make axe measure reduced-opacity composites (false positives): data still loading (skeletons), and
+ * the entrance fades. Emulating `reducedMotion` (in the test) stops framer-motion's TRANSFORMS but
+ * NOT its opacity fades (those are reduced-motion-safe), and muted text at even 97% opacity reads
+ * below 4.5:1 — so a fixed delay is too fragile. We poll until no fade is in flight, covering both
+ * ways framer v12 drives opacity: its rAF renderer (inline `style.opacity` < 1) and its accelerated
+ * WAAPI path (a running finite `document.getAnimations()` entry). The looping skeleton shimmer is a
+ * genuinely-infinite animation, so it is excluded (else a still-loading screen would block forever).
+ */
+async function settle(page: Page) {
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+  await page
+    .waitForFunction(
+      () => {
+        const inlineFading = Array.from(
+          document.querySelectorAll<HTMLElement>('[style*="opacity"]'),
+        ).some((el) => {
+          const op = el.style.opacity;
+          return op !== '' && Number(op) < 1;
+        });
+        if (inlineFading) return false;
+        const waapiFading = document.getAnimations().some((a) => {
+          const iterations = a.effect?.getComputedTiming?.().iterations;
+          return iterations !== Infinity && a.playState === 'running';
+        });
+        return !waapiFading;
+      },
+      undefined,
+      { timeout: 4000 },
+    )
+    .catch(() => {});
+  await page.waitForTimeout(400); // buffer for the final committed frame
+}
+
+/**
  * Run axe on the current page: ATTACH the full report (advisory, all rules) and RETURN the gating
  * `color-contrast` findings (serious/critical, minus the documented allowlist) so the caller can
  * aggregate and assert. Logs a one-line per-screen summary either way.
@@ -75,6 +110,7 @@ async function auditScreen(
   page: Page,
   screen: string,
 ): Promise<ContrastFinding[]> {
+  await settle(page);
   const { violations } = await new AxeBuilder({ page }).analyze();
   await test.info().attach(`axe-${screen}.json`, {
     body: JSON.stringify(violations, null, 2),
