@@ -92,6 +92,7 @@ async def request_account_deletion(
     mailer: Annotated[Mailer, Depends(get_mailer)],
     limiter: Annotated[RateLimiter, Depends(get_public_deletion_rate_limiter)],
     ip_limiter: Annotated[RateLimiter, Depends(get_public_deletion_ip_rate_limiter)],
+    usage_db: Annotated[UsageSession, Depends(get_usage_db)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AccountDeletionAck:
     """Start a public account deletion: email a confirmation link if the address has an account.
@@ -119,7 +120,7 @@ async def request_account_deletion(
             headers={"Retry-After": str(decision.retry_after)},
         )
 
-    user_id = await deletion.find_auth_user_id_by_email(email)
+    user_id = await deletion.find_auth_user_id_by_email(email, db=usage_db)
     if user_id is not None:
         token = sign_deletion_token(user_id, settings=settings)
         # Belt-and-suspenders around the non-enumeration contract: even if a mailer raised, the

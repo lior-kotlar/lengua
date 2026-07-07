@@ -51,6 +51,15 @@ colour-contrast pass.
   Both caps return the same generic 429 so neither leaks which tripped. OpenAPI unchanged (the added
   `Request` + limiter dep aren't schema params). Closes the second of the three low/latent
   DoS-hardening items from the #131 review.
+- **Public deletion — indexed `auth.users` lookup (#138).** `find_auth_user_id_by_email` (the email →
+  auth-user resolution behind the public deletion-request form) paged the GoTrue Admin *list-users*
+  API linearly. It now tries a single **indexed** `SELECT id FROM auth.users WHERE lower(email) = …`
+  on the privileged (RLS-bypassing owner) session first — removing that unauthenticated-endpoint →
+  Admin-API fan-out — and **falls back to the Admin API** on any `SQLAlchemyError` (e.g. a deployment
+  whose owner role lacks `SELECT` on `auth.users`), so it can only speed the flow up, never regress
+  it. Offline unit tests cover both the DB fast-path and the denied→admin fallback (mock session);
+  the existing live-stack integration test exercises the real query. Closes the first of the three
+  #131-review DoS items. OpenAPI unchanged.
 
 ## 2026-07-06 — Phase 8 compliance & store (buildable code slice)
 
