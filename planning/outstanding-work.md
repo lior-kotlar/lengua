@@ -114,7 +114,10 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   `.github/workflows/ci.yml`, `e2e-staging/signup.spec.ts`) was repointed to `CHANGELOG.md`.
 - **Observability follow-ups** (do alongside (B)): export the browser client span to Tempo (today the
   web only injects `traceparent`); unify web-Sentry ↔ Tempo by `trace_id`; add a `proficiency_cefr_band`
-  metric to light up the CEFR dashboard panel; move the process-local product metrics
+  metric to light up the CEFR dashboard panel *(round-3 item 4 — deliberately deferred here: a
+  categorical band is only meaningful as a per-user "latest band" distribution, another process-local
+  gauge whose usefulness needs the live panel to judge; do it with the Phase-5 wiring, not standalone)*;
+  move the process-local product metrics
   (`active_users`/`signups_total`) + rate-limiter + discover-cache to a shared store when scaling past
   one Cloud Run instance; revisit the `opentelemetry.sdk._logs.LoggingHandler` deprecation when the
   OTel logs signal stabilizes; confirm the exact `http_server_duration*` metric name in Grafana at
