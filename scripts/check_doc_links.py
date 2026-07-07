@@ -20,12 +20,15 @@ from pathlib import Path
 # Repo root = the parent of this script's directory (scripts/).
 ROOT = Path(__file__).resolve().parent.parent
 
-# The documentation set we hold to "no dead links". Kept to the published-facing docs plus the two
-# root records; planning/** is intentionally excluded (forward-only churn, not published).
+# The documentation set we hold to "no dead links": the published-facing docs, the two root
+# records, and the living planning/infra trackers (added 2026-07-08 so retiring a planning file
+# can't silently strand links pointing at it).
 DOC_GLOBS = (
     "docs/**/*.md",
     "README.md",
     "CHANGELOG.md",
+    "planning/**/*.md",
+    "infra/**/*.md",
 )
 
 # Inline markdown links: [text](target). Capturing group 1 is the target (may carry a #anchor and/or

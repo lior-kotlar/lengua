@@ -6,14 +6,14 @@
 # + web 200). Prod is a SEPARATE gated promotion (deploy-prod.yml).
 #
 # ──────────────────────────────────────────────────────────────────────────────────────────────
-# GATING — why `main` stays GREEN with NO live deploy until the owner opts in:
-#   Every job below is gated `if: ${{ vars.DEPLOY_ENABLED == 'true' }}`. The repo VARIABLE
-#   DEPLOY_ENABLED is currently UNSET, so on each push to main EVERY job is SKIPPED → the run is a
-#   green no-op (a skipped job is not a failure; it does not redden main). This workflow does NOT
-#   trigger on `pull_request`, so it never runs on — or reddens — a PR. To turn CD on, the owner
-#   sets the variable once: `gh variable set DEPLOY_ENABLED -b true` (see
-#   planning/go-live-activation.md §E and planning/outstanding-work.md §12). Nothing here ever
-#   hard-fails on a missing secret/var — unset just means "skip".
+# GATING — every job below is gated `if: ${{ vars.DEPLOY_ENABLED == 'true' }}`.
+#   The repo VARIABLE DEPLOY_ENABLED has been `true` since 2026-06-29 (go-live §E), so every push
+#   to `main` — including docs-only merges — runs a REAL staging deploy (build+push image, idempotent
+#   `alembic upgrade head`, Cloud Run + Vercel deploy, smoke). Unsetting the variable turns each job
+#   into a green skipped no-op (a skipped job is not a failure; it does not redden main). This
+#   workflow does NOT trigger on `pull_request`, so it never runs on — or reddens — a PR. Nothing
+#   here ever hard-fails on a missing secret/var — unset just means "skip". See
+#   planning/go-live-activation.md §E.
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 name: deploy-staging
 

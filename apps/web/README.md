@@ -171,7 +171,6 @@ apps/web/
       theme-provider.tsx  light/dark/system theming (persisted)
       theme-toggle.tsx    header theme toggle
       use-theme.ts        theme context + useTheme() hook
-      placeholder-screen.tsx  stub used by the not-yet-built screens
       ui/                 shadcn-generated primitives (button/card/input/dialog/toast…) — coverage-excluded
     pages/                one component per route (Dashboard/Generate/Review/Discover/Languages/
                           Settings/Account + Login/Signup/ForgotPassword/ResetPassword/AuthCallback/NotFound)

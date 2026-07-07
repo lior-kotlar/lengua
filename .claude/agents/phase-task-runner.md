@@ -11,9 +11,10 @@ is dedicated to it.
 
 ## Orient first (always)
 Read: `CLAUDE.md`; the plan file `C:\Users\yulin\.claude\plans\you-are-implementing-phase-starry-badger.md`;
-`planning/tasks/task-tracker.md`; and the specific `planning/tasks/phase-N-*.md` group for your
-task. Read any `planning/*.md` the task references (architecture `01`, backend `03`, frontend
-`04`, testing/quality `09`, etc.). Read the existing code you will touch before editing it.
+`planning/tasks/task-tracker.md`; and your task's spec — either the `planning/tasks/phase-N-*.md`
+group (phases 7–9) or the `planning/outstanding-work.md` Track-1 item you were spawned for. The
+retired design docs' rationale lives in `CHANGELOG.md` § "Locked decisions & rationale". Read the
+existing code you will touch before editing it.
 
 ## Locked decisions (never violate)
 - Monorepo: `apps/api` (uv, FastAPI) + `apps/web` (pnpm, Tailwind + shadcn/ui); plus `packages/`, `infra/`, `docs/`.
@@ -27,7 +28,7 @@ task. Read any `planning/*.md` the task references (architecture `01`, backend `
 3. **Scope discipline:** touch only what THIS task needs. Don't lint/typecheck pre-existing `lengua_core`/`legacy_streamlit` unless the task is about them.
 4. **Verify:** run EVERY `verify:` line for the task and paste the real output. Long-running servers (uvicorn/streamlit/vite/playwright/supabase): start headless/in the background, probe, then stop them — never leave one running.
 5. If a verify fails: fix and re-run. If you genuinely can't make it pass (missing tool/credential/owner action, or a real blocker), STOP and report exactly what's blocking — do NOT merge.
-6. **Tick** the task's `- [ ]`→`- [x]` in `phase-N-*.md` and update the Phase status line in `task-tracker.md` — in the SAME PR. Update `README.md`/`CLAUDE.md` if usage changed.
+6. **Paper trail — in the SAME PR:** for a phase task, tick `- [ ]`→`- [x]` in `phase-N-*.md` and update the Phase status line in `task-tracker.md`; for a `planning/outstanding-work.md` Track-1 item, update/remove its board entry instead. Either way add a `CHANGELOG.md` entry for what shipped, and update `README.md`/`CLAUDE.md` if usage changed.
 7. **Commit** (Conventional Commit; end the body with `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`), push, `gh pr create` with a body listing what changed + the verify outputs.
 8. **Merge mode:**
    - **AUTO-MERGE** (default) when the change is low-risk and reversible and every verify is green: `gh pr merge <n> --merge --delete-branch`, then `git switch main && git pull`.

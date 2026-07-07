@@ -11,8 +11,8 @@ automatically on every request, so you only ever supply the words.
 ## Repository layout & how to run each app
 
 Lengua is being productionized from a single Streamlit app into a monorepo (FastAPI API +
-React web app + Supabase + Cloud Run). The full plan lives in [`planning/`](planning/) — start
-at [`planning/tasks/task-tracker.md`](planning/tasks/task-tracker.md).
+React web app + Supabase + Cloud Run). The open work lives in [`planning/`](planning/) — start
+at [`planning/README.md`](planning/README.md).
 
 ```
 apps/
