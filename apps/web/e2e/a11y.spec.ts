@@ -128,6 +128,14 @@ test.describe('accessibility (axe) @a11y', () => {
   test('authenticated surfaces have zero serious color-contrast violations', async ({
     page,
   }) => {
+    // Audit the SETTLED UI, not mid-animation. The app's entrance transitions fade/scale content in
+    // from opacity 0 (framer-motion), so a scan fired before they finish measures reduced-opacity
+    // *composite* colours (e.g. muted text at ~93% reads lighter, white-on-primary reads ~4.4:1) —
+    // false positives that have nothing to do with the resting palette WCAG contrast is defined on.
+    // The app wraps everything in `<MotionConfig reducedMotion="user">`, so emulating the
+    // reduced-motion preference makes those animations resolve to their final state immediately.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
     const findings: ContrastFinding[] = [];
 
     await login(page);
