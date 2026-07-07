@@ -89,7 +89,8 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   `--cov-fail-under` to 0 with a loud banner (`tests/conftest.py::pytest_configure`) instead of
   false-failing red — so local coverage still ≠ CI coverage, but a DB-less run is no longer a false red.
 - **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — bump the `python:3.12-slim`
-  digest during deploy hardening or via Dependabot once enabled.
+  digest during deploy hardening or via Dependabot once enabled. *(Last refreshed 2026-07-07 →
+  `sha256:423ed6ab…`, round-3; the tag drifts, so re-check periodically.)*
 - **Doc stubs:** `docs/privacy-policy.md` is now the real GDPR policy (Phase 8, #130); the runbook's
   **On-call** + **Store-release** sections are still finalized at launch (Phase 9).
 - **Public deletion endpoint — DoS hardening (low / latent, #131).** The adversarial security review

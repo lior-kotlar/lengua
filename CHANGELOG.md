@@ -39,6 +39,11 @@ colour-contrast pass.
   iOS-brand **solid** buttons — white-on-systemBlue (dark primary) and white-on-systemRed
   (destructive confirm) — render only in dialogs / dark mode, never on the swept light happy path, so
   they stay as the tracked brand exceptions (floored at the 3:1 UI minimum by the token test).
+- **Base-image digest refresh (#136).** Bumped the pinned `python:3.12-slim` digest in
+  `apps/api/Dockerfile` from `sha256:6c4dd321…` to the current multi-arch index digest
+  `sha256:423ed6ab…` (the tag had drifted, picking up base-OS updates). The builder and runtime
+  stages stay in lockstep on the same pin; the `build` CI job (image build + `/health` smoke) is the
+  gate. Closes the "base-image digest pin needs periodic refresh" tech-debt line.
 
 ## 2026-07-06 — Phase 8 compliance & store (buildable code slice)
 

@@ -19,7 +19,7 @@
 # (Dependabot's `docker` ecosystem can also bump this `FROM` pin automatically.)
 
 # ── Builder ───────────────────────────────────────────────────────────────────
-FROM python:3.12-slim@sha256:6c4dd321d176d61ea848dc8c73a4f7dbae8f70e0ee48bb411ea2f045b599fa8e AS builder
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf AS builder
 
 # uv: fast, frozen, reproducible dependency install.
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
 # Same digest-pinned base as the builder stage (keep both in lockstep when refreshing the pin).
-FROM python:3.12-slim@sha256:6c4dd321d176d61ea848dc8c73a4f7dbae8f70e0ee48bb411ea2f045b599fa8e AS runtime
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf AS runtime
 
 # Non-root runtime user.
 RUN groupadd --system app && useradd --system --gid app --create-home app
