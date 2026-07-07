@@ -120,7 +120,7 @@ export function DailyLimitPanel({ error, className }: DailyLimitPanelProps) {
       <div className="min-w-0 space-y-1">
         <p className="text-body font-semibold">Daily limit reached</p>
         <p className="text-subhead">{description}</p>
-        <p className="pt-1 text-subhead text-hig-orange-deep/80">{body}</p>
+        <p className="pt-1 text-subhead text-hig-orange-deep">{body}</p>
       </div>
     </div>
   );

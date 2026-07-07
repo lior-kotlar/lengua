@@ -484,13 +484,13 @@ jobs:
             if [ "$i" = "30" ]; then echo "web preview did not start"; cat ../../preview.log; exit 1; fi
             sleep 1
           done
-          # REQUIRED auth E2E — excludes the advisory @a11y sweep so a11y findings never gate merges.
+          # REQUIRED auth E2E — the @a11y sweep runs as its own step below, so keep it out of this one.
           pnpm exec playwright test --grep-invert "@a11y"
-          # ADVISORY: broaden the axe pass beyond /login onto the authenticated surfaces (dashboard/
-          # generate/review/discover/settings) against the same live stack while the preview server is
-          # still up. Never blocks — the @a11y spec only logs+attaches violations, and `|| echo` keeps
-          # even an axe/page error non-fatal (mirrors the a11y-perf job's advisory intent).
-          pnpm exec playwright test --grep "@a11y" || echo "a11y advisory — violations logged, not blocking"
+          # REQUIRED a11y: the axe sweep of the authenticated surfaces (dashboard/generate/review/
+          # discover/settings) now GATES on serious `color-contrast` (WCAG 2.1 AA) — the design-token
+          # contrast pass cleared them, so a regression fails the build. It still attaches the full
+          # per-screen axe report + logs every other (advisory) finding without gating on them.
+          pnpm exec playwright test --grep "@a11y"
 
       - name: API logs (on failure)
         if: failure()

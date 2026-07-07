@@ -100,7 +100,7 @@ export default function Languages() {
                           </span>
                         )}
                         {isActive && (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-caption font-semibold text-hig-blue-deep">
+                          <span className="shrink-0 rounded-full bg-hig-blue/15 px-2 py-0.5 text-caption font-semibold text-hig-blue-deep">
                             Active
                           </span>
                         )}

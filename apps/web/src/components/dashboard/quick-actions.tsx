@@ -42,7 +42,7 @@ export function QuickActions() {
           to={action.to}
           className="flex items-center gap-3 rounded-lg border bg-card p-4 shadow-card transition-all [transition-duration:250ms] ease-apple hover:-translate-y-px hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-hig-blue/15 text-hig-blue-deep">
             <action.icon className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="min-w-0">
