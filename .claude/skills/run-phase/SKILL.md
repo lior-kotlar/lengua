@@ -14,6 +14,7 @@ phase.
 1. **Orient.** Read `CLAUDE.md`, `planning/tasks/task-tracker.md`, and the plan file. Pick the target phase:
    - If the user passed a number (`/run-phase 1`), use it.
    - Otherwise the LOWEST phase with unchecked `- [ ]` tasks (scan `planning/tasks/phase-*.md`). Finish a partially-done phase before starting the next.
+   - ⚠ Phases 7–9 are **deferred by decision** (`planning/outstanding-work.md` Track 3, after the owner prod cutover) — confirm with the user before auto-picking one; single code items go through `/next-task` instead.
 2. **Plan the phase.** Read `planning/tasks/phase-N-*.md`. Build the ordered list of groups/tasks honoring every `depends:` line. Assign each a mode:
    - **auto-merge** — scaffolding / low-risk / self-verifying changes.
    - **pause** — owner-only actions (branch protection, secrets, dashboards, paid accounts), non-trivially-reversible migrations, security/auth/cost-guard, or anything you'd want a human to review. When unsure → pause.
@@ -29,6 +30,6 @@ phase.
 
 ## Guardrails
 - Honor the locked decisions in `CLAUDE.md`. Never push to `main` directly; agents self-merge only low-risk, green PRs.
-- Owner-blocked items (e.g. Phase 0: `0.6.3` branch-protection rule details, `0.6.4` Dependabot, `0.7.8`–`0.7.10` dashboards) are NOT yours — surface them to the user.
+- Owner-blocked items (branch protection, Dependabot, dashboards, paid store accounts — see `planning/owner-deferred-tasks.md` and `planning/outstanding-work.md` Track 2) are NOT yours — surface them to the user.
 - If the phase needs a product/architecture decision you can't confidently make, pause and ask.
 - Keep THIS session light: the work lives in the sub-agents; you only orchestrate and summarize.

@@ -7,12 +7,53 @@ This is the source of truth for **what is done**; open work lives in
 [`planning/go-live-activation.md`](planning/go-live-activation.md).
 
 > The productionization ran trunk-based, one PR per task, in phase order (PRs #1 → #114), so the
-> PR ranges below map to phases by merge order (the top-of-log post-close-out fixes reach #122).
+> PR ranges below map to phases by merge order (the top-of-log post-close-out sections carry the
+> later PR refs, currently up to #139).
 > Milestones: **M1** = backend loop over HTTP;
 > **M2** = multi-user (auth + RLS) with the LLM cost guard armed; **M3** = React web app at full
 > parity; **M4** = deployed to staging **and** prod (staging leg live; prod leg = owner cutover).
 
 ---
+
+## 2026-07-08 — Planning reorganization, round-3 close-out & `/next-task` tooling
+
+A validated close-out and restructure of the planning surface, so what's left is unambiguous.
+Every "done" claim below and in the planning docs was first **re-verified in-tree** (parallel
+validation agents over the code, CI config, git/GitHub state, doc-link integrity, and a
+repo-wide completeness sweep) before any file was changed.
+
+- **Round-3 sweep closed out.** Items 1/3/2b/2a merged as #135–#138 (previous section). Item
+  **2c** (bound the shared `InProcessRateLimiter`) is the **one remaining non-owner code item** —
+  moved with its ready-to-implement spec to `planning/outstanding-work.md` **Track 1.1**
+  (pause-for-review: the class is shared with the LLM cost guard). Item 4
+  (`proficiency_cefr_band` metric) stays **skipped** — a categorical, process-local gauge only
+  judgeable against the live CEFR panel, so it's deferred into the Phase-5 live wiring (Track 2
+  (B)). `planning/doable-now-round3.md` deleted per its own final-PR instruction (mirroring
+  round 2's removal in #128).
+- **Planning reorganized into three tracks.** `outstanding-work.md` restructured by *who can act*:
+  **Track 1** code-doable-now (item 2c + the open code issues #99/#80/#95 — newly surfaced on the
+  board — + the optional post-v1 pull-forwards), **Track 2** owner-gated (prod cutover, Phase-5
+  live observability, owner setup residuals), **Track 3** deferred-by-decision (mobile → store
+  consoles → launch). `planning/README.md` rewritten as a start-here index.
+- **Phase-8 task file synced to shipped reality.** #130–#133 had shipped the code slice but left
+  0/36 boxes ticked; now 8.1.1, 8.2.1, 8.2.3, 8.2.4, 8.4.1, 8.7.1 are `[x]` with PR refs and
+  8.1.2, 8.1.3, 8.2.2, 8.3.1, 8.3.2 are `[~]` (code half done; prod-URL/console half owner-gated,
+  incl. 8.3.2's doc half which was already satisfied but uncredited). `task-tracker.md`'s Phase-8
+  row corrected from "not started" to ◐ code-slice-done.
+- **`/next-task` skill added** (`.claude/skills/next-task/`) — the single-item sibling of
+  `/run-phase`: drives one Track-1 board item end-to-end via a fresh **Opus/max**
+  `phase-task-runner` agent (implement → verify → PR → self-merge or pause), with the
+  local-environment gotchas (offline-only local tests, `corepack pnpm`, repo-wide `mypy`, OpenAPI
+  regen discipline) baked into the prompt. The orchestrating session stays on the session model;
+  implementation agents run Opus.
+- **Doc-link CI broadened.** `scripts/check_doc_links.py` now also scans `planning/**/*.md` +
+  `infra/**/*.md` (24 files, 168 links), so retiring a planning file can no longer silently strand
+  links (previously only links *from* docs/README/CHANGELOG were protected).
+- **Stale-doc fixes:** `phase-task-runner.md` / `run-phase` no longer point at the retired
+  numbered design docs / phase-0 task file; `deploy-staging.yml`'s header no longer claims
+  `DEPLOY_ENABLED` is unset (it's been `true` since 2026-06-29 — every `main` merge really
+  deploys staging); `apps/web/README.md` dropped the long-deleted `placeholder-screen.tsx` entry;
+  the root README planning pointer now starts at `planning/README.md`.
 
 ## 2026-07-07 — Round-3 doable-now sweep
 

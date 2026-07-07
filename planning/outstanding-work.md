@@ -1,75 +1,133 @@
 # Outstanding work — what's left
 
-**What this is:** the single live list of everything in Lengua that is **not complete** — the
-launch path, owner-blocked items, and known engineering gaps. Whenever something incomplete is
-noticed (in any session), append it here with *where* + *status*.
+**What this is:** the single live list of everything in Lengua that is **not complete**, organized
+into three tracks by *who can act on it and when*. Whenever something incomplete is noticed (in any
+session), append it to the matching track with *where* + *status*.
 
-Everything **done** (phases 0–6, M1–M3, the M4 staging leg, the 22 resolved live-staging findings,
-and the locked decisions) is recorded in [`../CHANGELOG.md`](../CHANGELOG.md). The owner launch
-runbook (a `verify:` gate on every step) is [`go-live-activation.md`](go-live-activation.md);
-owner-only repo hardening is [`owner-deferred-tasks.md`](owner-deferred-tasks.md).
+Everything **done** — phases 0–6, milestones M1–M3, the M4 staging leg, the 22 resolved
+live-staging findings, the three doable-now hardening sweeps, and the Phase-8 compliance code
+slice — is recorded in [`../CHANGELOG.md`](../CHANGELOG.md). Validated 2026-07-08 against the code
+(every "done" claim re-verified in-tree before this reorganization).
 
-Conventions: ☐ open · 🔒 blocked-on-owner · ◐ as-code-done / live-owner-deferred.
+**How to run a work item:** `/next-task` (one Track-1 item per run — see
+[`../.claude/skills/next-task/SKILL.md`](../.claude/skills/next-task/SKILL.md)) or `/run-phase N`
+(a whole phase). Both spawn `phase-task-runner` agents (Opus / max) that implement → verify →
+PR → self-merge or pause; the orchestrating session stays light.
+
+| Track | What | Who / when |
+| --- | --- | --- |
+| **[1 — Code, doable now](#track-1--code-work-doable-now)** | buildable + CI-verifiable; no owner creds, no prod, no mobile | any Claude Code session, now |
+| **[2 — Owner-gated](#track-2--owner-gated)** | needs live consoles / creds / DNS / paid accounts | Kotlar (or Ben once creds exist) |
+| **[3 — Deferred by decision](#track-3--deferred-by-decision-mobile--store--launch)** | mobile → store → launch — deliberately later, after the Track-2 prod cutover | later, in order |
+
+Plus [tech debt / watch items](#tech-debt--watch-items) at the bottom.
 
 ---
 
-## ★ What's left to launch — single source of truth
+## Track 1 — Code work, doable now
 
-- **(A) M4 prod cutover** — owner ([`go-live-activation.md`](go-live-activation.md) §F). Apply the
-  prod DB schema incl. migration `0006` (⚠ first swap `SUPABASE_PROD_DATABASE_URL` to the IPv4
-  **session pooler**, port 5432 — the direct IPv6 host fails on GitHub runners); prod Supabase Auth +
-  API CORS = exact prod origins; create the GitHub **`production` environment + required reviewer**,
+*Scope guardrails: do NOT touch mobile/Capacitor, prod, secrets, migrations, or store consoles.
+Everything here lands trunk-based, one PR per item, proven by the per-PR CI gate (≥80% coverage
+held, legacy Streamlit kept runnable).*
+
+### 1.1 Bound `InProcessRateLimiter` — the last hardening item · ⚠ PAUSE FOR REVIEW
+
+The third and final low/latent DoS item from the #131 adversarial review (items 1 and 2 closed in
+#138/#137). `InProcessRateLimiter` ([`apps/api/app/ratelimit.py`](../apps/api/app/ratelimit.py))
+only reclaims a key's entry on *re-hit*, so one-shot distinct keys (attacker-varied emails/IPs
+behind the deletion-request limiters) accumulate unbounded.
+
+**Plan (ready to implement):** add a `max_keys` ctor arg (default ~100 000) and a
+`_sweep_expired(now)` that drops every **fully-expired** key (newest timestamp already aged out of
+the window), invoked from `hit()` when `len(self._hits) > max_keys`. It only drops expired keys, so
+no active window is touched → `tests/quota/*` must not regress. Add a whitebox test in
+[`../apps/api/tests/quota/test_ratelimit.py`](../apps/api/tests/quota/test_ratelimit.py) (style:
+`FakeClock`, `limiter._hits`) with a small `max_keys` proving the map bounds.
+
+**verify:** all `tests/quota/*` pass unchanged + the new bound test; ≥80% coverage held; full CI green.
+**⚠ This class is shared with the LLM cost guard — open the PR and PAUSE for review; do NOT
+self-merge.**
+
+### 1.2 Open GitHub issues that are pure code
+
+| Issue | What | Size | Note |
+| --- | --- | --- | --- |
+| [#99](https://github.com/lior-kotlar/lengua/issues/99) | Show/hide ("eye") toggle on password inputs | S | self-merge on green |
+| [#80](https://github.com/lior-kotlar/lengua/issues/80) | Move LLM prompts to the database with versioning | M | architectural — pause for review |
+| [#95](https://github.com/lior-kotlar/lengua/issues/95) | Free-form vs curated language list | design decision | decide with the owner first, then implement |
+
+### 1.3 Post-v1 backlog (deliberately post-launch — pull forward only if wanted)
+
+Not launch-blocking; the plan schedules these after v1. Each is pure code and could be pulled into
+Track 1 by choice: **offline review + sync** (cache due batch, queue grades offline, flush on
+reconnect — the stated #1 post-launch item); **accessibility remainder** (screen-reader labels,
+font scaling — colour contrast is already WCAG 2.1 AA and CI-gated, #135); server push
+notifications (FCM/APNs; v1 uses on-device local reminders); TTS audio (on-device first); streaks /
+gamification; import/export & shared decks (beyond Anki import); UI internationalization (the
+app's own UI is English-only); spaced-repetition insights (progress charts, review forecast);
+admin / support tooling (support views, abuse review, manual budget override).
+
+---
+
+## Track 2 — Owner-gated
+
+Needs live accounts, consoles, DNS, or the deployed prod service. Step-by-step runbook:
+[`go-live-activation.md`](go-live-activation.md).
+
+- **(A) M4 prod cutover** — [`go-live-activation.md`](go-live-activation.md) §F. Apply the prod DB
+  schema incl. migration `0006` (⚠ first swap `SUPABASE_PROD_DATABASE_URL` to the IPv4 **session
+  pooler**, port 5432 — the direct IPv6 host fails on GitHub runners); prod Supabase Auth + API
+  CORS = exact prod origins; create the GitHub **`production` environment + required reviewer**,
   then promote the exact staging-validated **image digest** (no rebuild); deploy web prod; run the
-  rollback drill (≥2 revisions retained).
-- **(B) Phase-5 live observability** — owner ([`go-live-activation.md`](go-live-activation.md) §G).
-  Traces in Tempo + per-route p95 in Mimir; logs in Loki + Tempo→Loki jump; RED / cost-guard /
-  product / infra dashboards non-empty; Sentry issues ↔ trace; Grafana + Sentry alert rules firing
-  to a real channel; external uptime monitor; PostHog funnel / D1-D7 retention / feature usage. The
-  as-code is all committed (`infra/grafana/**`, `infra/uptime/**`, the exporters + alert rules);
-  what's left needs **live Grafana/Sentry/PostHog/uptime creds + the deployed service** (staging is
-  live now, so most of this is unblocked once the dashboards are wired).
-- **(C) Phase 7 — mobile** ([`tasks/phase-7-mobile.md`](tasks/phase-7-mobile.md)). Paid store
-  accounts (Apple $99/yr — start early; Google Play $25), Capacitor native projects + plugins,
-  OAuth-in-webview, OTA channel, on-device full-loop validation.
-- **(D) Phase 8 — compliance & store** ([`tasks/phase-8-compliance-store.md`](tasks/phase-8-compliance-store.md)).
-  The **buildable/CI-verifiable code slice is being pulled forward** (see `CHANGELOG.md`): ◐ 8.1.1
-  real GDPR privacy policy done (#130) with a `docs` link-check CI job; ◐ 8.1.2 + 8.3.1 the public
-  `/delete-account` form + `/privacy` + `/support` routes + the request→confirm→cascade API done
-  (#131). ◐ 8.2.1 + 8.2.3 + 8.2.4 launch-blocker E2E assertions (consent → no analytics across a full
-  session; export download == `GET /account/export`; in-app delete via in-app nav only + clears the
-  session) done (#132). ◐ 8.4.1 + 8.7.1 + 8.2.2 `docs/store-listing.md` (data-inventory matrix +
-  store-listing copy with a CI character-limit check + per-processor EU residency) + the runbook
-  data-residency record done (#133). **The buildable/CI-verifiable Phase-8 slice is now complete.**
-  **Owner-blocked (store/prod), all requiring the paid store accounts + the deployed prod app:**
-  Apple App Privacy labels (8.4.2) + encryption declaration (8.4.3), Play Data Safety (8.5.x), age
-  ratings (8.6), store-console listing entry (8.7.2/8.7.3), device screenshots (8.8), and the
-  TestFlight/Play closed tests (8.9) — each derives from the docs above but needs the live consoles.
-  - **Placeholder to confirm at launch:** the privacy policy + `/support` + `/delete-account` use
-    `privacy@lengua.app` and `https://lengua.app`. Before public launch the contact address must
-    point to a **monitored inbox** and the host must match the real prod web domain (owner cutover).
-- **(E) Phase 9 — launch** ([`tasks/phase-9-launch.md`](tasks/phase-9-launch.md)). Cross-platform
-  prod smoke, store submit → promote, custom-domain cutover, 48h watch; finalize the runbook On-call
-  + Store-release sections.
-- **(F) Owner setup still open** ([`owner-deferred-tasks.md`](owner-deferred-tasks.md)). Resend custom
-  SMTP + SPF/DKIM/DMARC on a verified domain → **re-enable prod email confirmation** (issue #103, the
-  interim staging `mailer_autoconfirm=true` must NOT ship to prod); Google (2.1.2) + Apple (2.1.3)
-  OAuth + `VITE_OAUTH_PROVIDERS` per env; branch protection (0.6.3) + Dependabot (0.6.4) at launch;
-  gate prod `/docs` `/redoc` `/openapi.json` (S20); Vercel→Cloudflare host migration
-  ([`go-live-activation.md`](go-live-activation.md) §H, plan-only).
-- **(G) Post-v1 / post-launch backlog** (not blocking launch): offline review + sync (cache due
-  batch, queue grades offline, flush on reconnect — the stated #1 post-launch item); server push
-  notifications (FCM/APNs; v1 uses on-device local reminders); TTS audio (on-device first); streaks /
-  gamification; import/export & shared decks (beyond Anki import); UI internationalization (the app's
-  own UI is English-only); spaced-repetition insights (progress charts, review forecast); admin /
-  support tooling (support views, abuse review, manual budget override); accessibility pass —
-  colour **contrast** is now WCAG 2.1 AA and CI-gated across the authenticated surfaces in both
-  themes (round-3, see CHANGELOG; `e2e/a11y.spec.ts` asserting + `src/token-contrast.test.ts`), with
-  screen-reader labels and font scaling still remaining. **Watch:** confirm Supabase free-tier
-  idle-pausing / project limits at setup.
+  rollback drill (≥2 revisions retained). Also at cutover: swap the `privacy@lengua.app` +
+  `https://lengua.app` placeholders (privacy policy, `/support`, `/delete-account`,
+  `docs/store-listing.md`) to the monitored inbox + real prod domain.
+- **(B) Phase-5 live observability** — [`go-live-activation.md`](go-live-activation.md) §G. Traces
+  in Tempo + per-route p95 in Mimir; logs in Loki + Tempo→Loki jump; RED / cost-guard / product /
+  infra dashboards non-empty; Sentry issues ↔ trace; Grafana + Sentry alert rules firing to a real
+  channel; external uptime monitor; PostHog funnel / D1–D7 retention / feature usage. All as-code
+  committed (`infra/grafana/**`, `infra/uptime/**`, exporters + alert rules); needs live
+  Grafana/Sentry/PostHog/uptime creds against the deployed service. **Do alongside it** (deferred
+  observability follow-ups): export the browser client span to Tempo; unify web-Sentry ↔ Tempo by
+  `trace_id`; add the `proficiency_cefr_band` metric with the live CEFR panel to judge it against
+  (skipped in round 3 as untestable without the panel); confirm the exact `http_server_duration*`
+  metric name in Grafana.
+- **(F) Owner setup residuals** — details in [`owner-deferred-tasks.md`](owner-deferred-tasks.md):
+  Resend custom SMTP + SPF/DKIM/DMARC on a verified domain → **re-enable prod email confirmation**
+  ([issue #103](https://github.com/lior-kotlar/lengua/issues/103); the interim staging
+  `mailer_autoconfirm=true` must NOT ship to prod); Google + Apple OAuth creds +
+  `VITE_OAUTH_PROVIDERS` per env; branch protection (0.6.3) + Dependabot (0.6.4) at launch (⚠ turning
+  branch protection on ends the autonomous self-merge flow); gate prod `/docs` `/redoc`
+  `/openapi.json` (S20); move Cloud Run to a dedicated runtime SA with
+  `secretmanager.secretAccessor` only (6.1.6); Vercel→Cloudflare host migration
+  ([`go-live-activation.md`](go-live-activation.md) §H — **plan only**, do not execute).
+- **Phase-6 live remainder** (folds into (A)): live rollback drill (`6.8.2`
+  `infra/deploy/rollback.sh` once), RLS pytest against the staging DB (`6.2.4`), confirm idempotent
+  seed (`6.2.5`), live secret-rotation (`6.4.4`), backup/restore drill (`6.8.4`).
 
 ---
 
-## Known engineering gaps / tech-debt (open)
+## Track 3 — Deferred by decision (mobile → store → launch)
+
+Deliberately postponed (owner call, 2026-07): do these after the prod cutover, in order.
+
+- **(C) Phase 7 — mobile** ([`tasks/phase-7-mobile.md`](tasks/phase-7-mobile.md), ☐ not started).
+  Paid store accounts (Apple $99/yr — start early; Google Play $25), Capacitor native projects +
+  plugins, OAuth-in-webview, OTA channel, on-device full-loop validation.
+- **(D) Phase 8 — store consoles** ([`tasks/phase-8-compliance-store.md`](tasks/phase-8-compliance-store.md)).
+  The **buildable/CI-verifiable code slice is DONE** (#130–#133 — privacy policy + docs CI, public
+  deletion path + `/privacy` `/support` `/delete-account`, launch-blocker E2E, store-listing +
+  data-inventory + residency). Remaining tasks are **owner-blocked on the paid store accounts + the
+  deployed prod app**: Apple App Privacy labels (8.4.2) + encryption declaration (8.4.3), Play Data
+  Safety (8.5.x), age ratings (8.6), console listing entry (8.7.2/8.7.3), device screenshots (8.8),
+  TestFlight/Play closed tests (8.9) — each derives from `docs/store-listing.md`.
+- **(E) Phase 9 — launch** ([`tasks/phase-9-launch.md`](tasks/phase-9-launch.md), ☐ not started).
+  Cross-platform prod smoke, store submit → promote, custom-domain cutover, 48h watch; finalize the
+  runbook On-call + Store-release sections.
+
+---
+
+## Tech debt / watch items
 
 Small, non-blocking items in shipped code — close when the relevant area is next worked:
 
@@ -78,63 +136,23 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   `authenticated` role + `auth.uid()`); a bare Alembic-only Postgres 500s on the role switch. Also
   asyncpg's prepared-statement cache breaks against the Supabase **transaction** pooler (6543) —
   use the **session** pooler (5432) or `statement_cache_size=0`. Confirm prod `DATABASE_URL` before
-  the cutover (folds into (A)).
-- **Runtime service account.** The hand-deployed staging revision uses the **default compute SA** —
-  move Cloud Run to a dedicated runtime SA with `secretmanager.secretAccessor` **only** (6.1.6).
+  the cutover (folds into Track 2 (A)).
+- **Process-local state → shared store when scaling past one Cloud Run instance:** the product
+  metrics (`active_users`/`signups_total`), the rate limiter (incl. the Track-1.1 `max_keys` bound),
+  and the discover cache are all per-process. One shared-store move covers all three.
 - **Coverage carve-outs.** `lengua_core/models.py`, `app/settings.py`, the whole
-  `legacy_streamlit/`, and the web `src/main.tsx` + the `src/components/ui/**` presentational
-  primitives (`.tsx`) are excluded from the 80%
-  gate; ~20 backend modules are `@pytest.mark.integration` (auto-skip offline), so the 80% gate is
-  only truly enforced in CI with Postgres up. A local run without a reachable DB now auto-relaxes
-  `--cov-fail-under` to 0 with a loud banner (`tests/conftest.py::pytest_configure`) instead of
-  false-failing red — so local coverage still ≠ CI coverage, but a DB-less run is no longer a false red.
-- **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — bump the `python:3.12-slim`
-  digest during deploy hardening or via Dependabot once enabled. *(Last refreshed 2026-07-07 →
-  `sha256:423ed6ab…`, round-3; the tag drifts, so re-check periodically.)*
-- **Doc stubs:** `docs/privacy-policy.md` is now the real GDPR policy (Phase 8, #130); the runbook's
-  **On-call** + **Store-release** sections are still finalized at launch (Phase 9).
-- **Public deletion endpoint — DoS hardening (low / latent, #131).** The adversarial security review
-  of `POST /account/deletion-request` confirmed the security invariants hold (no unauthorized delete,
-  no token forgery, no response-body enumeration, correct cascade) and that the mailer-transport 500
-  oracle is fixed. Three residual **low, latent** hardening items remain (all safe at the current
-  <200-user scale — 1:1 amplification today): (1) ~~`find_auth_user_id_by_email` pages the GoTrue
-  Admin API linearly~~ **DONE** (round-3, #138): an indexed `SELECT id FROM auth.users WHERE
-  lower(email) = …` on the privileged session is tried first (removing the unauthenticated-endpoint →
-  Admin-API fan-out), falling back to the Admin API on any DB error so a missing owner-role grant
-  can't regress the flow; (2) ~~add a **per-IP / global** rate limit on that endpoint~~ **DONE**
-  (round-3, #137): a per-IP cap (30/hour, `X-Forwarded-For`-aware) now guards the endpoint alongside
-  the per-email cap; (3) `InProcessRateLimiter` (`app/ratelimit.py`) only reclaims a key's entry on
-  re-hit, so one-shot distinct keys (attacker-varied emails) accumulate — cap the map size or add a
-  TTL sweep. Do (3) when the user base approaches store-scale (folds into the same shared-store move
-  as the process-local rate-limiter / discover-cache).
+  `legacy_streamlit/`, and the web `src/main.tsx` + `src/components/ui/**` presentational
+  primitives are excluded from the 80% gate; ~20 backend modules are `@pytest.mark.integration`
+  (auto-skip offline), so the 80% gate is only truly enforced in CI with Postgres up. A local no-DB
+  run auto-relaxes `--cov-fail-under` to 0 with a loud banner (`tests/conftest.py`).
+- **Base-image digest pin needs periodic refresh** (`apps/api/Dockerfile`) — last refreshed
+  2026-07-07 → `sha256:423ed6ab…` (#136); the tag drifts, so re-check periodically (or via
+  Dependabot once enabled).
+- **Doc finalization at launch:** the runbook **On-call** + **Store-release** sections are filled in
+  at launch (Phase 9).
 - **Stale code-comment doc citation (migration only).** The applied migration
-  `migrations/versions/20260630_0006_*.py` still cites the deleted `staging-validation.md` (finding
-  S1). Migrations are off-limits even for comments, so this one lingers by design; every other stale
-  citation (`app/quota.py`, `app/repositories/__init__.py`, `lengua_core/llm/keys.py`,
-  `.github/workflows/ci.yml`, `e2e-staging/signup.spec.ts`) was repointed to `CHANGELOG.md`.
-- **Observability follow-ups** (do alongside (B)): export the browser client span to Tempo (today the
-  web only injects `traceparent`); unify web-Sentry ↔ Tempo by `trace_id`; add a `proficiency_cefr_band`
-  metric to light up the CEFR dashboard panel *(round-3 item 4 — deliberately deferred here: a
-  categorical band is only meaningful as a per-user "latest band" distribution, another process-local
-  gauge whose usefulness needs the live panel to judge; do it with the Phase-5 wiring, not standalone)*;
-  move the process-local product metrics
-  (`active_users`/`signups_total`) + rate-limiter + discover-cache to a shared store when scaling past
-  one Cloud Run instance; revisit the `opentelemetry.sdk._logs.LoggingHandler` deprecation when the
-  OTel logs signal stabilizes; confirm the exact `http_server_duration*` metric name in Grafana at
-  deploy (the drift test tolerates suffixed/unsuffixed).
-
----
-
-## Phase-5 / Phase-6 remaining (pointer)
-
-Both phases are **as-code complete and CI-green**; only their **live halves** remain, and they are
-owner-run against live cloud resources:
-
-- **Phase 6** — the M4 staging leg is live and validated (see CHANGELOG). Remaining: the **prod
-  cutover** (item A) + the live rollback drill + the live staging DB verifies (`6.2.4` RLS pytest
-  against the staging DB, `6.2.5` confirm idempotent seed, `6.8.2` run `infra/deploy/rollback.sh`
-  once) + `6.4.4` live secret-rotation + `6.8.4` backup/restore drill. Step-by-step:
-  [`go-live-activation.md`](go-live-activation.md) §F.
-- **Phase 5** — item B. Every exporter, dashboard, alert rule, and uptime descriptor is committed;
-  lighting them up needs live Grafana/Sentry/PostHog creds against the deployed service.
-  Step-by-step: [`go-live-activation.md`](go-live-activation.md) §G.
+  `migrations/versions/20260630_0006_*.py` still cites the deleted `staging-validation.md`;
+  migrations are off-limits even for comments, so it lingers by design.
+- **OTel logs deprecation:** revisit the `opentelemetry.sdk._logs.LoggingHandler` deprecation when
+  the OTel logs signal stabilizes.
+- **Watch:** confirm Supabase free-tier idle-pausing / project limits at prod setup.

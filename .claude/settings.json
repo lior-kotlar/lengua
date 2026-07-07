@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Lengua build: read CLAUDE.md (monorepo + autonomous-build protocol), then run /run-phase for the next incomplete phase in planning/tasks/task-tracker.md. Per-PR verify gate; agents self-merge low-risk green PRs and pause on owner/risky items.'"
+            "command": "echo 'Lengua build: read CLAUDE.md + planning/README.md, then run /next-task for the next Track-1 item in planning/outstanding-work.md (phases 7-9 are deferred by decision - /run-phase N only when the owner asks). Per-PR verify gate; agents self-merge low-risk green PRs and pause on owner/risky items.'"
           }
         ]
       }

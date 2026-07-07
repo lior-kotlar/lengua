@@ -8,17 +8,24 @@
 
 **Status legend:** [ ] todo · [~] in progress · [x] done · [!] blocked
 
+> **Status (2026-07-08): the buildable/CI-verifiable code slice is DONE** (PRs #130–#133, merged +
+> re-validated in-tree — see the CHANGELOG 2026-07-06 section): 8.1.1, 8.2.1, 8.2.3, 8.2.4, 8.4.1,
+> 8.7.1 fully done; 8.1.2, 8.1.3, 8.2.2, 8.3.1, 8.3.2 code-done with only their **prod-URL /
+> console halves** left. Every remaining `[ ]` task below is **owner-blocked** on the paid store
+> accounts (7.1), the signed builds (Phase 7), and/or the deployed prod app — see
+> [`../outstanding-work.md`](../outstanding-work.md) Track 3 (D).
+
 ---
 
 ## 8.1 — Privacy policy & support URLs  ·  S
 
 _Context: both stores require a published, reachable privacy-policy URL and a support/contact URL; the policy must disclose Supabase as the data store and that user vocabulary/sentences are sent to the LLM provider (Groq in dev / Gemini in prod) — see 07 launch-blocker checklist._
 
-- [ ] **8.1.1** Write the privacy policy from the `docs/privacy-policy.md` placeholder: disclose data stored in **Supabase (EU region)**, that submitted vocabulary/sentences are **sent to the LLM provider (Google Gemini in prod) for generation**, the categories of data collected (account email, learning content, anonymized analytics), retention, the lawful basis (GDPR), and a contact email for data requests.
+- [x] **8.1.1** *(DONE #130 — real GDPR policy + `scripts/check_doc_links.py` link-check in the CI `docs` job)* Write the privacy policy from the `docs/privacy-policy.md` placeholder: disclose data stored in **Supabase (EU region)**, that submitted vocabulary/sentences are **sent to the LLM provider (Google Gemini in prod) for generation**, the categories of data collected (account email, learning content, anonymized analytics), retention, the lawful basis (GDPR), and a contact email for data requests.
       verify: `docs/privacy-policy.md` contains explicit sections for "Supabase" and "Gemini"/"LLM provider", a contact email, and the words "export" and "delete"; a markdown-lint / link-check task in CI passes with no dead links.
-- [ ] **8.1.2** Publish the privacy policy at a stable public HTTPS URL (a `/privacy` route on the web app or a static page) and the support/contact info at a `/support` URL, both linked from the web app footer and the in-app Account screen.
+- [~] **8.1.2** *(code DONE #131 — `/privacy` + `/support` routes in a sign-in-free StaticLayout, footer + Account links, Playwright-asserted; owner half left: `curl` the prod URLs after cutover)* Publish the privacy policy at a stable public HTTPS URL (a `/privacy` route on the web app or a static page) and the support/contact info at a `/support` URL, both linked from the web app footer and the in-app Account screen.
       verify: `curl -sI https://<prod-web-host>/privacy` and `curl -sI https://<prod-web-host>/support` each return `200` with `content-type: text/html`; a Playwright test asserts the Account screen renders working links to both URLs.
-- [ ] **8.1.3** Record the canonical privacy-policy URL and support URL in the store-metadata source of truth (`docs/store-listing.md`) so both App Store Connect and Play Console reference the identical published URLs.
+- [~] **8.1.3** *(docs DONE #133 — both URLs in `docs/store-listing.md`; owner half left: live 200 check on the real prod host)* Record the canonical privacy-policy URL and support URL in the store-metadata source of truth (`docs/store-listing.md`) so both App Store Connect and Play Console reference the identical published URLs.
       verify: `docs/store-listing.md` lists both URLs; a check script confirms each URL returns `200` (the same URLs that 8.1.2 publishes) — fails the launch-blocker checklist item in 07 if either is unreachable.
       depends: 8.1.2
 
@@ -26,15 +33,15 @@ _Context: both stores require a published, reachable privacy-policy URL and a su
 
 _Context: EU audience, GDPR-strict (08 round 4). Analytics must be opt-in before PostHog loads, Supabase lives in an EU region, and export/delete must be reachable in-app (07 privacy section)._
 
-- [ ] **8.2.1** Confirm the first-run **analytics consent** gate (built in Phase 4 [4.10.3] and wired to PostHog in Phase 5 [5.9.1]) meets the GDPR launch-blocker: PostHog (and any analytics) initializes **only after explicit opt-in**, the choice persists, and a "decline" path leaves analytics fully uninitialized for the whole session. Add the launch-blocker assertion; do NOT rebuild the banner.
+- [x] **8.2.1** *(DONE #132 — `apps/web/e2e/consent.spec.ts`: zero analytics requests across a full authenticated session after decline)* Confirm the first-run **analytics consent** gate (built in Phase 4 [4.10.3] and wired to PostHog in Phase 5 [5.9.1]) meets the GDPR launch-blocker: PostHog (and any analytics) initializes **only after explicit opt-in**, the choice persists, and a "decline" path leaves analytics fully uninitialized for the whole session. Add the launch-blocker assertion; do NOT rebuild the banner.
       verify: a Playwright E2E test asserts that on first load no PostHog/analytics network request fires until "Accept" is clicked, that declining fires none across a full session, and that the stored consent survives a reload; `pnpm test` covers the consent-gate unit logic.
       depends: 4.10.3, 5.9.1
-- [ ] **8.2.2** Confirm and document **EU data residency**: the Supabase project region is EU, and capture the region of any other data-touching service (Cloud Run / Vercel / PostHog) in `docs/store-listing.md` so the Data Safety / nutrition-label answers are accurate.
+- [~] **8.2.2** *(docs DONE #133 — per-processor residency in `docs/store-listing.md` + a Data-residency (GDPR) record in `docs/runbook.md`; owner half left: record the exact Supabase project-region string + screenshot at cutover)* Confirm and document **EU data residency**: the Supabase project region is EU, and capture the region of any other data-touching service (Cloud Run / Vercel / PostHog) in `docs/store-listing.md` so the Data Safety / nutrition-label answers are accurate.
       verify: the Supabase project settings show an EU region (screenshot/region string recorded in `docs/runbook.md`); `docs/store-listing.md` lists the region of each data processor used in the privacy answers.
-- [ ] **8.2.3** Confirm the in-app **data export** Account action (built in Phase 4 [4.8.2] against `GET /account/export` from Phase 2) satisfies the GDPR export launch-blocker, and add the launch-blocker E2E assertion; do NOT rebuild the UI.
+- [x] **8.2.3** *(DONE #132 — `apps/web/e2e/account.spec.ts`: downloaded file contents asserted equal to the `GET /account/export` response)* Confirm the in-app **data export** Account action (built in Phase 4 [4.8.2] against `GET /account/export` from Phase 2) satisfies the GDPR export launch-blocker, and add the launch-blocker E2E assertion; do NOT rebuild the UI.
       verify: a Playwright E2E logs in as the demo user, clicks "Export my data", and asserts a JSON file is downloaded whose contents match the `GET /account/export` response for that user.
       depends: 4.8.2
-- [ ] **8.2.4** Confirm the in-app **account deletion** Account flow (built in Phase 4 [4.8.3] against `DELETE /account` from Phase 2) satisfies Apple's in-app-deletion requirement, and add the launch-blocker E2E assertion that deletion is reachable using only in-app navigation; do NOT rebuild the UI.
+- [x] **8.2.4** *(DONE #132 — `apps/web/e2e/account.spec.ts`: deletion reached via in-app nav only + session cleared; the E2E stubs `DELETE /account` at the browser boundary to spare the shared demo account — the real cascade incl. `auth.users` removal is proven by the backend integration tests)* Confirm the in-app **account deletion** Account flow (built in Phase 4 [4.8.3] against `DELETE /account` from Phase 2) satisfies Apple's in-app-deletion requirement, and add the launch-blocker E2E assertion that deletion is reachable using only in-app navigation; do NOT rebuild the UI.
       verify: a Playwright E2E logs in as a throwaway user, completes the delete-account confirmation, asserts the session is cleared and re-login fails (account gone); the test reaches deletion using only in-app navigation (no external URL), satisfying Apple's in-app requirement.
       depends: 4.8.3
 
@@ -42,9 +49,9 @@ _Context: EU audience, GDPR-strict (08 round 4). Analytics must be opt-in before
 
 _Context: Google Play requires BOTH an in-app deletion path (8.2.4) AND an externally reachable web deletion request form usable without installing the app (07 launch-blocker checklist)._
 
-- [ ] **8.3.1** Build a public web **account-deletion request form** at a stable URL (e.g. `/delete-account`) reachable without logging into the app, that verifies the requester's email and triggers the same hard-delete-with-cascade path (including removal of the Supabase `auth.users` record) as the in-app flow.
+- [~] **8.3.1** *(code DONE #131 — public `/delete-account` form + `POST /account/deletion-request` / `/deletion-confirm` (signed 1h HMAC token, same cascade as in-app, per-email + per-IP rate-limited, non-enumerating), integration-tested incl. `auth.users` removal; owner half left: `curl` the prod URL after cutover)* Build a public web **account-deletion request form** at a stable URL (e.g. `/delete-account`) reachable without logging into the app, that verifies the requester's email and triggers the same hard-delete-with-cascade path (including removal of the Supabase `auth.users` record) as the in-app flow.
       verify: `curl -sI https://<prod-web-host>/delete-account` returns `200`; an E2E/integration test submits the form for a seeded throwaway account and asserts the account's domain rows AND its `auth.users` record are gone afterward (no orphans), mirroring `tests/test_account_delete.py` from Phase 2.
-- [ ] **8.3.2** Document and link the deletion form: record its URL in `docs/store-listing.md` and reference it in the privacy policy and Play Console "Data deletion" field.
+- [~] **8.3.2** *(docs DONE #131/#133 — the `/delete-account` URL is in both `docs/store-listing.md` and `docs/privacy-policy.md` §10; owner half left: live 200 check + the Play Console "Data deletion" field)* Document and link the deletion form: record its URL in `docs/store-listing.md` and reference it in the privacy policy and Play Console "Data deletion" field.
       verify: `docs/store-listing.md` and `docs/privacy-policy.md` both contain the `/delete-account` URL, and a link-check confirms it returns `200`.
       depends: 8.3.1
 
@@ -52,7 +59,7 @@ _Context: Google Play requires BOTH an in-app deletion path (8.2.4) AND an exter
 
 _Context: App Store Connect requires the privacy "nutrition labels" (data collected/used + linkage/tracking) and an export-compliance/encryption declaration for every build (07 launch-blocker checklist)._
 
-- [ ] **8.4.1** Produce a **data-inventory matrix** in `docs/store-listing.md` mapping every data type the app handles (email, learning content/vocab, anonymized analytics, crash/diagnostics, identifiers) to purpose, whether it's linked to identity, and whether it's used for tracking — the single source for both the Apple labels and the Play form.
+- [x] **8.4.1** *(DONE #133 — the matrix in `docs/store-listing.md`: email / user content / analytics / crash diagnostics / identifiers × purpose / linked? / tracking?, tracking = No throughout)* Produce a **data-inventory matrix** in `docs/store-listing.md` mapping every data type the app handles (email, learning content/vocab, anonymized analytics, crash/diagnostics, identifiers) to purpose, whether it's linked to identity, and whether it's used for tracking — the single source for both the Apple labels and the Play form.
       verify: `docs/store-listing.md` contains a table covering at minimum email, user content (vocab/sentences sent to the LLM), analytics, and crash diagnostics, each with purpose + linked? + tracking? columns; a reviewer sign-off note is recorded in the PR.
 - [ ] **8.4.2** Complete the **App Privacy ("nutrition labels")** questionnaire in App Store Connect from the 8.4.1 matrix (data collected, linked vs. not, used for tracking = No, third parties incl. the LLM provider).
       verify: App Store Connect shows the App Privacy section as **complete/ready for submission** (screenshot in the PR); the answers match the 8.4.1 matrix exactly (diff noted in `docs/store-listing.md`).
@@ -84,7 +91,7 @@ _Context: both stores require content age-rating questionnaires before a listing
 
 _Context: each store needs name, subtitle/short description, full description, keywords, category, and the privacy/support URLs from 8.1 (04 store-assets section)._
 
-- [ ] **8.7.1** Author all listing copy in `docs/store-listing.md` as the single source: app **name** ("Lengua"), subtitle/short description, full description, **keywords**, primary **category** (Education), and the privacy + support URLs — written once and reused per store.
+- [x] **8.7.1** *(DONE #133 — all fields in `docs/store-listing.md`, capped at the shorter of the two stores' limits and CI-enforced by `scripts/check_store_listing.py` in the `docs` job)* Author all listing copy in `docs/store-listing.md` as the single source: app **name** ("Lengua"), subtitle/short description, full description, **keywords**, primary **category** (Education), and the privacy + support URLs — written once and reused per store.
       verify: `docs/store-listing.md` contains every field (name, subtitle, description, keywords, category, privacy URL, support URL); a lint check asserts the description is within the shorter of the two stores' character limits so the same copy fits both.
 - [ ] **8.7.2** Enter the listing metadata into **App Store Connect** (name, subtitle, description, keywords, category, privacy & support URLs) for the app version.
       verify: App Store Connect's version metadata matches `docs/store-listing.md` (screenshot in the PR); the App Information section reports no missing-metadata warnings.
