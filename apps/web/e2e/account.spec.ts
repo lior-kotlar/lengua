@@ -70,15 +70,18 @@ test.describe('account screen (ephemeral stack)', () => {
     const savedPath = await download.path();
     const savedBundle = JSON.parse(fs.readFileSync(savedPath, 'utf-8'));
     expect(savedBundle).toEqual(apiBundle);
-    // Sanity: it is the demo user's real bundle (all top-level keys, a non-empty deck).
-    expect(Object.keys(savedBundle).sort()).toEqual([
-      'cards',
-      'languages',
-      'profile',
-      'proficiency',
-      'reviews',
-      'settings',
-    ]);
+    // Sanity: it is the demo user's real bundle (all top-level keys, a non-empty deck). Sort both
+    // sides so the assertion is order-independent ("proficiency" sorts before "profile").
+    expect(Object.keys(savedBundle).sort()).toEqual(
+      [
+        'cards',
+        'languages',
+        'profile',
+        'proficiency',
+        'reviews',
+        'settings',
+      ].sort(),
+    );
     expect(savedBundle.languages.length).toBeGreaterThan(0);
   });
 
