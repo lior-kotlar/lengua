@@ -11,7 +11,7 @@
     --card-foreground: 240 6% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 6% 10%;
-    --primary: 211 100% 50%; /* #007AFF systemBlue */
+    --primary: 211 100% 44%; /* #006CE0 — systemBlue nudged darker for WCAG AA: white-on-primary (buttons) + text-primary links now ≥4.5:1. Same hue as #007AFF, just deeper. */
     --primary-foreground: 0 0% 100%;
     --secondary: 240 24% 96%; /* #F2F2F7 systemGray6 fill */
     --secondary-foreground: 240 6% 10%;
@@ -23,7 +23,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 240 6% 87%; /* #DBDBE0 — PRE-MULTIPLIED hairline; use `border-border` solid, no /60 needed */
     --input: 240 5% 84%; /* #D4D4DA form-field edge */
-    --ring: 211 100% 50%;
+    --ring: 211 100% 44%; /* matches --primary (AA-tuned) so the focus ring reads as the brand blue */
     --radius: 0.75rem; /* 12px base */
 
     /* ── HIG semantic hues (ratings, CEFR, status). `-deep` = AA text-on-tint. ── */
@@ -32,10 +32,10 @@
     --hig-blue: 211 100% 50%; /* #007AFF */
     --hig-green: 135 59% 49%; /* #34C759 */
     --hig-gray: 240 2% 57%; /* #8E8E93 */
-    --hig-red-deep: 354 100% 42%; /* #D70015 */
+    --hig-red-deep: 354 100% 39%; /* #C70014 — AA text on red/15 tints + on card/bg */
     --hig-orange-deep: 15 100% 39%; /* #C93400 */
     --hig-blue-deep: 211 100% 40%; /* #0066CC */
-    --hig-green-deep: 135 59% 34%; /* #248A3D */
+    --hig-green-deep: 135 59% 29%; /* #1E7634 — AA text on green/15 tints + on card/bg */
 
     /* ── Elevation (keyline cards; big soft overlays) ── */
     --shadow-card:
@@ -76,11 +76,13 @@
     --hig-blue: 210 100% 52%; /* #0A84FF */
     --hig-green: 135 63% 50%; /* #30D158 */
     --hig-gray: 240 2% 57%;
-    /* THE RE-POINTING TRICK: deep vars point at the vivids in dark, so ONE class
-       string (`bg-hig-red/15 text-hig-red-deep`) is correct in both modes. */
-    --hig-red-deep: 3 100% 61%;
+    /* THE RE-POINTING TRICK: the deep vars carry the AA-safe TEXT hue for dark mode, so ONE class
+       string (`bg-hig-red/15 text-hig-red-deep`) is correct in both modes. In dark that text sits on
+       a tint over a dark card, so red/blue are lifted above the vivid fill hue to clear 4.5:1;
+       orange/green are already light enough that they stay equal to their vivids. */
+    --hig-red-deep: 3 100% 66%; /* lifted from the vivid 61% for AA text on red/15 over the dark card */
     --hig-orange-deep: 36 100% 52%;
-    --hig-blue-deep: 210 100% 52%;
+    --hig-blue-deep: 210 100% 60%; /* lifted from the vivid 52% for AA text on blue/15 over the dark card */
     --hig-green-deep: 135 63% 50%;
 
     /* Dark elevation = surface lightness step; shadows only ground overlays */

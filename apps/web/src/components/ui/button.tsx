@@ -13,7 +13,7 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-primary text-primary-foreground shadow-card hover:bg-primary/90',
-        tinted: 'bg-primary/15 text-hig-blue-deep hover:bg-primary/25',
+        tinted: 'bg-hig-blue/15 text-hig-blue-deep hover:bg-hig-blue/25',
         destructive:
           'border border-hig-red/25 bg-hig-red/15 text-hig-red-deep hover:bg-hig-red/25',
         destructiveSolid:

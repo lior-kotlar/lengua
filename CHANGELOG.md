@@ -14,6 +14,32 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-07 — Round-3 doable-now sweep
+
+A third post-close-out sweep of the non-owner/prod/mobile hardening items tracked in
+[`planning/outstanding-work.md`](planning/outstanding-work.md), led by the accessibility
+colour-contrast pass.
+
+- **Accessibility — WCAG 2.1 AA colour-contrast pass (#135).** The advisory axe sweep added in #127
+  flagged serious `color-contrast` violations on every authenticated surface (Dashboard / Generate /
+  Review / Discover / Settings — 23 nodes: primary buttons, blue links/badges, and the red/green
+  tinted rating pills + status chips). Fixed at the **design-token** layer in `src/index.css`, not
+  per-component: `--primary` (and `--ring`) nudged from systemBlue `#007AFF` to a deeper, same-hue
+  `#006CE0` so **white-on-primary** buttons and **`text-primary` links** clear 4.5:1 in light; the
+  light `--hig-red-deep` / `--hig-green-deep` text hues deepened, and the dark `--hig-red-deep` /
+  `--hig-blue-deep` text hues **lifted above their vivid fill** (the "re-pointing trick" now carries
+  the AA-safe text hue, not merely the vivid), so the tinted pills/chips clear AA on the dark card in
+  **both themes**. The blue chips (Languages / user-menu / dashboard badges / the `tinted` button)
+  moved off `bg-primary/15` onto the unchanged vivid `bg-hig-blue/15` so the deeper button-primary
+  can't mute them, and the daily-limit panel's body copy dropped its `/80` opacity. The Apple-HIG
+  identity is intact (same hues, deeper lightness only). The `e2e/a11y.spec.ts` sweep now **asserts
+  zero serious `color-contrast`** on the swept surfaces (the `e2e` job's `@a11y` run dropped its
+  `|| echo` guard) and a new browserless `src/token-contrast.test.ts` re-derives contrast from the
+  real `index.css` tokens to lock **both** themes (axe only sweeps light). Residual, documented: the
+  iOS-brand **solid** buttons — white-on-systemBlue (dark primary) and white-on-systemRed
+  (destructive confirm) — render only in dialogs / dark mode, never on the swept light happy path, so
+  they stay as the tracked brand exceptions (floored at the 3:1 UI minimum by the token test).
+
 ## 2026-07-06 — Phase 8 compliance & store (buildable code slice)
 
 Pulling the **CI-verifiable** half of Phase 8 (compliance & store readiness) forward, ahead of the

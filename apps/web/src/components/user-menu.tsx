@@ -51,7 +51,7 @@ export function UserMenu() {
       <Popover>
         <PopoverTrigger
           aria-label="Account menu"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[12px] font-semibold text-hig-blue-deep transition duration-150 ease-apple active:scale-[0.92] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-hig-blue/15 text-[12px] font-semibold text-hig-blue-deep transition duration-150 ease-apple active:scale-[0.92] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           {user?.email?.[0]?.toUpperCase() ?? '?'}
         </PopoverTrigger>

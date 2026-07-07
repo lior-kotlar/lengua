@@ -61,9 +61,11 @@ Conventions: ☐ open · 🔒 blocked-on-owner · ◐ as-code-done / live-owner-
   notifications (FCM/APNs; v1 uses on-device local reminders); TTS audio (on-device first); streaks /
   gamification; import/export & shared decks (beyond Anki import); UI internationalization (the app's
   own UI is English-only); spaced-repetition insights (progress charts, review forecast); admin /
-  support tooling (support views, abuse review, manual budget override); accessibility pass
-  (screen-reader labels, contrast, font scaling). **Watch:** confirm Supabase free-tier idle-pausing
-  / project limits at setup.
+  support tooling (support views, abuse review, manual budget override); accessibility pass —
+  colour **contrast** is now WCAG 2.1 AA and CI-gated across the authenticated surfaces in both
+  themes (round-3, see CHANGELOG; `e2e/a11y.spec.ts` asserting + `src/token-contrast.test.ts`), with
+  screen-reader labels and font scaling still remaining. **Watch:** confirm Supabase free-tier
+  idle-pausing / project limits at setup.
 
 ---
 
