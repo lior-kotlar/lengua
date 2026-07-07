@@ -561,12 +561,16 @@ jobs:
   # (no network, deterministic). Satisfies the Phase-8 privacy-policy "link-check in CI" verify so a
   # published legal/support page never ships a broken intra-repo link.
   docs:
-    name: docs (markdown link check)
+    name: docs (link + store-listing checks)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Check documentation links (no dead relative links)
         run: python3 scripts/check_doc_links.py
+      # Task 8.7.1: the store-listing copy must fit the SHORTER of the Apple/Play character limits so
+      # one set of copy works for both stores. Stdlib-only, deterministic.
+      - name: Check store-listing character limits
+        run: python3 scripts/check_store_listing.py
 
   # ── 0.5.8 — advisory a11y + perf budgets (axe + Lighthouse CI) — NON-BLOCKING ────────────────
   a11y-perf:

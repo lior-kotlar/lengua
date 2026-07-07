@@ -115,6 +115,26 @@ last-line "is the site even up?" signal and the source of the prod-`/health` upt
 > rendering non-empty, and an alert reaching a real channel each need live Grafana Cloud creds and a
 > deployed Cloud Run service — tracked in [`planning/outstanding-work.md`](../planning/outstanding-work.md).
 
+## Data residency (GDPR)
+
+The region of record for every data-storing/processing service — the source for the App Store
+nutrition labels, the Play Data Safety form, and the privacy policy's residency claims. The
+per-processor detail lives in [`store-listing.md`](store-listing.md); the user-facing disclosures in
+[`privacy-policy.md`](privacy-policy.md).
+
+| Service | Role | Region |
+| --- | --- | --- |
+| **Supabase** (Postgres + Auth) | Primary store — account + all learning data | **EU** (Supabase project region) |
+| **Google Cloud Run** | Backend API | **EU** (`$GCP_REGION`, project `lengua-prod`) |
+| **Vercel** | Web frontend | Global edge — static SPA assets, no user data at rest |
+| **Google Gemini** (LLM, prod) | Sentence generation | May process outside the EEA — SCCs / adequacy |
+| **PostHog** | Product analytics (opt-in only) | **EU** host (`eu.i.posthog.com`) |
+| **Sentry** | Error diagnostics | Per the Sentry org's configured region |
+
+> **Owner action at cutover:** record the **exact Supabase project region string** here (from Project
+> Settings → General, with a screenshot) so the Data Safety / nutrition-label residency answers cite
+> the verified region rather than "EU".
+
 ## Deploy
 
 How a build reaches staging and prod. The pipeline is committed as code (CD workflow, groups 6.6 +

@@ -37,11 +37,13 @@ Conventions: ☐ open · 🔒 blocked-on-owner · ◐ as-code-done / live-owner-
   `/delete-account` form + `/privacy` + `/support` routes + the request→confirm→cascade API done
   (#131). ◐ 8.2.1 + 8.2.3 + 8.2.4 launch-blocker E2E assertions (consent → no analytics across a full
   session; export download == `GET /account/export`; in-app delete via in-app nav only + clears the
-  session) done (#132). **Still open:** the `docs/store-listing.md` data-inventory + copy +
-  EU-residency record (8.4.1/8.7.1/8.2.2). **Owner-blocked (store/prod):**
-  Apple App Privacy labels + encryption declaration, Play Data Safety, age ratings, store-console
-  listing entry, device screenshots, and the TestFlight/Play closed tests — all need the paid store
-  accounts + the deployed prod app.
+  session) done (#132). ◐ 8.4.1 + 8.7.1 + 8.2.2 `docs/store-listing.md` (data-inventory matrix +
+  store-listing copy with a CI character-limit check + per-processor EU residency) + the runbook
+  data-residency record done (#133). **The buildable/CI-verifiable Phase-8 slice is now complete.**
+  **Owner-blocked (store/prod), all requiring the paid store accounts + the deployed prod app:**
+  Apple App Privacy labels (8.4.2) + encryption declaration (8.4.3), Play Data Safety (8.5.x), age
+  ratings (8.6), store-console listing entry (8.7.2/8.7.3), device screenshots (8.8), and the
+  TestFlight/Play closed tests (8.9) — each derives from the docs above but needs the live consoles.
   - **Placeholder to confirm at launch:** the privacy policy + `/support` + `/delete-account` use
     `privacy@lengua.app` and `https://lengua.app`. Before public launch the contact address must
     point to a **monitored inbox** and the host must match the real prod web domain (owner cutover).
