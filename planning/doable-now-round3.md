@@ -1,5 +1,50 @@
 # Round-3 doable-now work order (next-session spec)
 
+> ## ⏳ Progress (updated 2026-07-07 — partial; resume in a fresh session)
+>
+> Four of the items are **done and merged** (trunk-based, self-merged green); one is **left**, one is
+> **skipped**. The [`../CHANGELOG.md`](../CHANGELOG.md) "Round-3 doable-now sweep" section and
+> [`outstanding-work.md`](outstanding-work.md) already reflect the merged items.
+>
+> | Item | Status | PR |
+> |---|---|---|
+> | **1 — accessibility contrast pass** | ✅ **DONE** | #135 |
+> | **3 — base-image digest refresh** | ✅ **DONE** | #136 |
+> | **2b — per-IP throttle** | ✅ **DONE** | #137 |
+> | **2a — indexed `auth.users` lookup** | ✅ **DONE** (belt-and-suspenders: DB-first + Admin-API fallback) | #138 |
+> | **2c — bound the shared limiter** | ☐ **LEFT — PAUSE FOR OWNER REVIEW** (shared cost-guard code) | — |
+> | **4 — `proficiency_cefr_band` metric** | ⊘ **SKIPPED** (see note) | — |
+>
+> **What's left to do (next session):**
+> 1. **Item 2c — bound `InProcessRateLimiter`** (`apps/api/app/ratelimit.py`). One-shot distinct keys
+>    (attacker-varied emails/IPs behind the round-3 per-email + per-IP deletion limiters) are only
+>    reclaimed on *re-hit*, so they accumulate. Plan (ready to implement): add a `max_keys` ctor arg
+>    (default ~100 000) and a `_sweep_expired(now)` that drops every **fully-expired** key (newest
+>    timestamp already aged out of the window), invoked from `hit()` when `len(self._hits) > max_keys`.
+>    It only drops expired keys, so **no active window is touched → `tests/quota/*` must not regress**.
+>    Add a whitebox test in [`../apps/api/tests/quota/test_ratelimit.py`](../apps/api/tests/quota/test_ratelimit.py)
+>    (style: `FakeClock`, `limiter._hits`) with a small `max_keys` proving the map bounds. **⚠ This
+>    class is shared with the LLM cost guard — open the PR and PAUSE for owner review; do NOT
+>    self-merge.** This closes DoS item (3) of the #131-review bullet in `outstanding-work.md`.
+> 2. **Final PR** — once 2c is decided, **delete this file** (`planning/doable-now-round3.md`,
+>    mirroring how `doable-now-round2.md` was removed in #128) and make sure the CHANGELOG notes 2c's
+>    outcome + item 4 as skipped. After that all remaining work is **owner-only** (prod cutover,
+>    Phase-5 live dashboards, mobile, store consoles, Phase-9) — stop and report, don't invent scope.
+>
+> **Why item 4 was skipped:** a `proficiency_cefr_band` metric is a *categorical* band (A1…C2) whose
+> only meaningful shape is a per-user "latest band" distribution — another **process-local** gauge with
+> the exact scale-out caveat already flagged for `active_users`/`signups_total`, and its usefulness can
+> only be judged against the **live** CEFR dashboard panel (owner/Phase-5, which I can't see). Per this
+> file's own "skip if it can't be meaningfully tested without the live backend" clause, it's deferred
+> into the Phase-5 observability wiring (item B of `outstanding-work.md`) rather than shipped as a
+> misleading counter. Re-open if the owner wants the panel lit up with the live backend available.
+>
+> **Notes for the resuming session:** local integration/e2e are un-runnable here (port 54322 is
+> another project's Supabase) — **rely on CI**. Local gate = `ruff`/`ruff format`/`mypy` +
+> `eslint`/`prettier`/`tsc` + `vitest` + offline `pytest -k "not integration"`. `pnpm` isn't on PATH
+> (use `corepack pnpm …`); run `uv run --directory apps/api …`. **mypy must be run repo-wide** (`mypy .`),
+> not file-scoped — a test-file `arg-type` slipped past a scoped run and reddened #138's lint job once.
+
 **What this is.** The remaining **buildable, CI-verifiable, non-owner code work** after the Phase-8
 compliance code slice (#130–#133) merged. Everything on the *launch path* is now owner-gated (prod
 cutover, Phase-5 live dashboards, mobile, store consoles, Phase-9) — see
