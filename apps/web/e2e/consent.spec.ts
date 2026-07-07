@@ -16,6 +16,9 @@ import { expect, test } from '@playwright/test';
  */
 
 const ANALYTICS_HOST = /posthog|i\.posthog\.com|analytics/i;
+const DEMO_EMAIL = 'demo@lengua.test';
+const DEMO_PASSWORD = 'demo-password-123';
+const STACK = process.env.E2E_STACK === '1';
 
 test('shows the consent banner on first load and never loads analytics before a decision', async ({
   page,
@@ -64,5 +67,57 @@ test('accepting the consent dismisses it permanently and loads no analytics (no 
   await page.reload();
   await expect(page.getByTestId('analytics-consent')).toHaveCount(0);
   // The preview build ships no analytics key, so opting in still loads nothing (clean seam).
+  expect(analyticsRequests).toEqual([]);
+});
+
+/**
+ * Launch-blocker (task 8.2.1): declining consent must leave analytics fully uninitialised for the
+ * WHOLE session, not just the login page. We decline, then drive a full authenticated journey across
+ * every screen and assert not a single analytics request fired. (The network invariant is proven
+ * here; that the gate blocks even WITH a key configured is proven at the unit level in
+ * `src/lib/analytics.test.ts`, which the preview's key-less build cannot exercise.)
+ */
+test('declining consent loads no analytics across a full authenticated session (8.2.1)', async ({
+  page,
+}) => {
+  test.skip(
+    !STACK,
+    'requires the seeded Supabase + API ephemeral stack (E2E_STACK=1)',
+  );
+
+  const analyticsRequests: string[] = [];
+  page.on('request', (request) => {
+    if (ANALYTICS_HOST.test(request.url())) {
+      analyticsRequests.push(request.url());
+    }
+  });
+
+  await page.goto('/login');
+  // Decline up front (raw spec → the banner is shown, not pre-dismissed by the fixture).
+  await page.getByRole('button', { name: 'Decline' }).click();
+  await expect(page.getByTestId('analytics-consent')).toBeHidden();
+
+  // Log in and visit every primary screen — a full session.
+  await page.getByLabel('Email').fill(DEMO_EMAIL);
+  await page.getByLabel('Password', { exact: true }).fill(DEMO_PASSWORD);
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+  for (const name of [
+    'Generate',
+    'Review',
+    'Discover',
+    'Languages',
+    'Settings',
+    'Account',
+  ]) {
+    await page
+      .getByRole('navigation', { name: 'Primary' })
+      .getByRole('link', { name })
+      .click();
+    await expect(page.getByRole('heading', { name })).toBeVisible();
+  }
+
+  // Across the entire declined session, zero analytics requests fired.
   expect(analyticsRequests).toEqual([]);
 });
