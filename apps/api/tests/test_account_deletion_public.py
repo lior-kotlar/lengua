@@ -253,13 +253,17 @@ def _build_public_app(
     deletion: object,
     mailer: Mailer,
     limiter: InProcessRateLimiter | None = None,
+    ip_limiter: InProcessRateLimiter | None = None,
     settings: Settings | None = None,
 ) -> FastAPI:
     """Create the app with the public-deletion dependencies overridden for offline testing."""
     from app.deps import get_account_deletion_service, get_usage_db
     from app.mailer import get_mailer as _get_mailer
     from app.main import create_app
-    from app.ratelimit import get_public_deletion_rate_limiter
+    from app.ratelimit import (
+        get_public_deletion_ip_rate_limiter,
+        get_public_deletion_rate_limiter,
+    )
     from app.settings import get_settings as _get_settings
 
     app = create_app(include_test_routes=False)
@@ -268,6 +272,11 @@ def _build_public_app(
     app.dependency_overrides[get_usage_db] = _fake_usage_db
     app.dependency_overrides[get_public_deletion_rate_limiter] = lambda: (
         limiter or InProcessRateLimiter(limit=5, window_seconds=3600.0, clock=lambda: 0.0)
+    )
+    # A fresh, effectively-unbounded per-IP limiter by default so the process-wide singleton can't
+    # bleed hits between tests (the per-IP test passes its own low-limit one).
+    app.dependency_overrides[get_public_deletion_ip_rate_limiter] = lambda: (
+        ip_limiter or InProcessRateLimiter(limit=1000, window_seconds=3600.0, clock=lambda: 0.0)
     )
     if settings is not None:
         app.dependency_overrides[_get_settings] = lambda: settings
@@ -357,6 +366,27 @@ async def test_request_is_rate_limited_per_email() -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_is_rate_limited_per_ip_across_distinct_emails() -> None:
+    """One source rotating through DISTINCT emails is capped per-IP. Each address is a fresh key for
+    the per-email cap, so only the per-IP cap sees the flood; the ASGI client is one IP bucket."""
+    ip_limiter = InProcessRateLimiter(limit=2, window_seconds=3600.0, clock=lambda: 0.0)
+    app = _build_public_app(
+        deletion=_FakeDeletion(found_id=None), mailer=_SpyMailer(), ip_limiter=ip_limiter
+    )
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+            first = await c.post("/account/deletion-request", json={"email": "a@example.com"})
+            second = await c.post("/account/deletion-request", json={"email": "b@example.com"})
+            third = await c.post("/account/deletion-request", json={"email": "c@example.com"})
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        assert third.status_code == 429, third.text  # distinct email, but same source IP → capped
+        assert third.headers.get("retry-after")
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
 async def test_confirm_deletes_the_account_for_a_valid_token() -> None:
     user_id = uuid.uuid4()
     settings = Settings(_env_file=None, supabase_service_role_key=SecretStr("k"))  # type: ignore[call-arg]
@@ -407,7 +437,10 @@ async def test_public_deletion_request_then_confirm_cascades() -> None:
     from app.deps import get_usage_db
     from app.mailer import get_mailer as _get_mailer
     from app.main import create_app
-    from app.ratelimit import get_public_deletion_rate_limiter
+    from app.ratelimit import (
+        get_public_deletion_ip_rate_limiter,
+        get_public_deletion_rate_limiter,
+    )
     from app.settings import get_settings
     from tests.conftest import database_url
     from tests.supabase_auth import create_confirmed_user, delete_user
@@ -432,6 +465,9 @@ async def test_public_deletion_request_then_confirm_cascades() -> None:
             app.dependency_overrides[get_usage_db] = _fresh_usage_db
             app.dependency_overrides[get_public_deletion_rate_limiter] = lambda: (
                 InProcessRateLimiter(limit=5, window_seconds=3600.0)
+            )
+            app.dependency_overrides[get_public_deletion_ip_rate_limiter] = lambda: (
+                InProcessRateLimiter(limit=1000, window_seconds=3600.0)
             )
             try:
                 transport = ASGITransport(app=app)
@@ -472,7 +508,10 @@ async def test_public_deletion_request_for_unknown_email_sends_nothing() -> None
     from app.deps import get_usage_db
     from app.mailer import get_mailer as _get_mailer
     from app.main import create_app
-    from app.ratelimit import get_public_deletion_rate_limiter
+    from app.ratelimit import (
+        get_public_deletion_ip_rate_limiter,
+        get_public_deletion_rate_limiter,
+    )
     from app.settings import get_settings
     from tests.test_account_delete import _fresh_usage_db, _real_stack_settings
 
@@ -483,6 +522,9 @@ async def test_public_deletion_request_for_unknown_email_sends_nothing() -> None
     app.dependency_overrides[get_usage_db] = _fresh_usage_db
     app.dependency_overrides[get_public_deletion_rate_limiter] = lambda: InProcessRateLimiter(
         limit=5, window_seconds=3600.0
+    )
+    app.dependency_overrides[get_public_deletion_ip_rate_limiter] = lambda: InProcessRateLimiter(
+        limit=1000, window_seconds=3600.0
     )
     try:
         transport = ASGITransport(app=app)

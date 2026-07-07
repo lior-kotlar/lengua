@@ -25,13 +25,17 @@ import logging
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.db.session import UsageSession
 from app.deletion_tokens import DeletionTokenError, sign_deletion_token, verify_deletion_token
 from app.deps import get_account_deletion_service, get_usage_db
 from app.mailer import Mailer, get_mailer
-from app.ratelimit import RateLimiter, get_public_deletion_rate_limiter
+from app.ratelimit import (
+    RateLimiter,
+    get_public_deletion_ip_rate_limiter,
+    get_public_deletion_rate_limiter,
+)
 from app.schemas.account import (
     AccountDeletionAck,
     AccountDeletionConfirm,
@@ -46,6 +50,25 @@ router = APIRouter(tags=["account-deletion"])
 
 #: Stable namespace for deriving the rate-limit key from an email (the limiter is keyed by UUID).
 _EMAIL_RATE_KEY_NS = uuid.UUID("6f9b1e2c-0d3a-4c5b-9e8f-1a2b3c4d5e6f")
+
+#: Stable namespace for deriving the per-IP rate-limit key (distinct from the email namespace).
+_IP_RATE_KEY_NS = uuid.UUID("2b1f0c9d-7e46-4a3b-8c1d-9f0e5a6b7c8d")
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP for the per-IP cap.
+
+    Prefers the first ``X-Forwarded-For`` hop (Cloud Run / the load balancer sets it to the real
+    client), falling back to the direct peer. Returns ``"unknown"`` if neither is available, so a
+    missing address collapses all such callers onto one shared bucket rather than bypassing the cap.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",", 1)[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client is not None else "unknown"
+
 
 #: The single generic response — identical whether or not the email maps to an account.
 _REQUEST_ACK = (
@@ -63,10 +86,12 @@ def _deletion_confirm_url(settings: Settings, token: str) -> str:
 
 @router.post("/account/deletion-request", response_model=AccountDeletionAck)
 async def request_account_deletion(
+    request: Request,
     payload: AccountDeletionRequest,
     deletion: Annotated[AccountDeletionService, Depends(get_account_deletion_service)],
     mailer: Annotated[Mailer, Depends(get_mailer)],
     limiter: Annotated[RateLimiter, Depends(get_public_deletion_rate_limiter)],
+    ip_limiter: Annotated[RateLimiter, Depends(get_public_deletion_ip_rate_limiter)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AccountDeletionAck:
     """Start a public account deletion: email a confirmation link if the address has an account.
@@ -75,6 +100,16 @@ async def request_account_deletion(
     to prevent using the form to bomb an inbox with deletion mail.
     """
     email = payload.email.strip().lower()
+
+    # Per-IP cap first: bounds a distinct-email flood from one source (which the per-email cap
+    # below, keyed on the address, cannot see). Both raise the same 429, so neither leaks which cap.
+    ip_decision = ip_limiter.hit(uuid.uuid5(_IP_RATE_KEY_NS, _client_ip(request)))
+    if not ip_decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many deletion requests. Please try again later.",
+            headers={"Retry-After": str(ip_decision.retry_after)},
+        )
 
     decision = limiter.hit(uuid.uuid5(_EMAIL_RATE_KEY_NS, email))
     if not decision.allowed:

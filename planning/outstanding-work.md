@@ -100,11 +100,12 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   <200-user scale — 1:1 amplification today): (1) `AccountDeletionService.find_auth_user_id_by_email`
   pages the GoTrue Admin API linearly (O(N), capped at 100 pages) — replace with an indexed
   `auth.users` lookup or GoTrue's get-by-email so the unauthenticated endpoint can't fan out to the
-  upstream Admin API; (2) add a **per-IP / global** rate limit on that endpoint (today only a per-email
-  cap exists, which distinct-email floods bypass); (3) `InProcessRateLimiter` (`app/ratelimit.py`) only
-  reclaims a key's entry on re-hit, so one-shot distinct keys (attacker-varied emails) accumulate —
-  cap the map size or add a TTL sweep. Do these when the user base approaches store-scale (folds into
-  the same shared-store move as the process-local rate-limiter / discover-cache).
+  upstream Admin API; (2) ~~add a **per-IP / global** rate limit on that endpoint~~ **DONE** (round-3,
+  #137): a per-IP cap (30/hour, `X-Forwarded-For`-aware) now guards the endpoint alongside the
+  per-email cap; (3) `InProcessRateLimiter` (`app/ratelimit.py`) only reclaims a key's entry on
+  re-hit, so one-shot distinct keys (attacker-varied emails) accumulate — cap the map size or add a
+  TTL sweep. Do (1)/(3) when the user base approaches store-scale (folds into the same shared-store
+  move as the process-local rate-limiter / discover-cache).
 - **Stale code-comment doc citation (migration only).** The applied migration
   `migrations/versions/20260630_0006_*.py` still cites the deleted `staging-validation.md` (finding
   S1). Migrations are off-limits even for comments, so this one lingers by design; every other stale
