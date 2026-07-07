@@ -44,6 +44,13 @@ colour-contrast pass.
   `sha256:423ed6ab…` (the tag had drifted, picking up base-OS updates). The builder and runtime
   stages stay in lockstep on the same pin; the `build` CI job (image build + `/health` smoke) is the
   gate. Closes the "base-image digest pin needs periodic refresh" tech-debt line.
+- **Public deletion — per-IP throttle (#137).** `POST /account/deletion-request` had only a
+  per-address cap, which a distinct-email flood from one source slips past (each email is a fresh
+  key). Added a coarser **per-IP** cap (30/hour, checked first; client IP from the first
+  `X-Forwarded-For` hop that Cloud Run sets, else the peer) reusing the same `InProcessRateLimiter`.
+  Both caps return the same generic 429 so neither leaks which tripped. OpenAPI unchanged (the added
+  `Request` + limiter dep aren't schema params). Closes the second of the three low/latent
+  DoS-hardening items from the #131 review.
 
 ## 2026-07-06 — Phase 8 compliance & store (buildable code slice)
 

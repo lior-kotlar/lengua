@@ -158,3 +158,25 @@ def _public_deletion_rate_limiter() -> InProcessRateLimiter:
 def get_public_deletion_rate_limiter() -> RateLimiter:
     """FastAPI dependency: the shared limiter guarding ``POST /account/deletion-request``."""
     return _public_deletion_rate_limiter()
+
+
+# ── Per-IP cap on the same endpoint (round-3 DoS hardening) ────────────────────────────────────
+# The per-address limiter above stops using the form to inbox-bomb ONE victim, but an attacker
+# rotating through DISTINCT emails slips past it (each email is a fresh key). A coarser per-source
+# (per-IP) cap bounds that distinct-email flood. Sized higher than the per-email cap — a shared
+# NAT / office IP may host a handful of legitimate users — but low enough to blunt a flood. Same
+# 1-hour window as the per-email cap.
+DELETION_REQUEST_IP_LIMIT = 30
+
+
+@lru_cache(maxsize=1)
+def _public_deletion_ip_rate_limiter() -> InProcessRateLimiter:
+    """Process-wide singleton per-IP limiter for the public deletion-request endpoint."""
+    return InProcessRateLimiter(
+        limit=DELETION_REQUEST_IP_LIMIT, window_seconds=DELETION_REQUEST_WINDOW_SECONDS
+    )
+
+
+def get_public_deletion_ip_rate_limiter() -> RateLimiter:
+    """FastAPI dependency: the shared per-IP limiter guarding ``POST /account/deletion-request``."""
+    return _public_deletion_ip_rate_limiter()
