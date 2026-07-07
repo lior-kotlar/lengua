@@ -35,9 +35,10 @@ Conventions: ☐ open · 🔒 blocked-on-owner · ◐ as-code-done / live-owner-
   The **buildable/CI-verifiable code slice is being pulled forward** (see `CHANGELOG.md`): ◐ 8.1.1
   real GDPR privacy policy done (#130) with a `docs` link-check CI job; ◐ 8.1.2 + 8.3.1 the public
   `/delete-account` form + `/privacy` + `/support` routes + the request→confirm→cascade API done
-  (#131, review-requested). **Still open:** the launch-blocker export/delete/consent E2E assertions
-  (8.2.1/8.2.3/8.2.4); the `docs/store-listing.md` data-inventory + copy + EU-residency record
-  (8.4.1/8.7.1/8.2.2). **Owner-blocked (store/prod):**
+  (#131). ◐ 8.2.1 + 8.2.3 + 8.2.4 launch-blocker E2E assertions (consent → no analytics across a full
+  session; export download == `GET /account/export`; in-app delete via in-app nav only + clears the
+  session) done (#132). **Still open:** the `docs/store-listing.md` data-inventory + copy +
+  EU-residency record (8.4.1/8.7.1/8.2.2). **Owner-blocked (store/prod):**
   Apple App Privacy labels + encryption declaration, Play Data Safety, age ratings, store-console
   listing entry, device screenshots, and the TestFlight/Play closed tests — all need the paid store
   accounts + the deployed prod app.

@@ -46,6 +46,13 @@ Mobile/Capacitor, prod cutover, secrets, and migrations are untouched.
   cascade); it also found and this PR **fixed** a latent mailer-transport-error enumeration oracle, and
   **logged** the residual low/latent DoS-amplification hardening in `outstanding-work.md`. OpenAPI +
   `api-types` regenerated.
+- **Launch-blocker E2E assertions (#132, 8.2.1 + 8.2.3 + 8.2.4).** Tests only — no UI rebuilt.
+  Declining analytics consent now provably loads **zero** analytics across a full authenticated
+  session (not just `/login`); the in-app export download's contents are asserted **equal** to the
+  `GET /account/export` response bundle (not just the filename); and in-app account deletion is
+  asserted **reachable via in-app navigation only** (no external URL) and to **clear the session**.
+  The gate-blocks-even-with-a-key invariant stays unit-covered in `src/lib/analytics.test.ts`, and the
+  real delete cascade in the backend integration tests.
 
 ## 2026-07-06 — Round-2 doable-now sweep — PRs #126, #127, #128
 
