@@ -1,6 +1,58 @@
 {
   "components": {
     "schemas": {
+      "AccountDeletionAck": {
+        "description": "Generic acknowledgement for both public deletion endpoints.\n\nDeliberately identical whether or not an account exists / the mail was sent, so the response\nnever discloses whether an email is registered (no account enumeration).",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "AccountDeletionAck",
+        "type": "object"
+      },
+      "AccountDeletionConfirm": {
+        "description": "Body of ``POST /account/deletion-confirm`` — the signed token from the emailed link.",
+        "properties": {
+          "token": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "AccountDeletionConfirm",
+        "type": "object"
+      },
+      "AccountDeletionRequest": {
+        "description": "Body of ``POST /account/deletion-request`` — the email to send a deletion link to.",
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "AccountDeletionRequest",
+        "type": "object"
+      },
       "AccountExport": {
         "description": "The complete export bundle for one user — everything owned by ``current_user``.\n\n``profile`` is ``None`` only for a token-only identity whose ``profiles`` row does not exist\nyet (e.g. mid-trigger); a real signed-up user always has one.",
         "properties": {
@@ -1126,6 +1178,90 @@
         "summary": "Delete Account",
         "tags": [
           "account"
+        ]
+      }
+    },
+    "/account/deletion-confirm": {
+      "post": {
+        "description": "Complete a public account deletion: verify the emailed token, then cascade-delete the user.\n\nA malformed / tampered / expired token → ``400`` (a generic \"invalid or expired\" message, never\ndistinguishing which). A verified token runs the same hard delete as ``DELETE /account``; a\nbackend failure surfaces ``502`` (retryable), never a false success.",
+        "operationId": "confirm_account_deletion_account_deletion_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDeletionConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Account Deletion",
+        "tags": [
+          "account-deletion"
+        ]
+      }
+    },
+    "/account/deletion-request": {
+      "post": {
+        "description": "Start a public account deletion: email a confirmation link if the address has an account.\n\nAlways returns the same generic acknowledgement (no account enumeration). Rate-limited per email\nto prevent using the form to bomb an inbox with deletion mail.",
+        "operationId": "request_account_deletion_account_deletion_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDeletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Account Deletion",
+        "tags": [
+          "account-deletion"
         ]
       }
     },

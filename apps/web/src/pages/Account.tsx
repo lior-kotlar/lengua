@@ -11,7 +11,8 @@
  * ever act on the caller's own account.
  */
 import { useState } from 'react';
-import { Download, Loader2, LogOut } from 'lucide-react';
+import { ChevronRight, Download, Loader2, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/components/auth-context';
 import { DeleteAccountDialog } from '@/components/delete-account-dialog';
@@ -24,6 +25,7 @@ import {
 } from '@/lib/account';
 import { apiErrorMessage } from '@/lib/api-client';
 import { signOut } from '@/lib/auth';
+import { cn } from '@/lib/utils';
 
 export default function Account() {
   const { user } = useAuth();
@@ -122,6 +124,34 @@ export default function Account() {
               </>
             )}
           </Button>
+        </div>
+      </div>
+
+      {/* Legal & support — links to the published Privacy policy + Support pages (task 8.1.2). */}
+      <div className="space-y-3">
+        <p className="text-caption uppercase text-muted-foreground">
+          Legal &amp; support
+        </p>
+        <div className="overflow-hidden rounded-lg border bg-card shadow-card">
+          {[
+            { to: '/privacy', label: 'Privacy Policy' },
+            { to: '/support', label: 'Support' },
+          ].map(({ to, label }, index) => (
+            <Link
+              key={to}
+              to={to}
+              className={cn(
+                'flex items-center justify-between gap-4 px-5 py-4 text-body transition-colors hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:hover:bg-white/[0.06]',
+                index > 0 && 'border-t',
+              )}
+            >
+              {label}
+              <ChevronRight
+                className="h-4 w-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </Link>
+          ))}
         </div>
       </div>
 

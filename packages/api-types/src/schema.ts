@@ -24,6 +24,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/deletion-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Account Deletion
+         * @description Complete a public account deletion: verify the emailed token, then cascade-delete the user.
+         *
+         *     A malformed / tampered / expired token → ``400`` (a generic "invalid or expired" message, never
+         *     distinguishing which). A verified token runs the same hard delete as ``DELETE /account``; a
+         *     backend failure surfaces ``502`` (retryable), never a false success.
+         */
+        post: operations["confirm_account_deletion_account_deletion_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/deletion-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Account Deletion
+         * @description Start a public account deletion: email a confirmation link if the address has an account.
+         *
+         *     Always returns the same generic acknowledgement (no account enumeration). Rate-limited per email
+         *     to prevent using the form to bomb an inbox with deletion mail.
+         */
+        post: operations["request_account_deletion_account_deletion_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/export": {
         parameters: {
             query?: never;
@@ -406,6 +453,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AccountDeletionAck
+         * @description Generic acknowledgement for both public deletion endpoints.
+         *
+         *     Deliberately identical whether or not an account exists / the mail was sent, so the response
+         *     never discloses whether an email is registered (no account enumeration).
+         */
+        AccountDeletionAck: {
+            /** Message */
+            message: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * AccountDeletionConfirm
+         * @description Body of ``POST /account/deletion-confirm`` — the signed token from the emailed link.
+         */
+        AccountDeletionConfirm: {
+            /** Token */
+            token: string;
+        };
+        /**
+         * AccountDeletionRequest
+         * @description Body of ``POST /account/deletion-request`` — the email to send a deletion link to.
+         */
+        AccountDeletionRequest: {
+            /** Email */
+            email: string;
+        };
         /**
          * AccountExport
          * @description The complete export bundle for one user — everything owned by ``current_user``.
@@ -906,6 +982,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    confirm_account_deletion_account_deletion_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDeletionConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountDeletionAck"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_account_deletion_account_deletion_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDeletionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountDeletionAck"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

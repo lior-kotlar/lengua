@@ -18,6 +18,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { ActiveLanguageProvider } from '@/components/active-language-provider';
 import { CefrPanel } from '@/components/cefr-panel';
+import { Footer } from '@/components/footer';
 import { LanguagePicker } from '@/components/language-picker';
 import { LoadingState } from '@/components/loading-state';
 import { MobileTabBar } from '@/components/mobile-tab-bar';
@@ -108,6 +109,10 @@ export function AppLayout() {
               </m.div>
             </main>
           </div>
+
+          {/* Site footer with the Privacy + Support links. Hidden below `sm`, where the fixed mobile
+              tab bar owns the bottom edge; mobile users reach these from the Account screen. */}
+          <Footer className="hidden sm:block" />
         </div>
       </VowelMarksProvider>
     </ActiveLanguageProvider>

@@ -6,6 +6,7 @@
  */
 import { Outlet } from 'react-router-dom';
 
+import { Footer } from '@/components/footer';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export function AuthLayout() {
@@ -19,6 +20,7 @@ export function AuthLayout() {
           <Outlet />
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

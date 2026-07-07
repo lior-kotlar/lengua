@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProfileExport(BaseModel):
@@ -95,3 +95,38 @@ class AccountExport(BaseModel):
     reviews: list[ReviewExport]
     proficiency: list[ProficiencyExport]
     settings: dict[str, str | None]
+
+
+# ── Public account-deletion request/confirm (Phase 8, task 8.3.1) ─────────────────────────────
+#
+# The unauthenticated ``/delete-account`` web form (Google Play requires a deletion path reachable
+# without the app). A request emails a confirmation link; confirming it runs the same cascade delete
+# as the in-app ``DELETE /account``. Ownership is proven by the emailed token, not a session.
+
+# A permissive email shape — enough to reject obvious garbage without pulling in the ``email``
+# extra (``EmailStr``). Real validation is implicit: an address that does not match a Supabase Auth
+# user simply yields the same generic acknowledgement (no existence disclosure).
+_EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class AccountDeletionRequest(BaseModel):
+    """Body of ``POST /account/deletion-request`` — the email to send a deletion link to."""
+
+    email: str = Field(..., min_length=3, max_length=254, pattern=_EMAIL_PATTERN)
+
+
+class AccountDeletionConfirm(BaseModel):
+    """Body of ``POST /account/deletion-confirm`` — the signed token from the emailed link."""
+
+    token: str = Field(..., min_length=1, max_length=1024)
+
+
+class AccountDeletionAck(BaseModel):
+    """Generic acknowledgement for both public deletion endpoints.
+
+    Deliberately identical whether or not an account exists / the mail was sent, so the response
+    never discloses whether an email is registered (no account enumeration).
+    """
+
+    status: str
+    message: str

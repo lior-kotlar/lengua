@@ -4,13 +4,17 @@ import { Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/app-layout';
 import { AuthLayout } from '@/components/auth-layout';
 import { RedirectIfAuthed, RequireAuth } from '@/components/route-guards';
+import { StaticLayout } from '@/components/static-layout';
 import AuthCallback from '@/pages/AuthCallback';
 import Dashboard from '@/pages/Dashboard';
+import DeleteAccount from '@/pages/DeleteAccount';
 import ForgotPassword from '@/pages/ForgotPassword';
 import Login from '@/pages/Login';
 import NotFound from '@/pages/NotFound';
+import Privacy from '@/pages/Privacy';
 import ResetPassword from '@/pages/ResetPassword';
 import Signup from '@/pages/Signup';
+import Support from '@/pages/Support';
 
 // Code-split the authenticated, non-landing screens: each becomes its own chunk fetched on first
 // navigation, so the initial load (auth pages + Dashboard) ships less JavaScript. Every page is an
@@ -55,6 +59,15 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/account" element={<Account />} />
         </Route>
+      </Route>
+
+      {/* Public static/content pages — reachable WITHOUT signing in: the store-required Privacy +
+          Support URLs and the external account-deletion form (Google Play requires a deletion path
+          usable without the app). */}
+      <Route element={<StaticLayout />}>
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/delete-account" element={<DeleteAccount />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

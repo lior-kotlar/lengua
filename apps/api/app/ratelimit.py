@@ -136,3 +136,25 @@ def get_rate_limiter() -> RateLimiter:
     clock so the global window can't bleed between tests (see ``tests/quota``).
     """
     return _default_rate_limiter()
+
+
+# ── Public account-deletion-request limiter (Phase 8, task 8.3.1) ──────────────────────────────
+# The unauthenticated /delete-account form emails a confirmation link. Without a per-address cap the
+# form could be used to *bomb a victim's inbox* with deletion emails, so we allow only a few
+# requests per email per hour. Keyed by a uuid5 of the normalized email (the limiter key is a UUID),
+# with a 1-hour window — distinct from the per-minute per-user LLM limiter above.
+DELETION_REQUEST_LIMIT = 5
+DELETION_REQUEST_WINDOW_SECONDS = 3600.0
+
+
+@lru_cache(maxsize=1)
+def _public_deletion_rate_limiter() -> InProcessRateLimiter:
+    """Process-wide singleton limiter for the public deletion-request endpoint."""
+    return InProcessRateLimiter(
+        limit=DELETION_REQUEST_LIMIT, window_seconds=DELETION_REQUEST_WINDOW_SECONDS
+    )
+
+
+def get_public_deletion_rate_limiter() -> RateLimiter:
+    """FastAPI dependency: the shared limiter guarding ``POST /account/deletion-request``."""
+    return _public_deletion_rate_limiter()

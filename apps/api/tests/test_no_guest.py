@@ -35,6 +35,10 @@ from app.main import create_app
 # (apps/api/tests/<this file> → parents[3] is the repo root).
 _CONFIG_TOML = Path(__file__).resolve().parents[3] / "supabase" / "config.toml"
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# Intentionally-public, unauthenticated writes: the external account-deletion path Google Play
+# requires (task 8.3.1). Ownership is proven by an emailed signed token, not a session, so these are
+# NOT anonymous-write violations — they are exempted here the same way ``/health`` is.
+_PUBLIC_WRITE_PATHS = frozenset({"/account/deletion-request", "/account/deletion-confirm"})
 
 
 def _auth_config() -> dict[str, Any]:
@@ -83,7 +87,7 @@ def _write_routes() -> list[tuple[str, str]]:
     app = create_app(include_test_routes=False)
     pairs: set[tuple[str, str]] = set()
     for route in _iter_api_routes(app.routes):
-        if route.path == "/health":
+        if route.path == "/health" or route.path in _PUBLIC_WRITE_PATHS:
             continue
         for method in (route.methods or set()) & _WRITE_METHODS:
             pairs.add((method, re.sub(r"\{[^}]+\}", "1", route.path)))
