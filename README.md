@@ -103,9 +103,15 @@ flows above keep working.)
 | `GET/PUT /settings` | Read/upsert per-user preferences as a `{key: value}` map: the daily review limits `daily_new_limit` / `daily_total_limit` (which bound the `GET /review/due` batch — each falling back to the server default when unset) and the Discover word count `discover_count`. `PUT` merges the supplied keys; a key set to `null` is **removed**. The typed numeric keys are bounds-checked and `daily_new_limit ≤ daily_total_limit` is enforced (else `422`). |
 | `GET /account/export` | Download a JSON bundle of **all** your data (profile, languages, cards, reviews, proficiency, settings), scoped to you — for store/GDPR data export. |
 | `DELETE /account` | **Hard-delete** your account: removes your Supabase auth user via the service-role Admin API, which cascades your profile and all domain data away (no orphans). No body; acts only on the token's user. |
+| `POST /account/deletion-request` | **Public** (no auth): the external deletion path (Play requirement). `{email}` → a generic, non-enumerating ack; if the email has an account, emails a signed one-hour token. Rate-limited per email. |
+| `POST /account/deletion-confirm` | **Public** (no auth): `{token}` from the emailed link → runs the same cascade delete as `DELETE /account`. Ownership is proven by the token, not a session. |
 | `GET /feature-flags` | **Public** (no auth): the resolved PUBLIC feature-flag map (`{name: enabled}`, secrets-free). The web reads it to gate dark UI. |
 
 The active LLM provider is chosen by `LLM_PROVIDER` (`groq` default; `fake` for tests/E2E).
+
+The web app also serves three **public pages** (no login): `/privacy` (the GDPR privacy policy),
+`/support`, and `/delete-account` (the external account-deletion form), linked from the footer and the
+Account screen.
 
 **Feature flags (ship dark, toggle without a redeploy).** Risky/new features hide behind a flag
 that defaults **off**, resolved by [`app/feature_flags.py`](apps/api/app/feature_flags.py) from an

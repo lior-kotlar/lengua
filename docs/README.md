@@ -10,7 +10,11 @@ Project documentation: privacy policy, legal, and operational runbooks.
 - [`privacy-policy.md`](privacy-policy.md) — the GDPR privacy policy (Phase 8): data collected,
   Supabase (EU) storage, the LLM provider (Gemini), lawful bases, sub-processors, retention, and how
   to export/delete your data. Published at `/privacy` on the web app.
+- [`store-listing.md`](store-listing.md) — the single source of truth for app-store metadata (Phase
+  8): the published URLs, store-listing copy (name/subtitle/description/keywords/category), the
+  data-inventory matrix behind the Apple/Play data-safety answers, and per-processor data residency.
 - [`byok-seam.md`](byok-seam.md) — bring-your-own-key design note (Phase 3 seam).
 
 The `runbook.md` On-call and Store-release sections remain Phase-0 placeholders filled in at launch
-(Phase 9). Relative links across these docs are checked in CI (`scripts/check_doc_links.py`).
+(Phase 9). Relative links across these docs, and the `store-listing.md` character limits, are checked
+in CI (`scripts/check_doc_links.py` + `scripts/check_store_listing.py`).
