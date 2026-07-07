@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from typing import cast
 
 import httpx
 import psycopg
@@ -27,6 +28,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deletion_tokens import (
     DELETION_TOKEN_TTL_SECONDS,
@@ -207,6 +210,68 @@ async def test_find_user_by_email_returns_none_on_admin_error() -> None:
     assert await svc.find_auth_user_id_by_email("x@example.com") is None
 
 
+# ── Indexed DB-lookup unit tests (the round-3 fast path; offline via a fake session) ──────────────
+
+
+class _FakeResult:
+    """The `.first()`-only slice of a SQLAlchemy Result the lookup uses."""
+
+    def __init__(self, row: tuple[object, ...] | None) -> None:
+        self._row = row
+
+    def first(self) -> tuple[object, ...] | None:
+        return self._row
+
+
+class _FakeDBSession:
+    """A minimal async-session stand-in for the `SELECT id FROM auth.users` lookup."""
+
+    def __init__(self, *, row: tuple[object, ...] | None = None, raises: bool = False) -> None:
+        self._row = row
+        self._raises = raises
+
+    async def execute(self, *_args: object, **_kwargs: object) -> _FakeResult:
+        if self._raises:
+            raise SQLAlchemyError("permission denied for table users")
+        return _FakeResult(self._row)
+
+
+@pytest.mark.asyncio
+async def test_find_user_by_email_uses_the_indexed_db_lookup_when_a_session_is_given() -> None:
+    """With a privileged session the id comes from the single indexed `auth.users` query — no Admin
+    API fan-out (the transport here would 500 if it were ever reached)."""
+    uid = uuid.uuid4()
+    svc = AccountDeletionService(
+        _ADMIN, transport=httpx.MockTransport(lambda _req: httpx.Response(500))
+    )
+    db = cast(AsyncSession, _FakeDBSession(row=(uid,)))
+    assert await svc.find_auth_user_id_by_email("found@example.com", db=db) == uid
+
+
+@pytest.mark.asyncio
+async def test_find_user_by_email_db_lookup_returns_none_for_no_match() -> None:
+    """A successful query with no row means "not registered" — return None without an admin fallback
+    (the transport, which would find the user, is never reached)."""
+    uid = uuid.uuid4()
+    svc = AccountDeletionService(
+        _ADMIN, transport=_users_page([[{"id": str(uid), "email": "ghost@example.com"}]])
+    )
+    db = cast(AsyncSession, _FakeDBSession(row=None))
+    assert await svc.find_auth_user_id_by_email("ghost@example.com", db=db) is None
+
+
+@pytest.mark.asyncio
+async def test_find_user_by_email_falls_back_to_admin_when_the_db_query_is_denied() -> None:
+    """A privileged role lacking SELECT on auth.users (query raises) falls back to the
+    grant-independent Admin API instead of hard-failing, so it can never regress the flow."""
+    uid = uuid.uuid4()
+    svc = AccountDeletionService(
+        _ADMIN, transport=_users_page([[{"id": str(uid), "email": "x@example.com"}]])
+    )
+    db = cast(AsyncSession, _FakeDBSession(raises=True))
+    assert await svc.find_auth_user_id_by_email("x@example.com", db=db) == uid
+
+
 # ── Public endpoint unit tests (offline, ASGI with overrides) ────────────────────────────────────
 
 
@@ -217,7 +282,9 @@ class _FakeDeletion:
         self._found_id = found_id
         self.deleted: list[uuid.UUID] = []
 
-    async def find_auth_user_id_by_email(self, email: str) -> uuid.UUID | None:
+    async def find_auth_user_id_by_email(
+        self, email: str, *, db: object | None = None
+    ) -> uuid.UUID | None:
         return self._found_id
 
     async def delete_user(self, user_id: uuid.UUID, *, db: object) -> None:

@@ -32,6 +32,7 @@ import uuid
 
 import httpx
 from sqlalchemy import delete as sql_delete
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -186,21 +187,55 @@ class AccountDeletionService:
         if response.status_code not in _DELETE_OK:
             raise AccountAdminError(f"auth admin delete returned {response.status_code}")
 
-    async def find_auth_user_id_by_email(self, email: str) -> uuid.UUID | None:
-        """Resolve a Supabase Auth user id from an email via the service-role Admin API.
+    async def find_auth_user_id_by_email(
+        self, email: str, *, db: AsyncSession | None = None
+    ) -> uuid.UUID | None:
+        """Resolve a Supabase Auth user id from an email, for the public ``/delete-account`` flow.
 
-        Used by the **public** ``/delete-account`` request flow (task 8.3.1) to find which account a
-        deletion link should be mailed to. Returns ``None`` — never raising — when the admin
-        credentials are unset, when no user matches, or on any admin-API error, so the caller can
-        always answer the same generic acknowledgement without disclosing whether the email exists
-        (no account enumeration). Matching is case-insensitive on the normalized address.
+        Used by the **public** deletion-request flow (task 8.3.1) to find which account a deletion
+        link should be mailed to. Returns ``None`` — never raising — when nothing matches or the
+        lookup fails, so the caller always answers the same generic acknowledgement without
+        disclosing whether the email exists (no account enumeration). Matching is case-insensitive.
+
+        Two resolution paths, tried in order:
+
+        1. **Indexed DB lookup** (when a privileged ``db`` session is passed): a single
+           ``SELECT id FROM auth.users WHERE lower(email) = …`` on the RLS-bypassing owner session.
+           This removes the unauthenticated endpoint's fan-out to the GoTrue Admin *list-users* API
+           (round-3 DoS hardening). The owner role can read ``auth.users`` on managed Supabase (and
+           the CI stack); if a deployment's role lacks that grant the query raises and we fall
+           through to (2), so this can never *regress* the flow — only speed it up.
+        2. **Admin API** (fallback, or when no ``db`` is given): the grant-independent GoTrue
+           service-role ``GET /admin/users`` pagination (:meth:`_find_auth_user_id_via_admin`).
+        """
+        target = email.strip().lower()
+
+        if db is not None:
+            try:
+                result = await db.execute(
+                    text("SELECT id FROM auth.users WHERE lower(email) = :email LIMIT 1"),
+                    {"email": target},
+                )
+                row = result.first()
+                return uuid.UUID(str(row[0])) if row is not None else None
+            except SQLAlchemyError:
+                # The privileged role may lack SELECT on auth.users in some deployments; fall back
+                # to the grant-independent Admin API rather than hard-failing the lookup.
+                pass
+
+        return await self._find_auth_user_id_via_admin(target)
+
+    async def _find_auth_user_id_via_admin(self, target: str) -> uuid.UUID | None:
+        """Resolve ``target`` (already normalized) via the service-role Admin *list-users* API.
+
+        Returns ``None`` when the admin credentials are unset, no user matches, or on any admin-API
+        error — never raising, so the caller's generic acknowledgement is returned regardless.
         """
         base_url = (self._settings.supabase_url or "").rstrip("/")
         service_key = self._settings.supabase_service_role_key.get_secret_value()
         if not base_url or not service_key:
             return None
 
-        target = email.strip().lower()
         url = f"{base_url}/auth/v1/admin/users"
         headers = {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
         try:
