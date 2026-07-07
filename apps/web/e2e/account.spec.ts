@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+
 import { expect, test, type Page } from './fixtures';
 
 /**
@@ -51,11 +53,33 @@ test.describe('account screen (ephemeral stack)', () => {
     await expect(page.getByTestId('account-email')).toHaveText(DEMO_EMAIL);
 
     // 4.8.2 — clicking export offers a JSON file download (real GET /account/export).
-    const [download] = await Promise.all([
+    const [response, download] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes('/account/export') &&
+          r.request().method() === 'GET' &&
+          r.ok(),
+      ),
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Export my data' }).click(),
     ]);
     expect(download.suggestedFilename()).toBe('lengua-export.json');
+
+    // 8.2.3 launch-blocker: the downloaded file IS the GET /account/export response bundle.
+    const apiBundle = await response.json();
+    const savedPath = await download.path();
+    const savedBundle = JSON.parse(fs.readFileSync(savedPath, 'utf-8'));
+    expect(savedBundle).toEqual(apiBundle);
+    // Sanity: it is the demo user's real bundle (all top-level keys, a non-empty deck).
+    expect(Object.keys(savedBundle).sort()).toEqual([
+      'cards',
+      'languages',
+      'profile',
+      'proficiency',
+      'reviews',
+      'settings',
+    ]);
+    expect(savedBundle.languages.length).toBeGreaterThan(0);
   });
 
   test('links to the published Privacy policy and Support pages (8.1.2)', async ({
@@ -114,6 +138,36 @@ test.describe('account screen (ephemeral stack)', () => {
     expect(deleteCalls).toBe(1);
 
     // Session is cleared: a protected route stays gated.
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test('deletion is reachable via in-app navigation only and clears the session (8.2.4)', async ({
+    page,
+  }) => {
+    await login(page);
+
+    // Apple's in-app-deletion requirement: reach the delete control using ONLY in-app navigation —
+    // the sidebar link, never an external URL or a direct goto. `gotoAccount` clicks the Primary nav.
+    await gotoAccount(page);
+    await expect(page).toHaveURL(/\/account$/);
+
+    // Stub DELETE so the shared demo account survives; assert the session-clearing behaviour.
+    await page.route('**/account', async (route) => {
+      if (route.request().method() !== 'DELETE') {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({ status: 204, body: '' });
+    });
+
+    await page.getByRole('button', { name: 'Delete account' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel(/to confirm/i).fill(CONFIRM_PHRASE);
+    await dialog.getByRole('button', { name: 'Delete account' }).click();
+
+    // The session is cleared: redirected to /login and a protected route stays gated afterwards.
+    await expect(page).toHaveURL(/\/login$/);
     await page.goto('/');
     await expect(page).toHaveURL(/\/login$/);
   });
