@@ -137,4 +137,10 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   migrations are off-limits even for comments, so it lingers by design.
 - **OTel logs deprecation:** revisit the `opentelemetry.sdk._logs.LoggingHandler` deprecation when
   the OTel logs signal stabilizes.
+- **`_client_ip` trusts the leftmost `X-Forwarded-For` hop** (`apps/api/app/routers/account_deletion.py`)
+  — client-supplied on some proxy topologies, so the per-IP deletion throttle (#137) is best-effort
+  (the docstring already says so). Surfaced (and deemed non-blocking: the #141 `max_keys` bound
+  doesn't depend on it) by the #141 adversarial review. Evidence conflicts on whether Cloud Run's
+  frontend normalizes XFF — confirm the deployed topology's behavior at the prod cutover and, if the
+  leftmost hop is spoofable there, switch to the rightmost-trusted hop.
 - **Watch:** confirm Supabase free-tier idle-pausing / project limits at prod setup.
