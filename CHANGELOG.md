@@ -17,8 +17,8 @@ This is the source of truth for **what is done**; open work lives in
 
 ## 2026-07-08 — Bound the in-process rate limiter's key map (last non-owner hardening item)
 
-Closes Track-1.1 in `planning/outstanding-work.md` — the third and final low/latent DoS item from
-the #131 adversarial review (items 1 and 2 shipped as #138/#137).
+Closes Track-1.1 in `planning/outstanding-work.md` (#141) — the third and final low/latent DoS item
+from the #131 adversarial review (items 1 and 2 shipped as #138/#137).
 
 - **`InProcessRateLimiter` now bounds its key map.** The per-hit reclaim only dropped a key's entry
   when that key was *re-hit*, so a flood of one-shot distinct keys — attacker-varied emails/IPs

@@ -33,8 +33,9 @@ deferred) is [`../outstanding-work.md`](../outstanding-work.md), and the owner l
 
 ## Forward critical path
 
-**Track-1 code items** (`/next-task` — the §1.1 limiter bound is the only required one) run any
-time. Then, in order: **M4 prod cutover** (owner — go-live §F) → **P7 mobile** (Capacitor, signed
+**Track-1 code items** (`/next-task` — the required limiter-bound hardening item is now done (#141);
+what's left is the open code issues + the optional post-v1 backlog) run any time. Then, in order:
+**M4 prod cutover** (owner — go-live §F) → **P7 mobile** (Capacitor, signed
 builds, store accounts) → **P8 store-console half** (labels, data-safety, listings, closed tests) →
 **P9 launch** (cross-platform smoke, store submit/promote, 48h watch). P5 live observability
 (owner — go-live §G) runs alongside and closes with the prod cutover.
