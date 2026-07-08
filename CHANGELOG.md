@@ -15,6 +15,31 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-08 — Bound the in-process rate limiter's key map (last non-owner hardening item)
+
+Closes Track-1.1 in `planning/outstanding-work.md` (#141) — the third and final low/latent DoS item
+from the #131 adversarial review (items 1 and 2 shipped as #138/#137).
+
+- **`InProcessRateLimiter` now bounds its key map.** The per-hit reclaim only dropped a key's entry
+  when that key was *re-hit*, so a flood of one-shot distinct keys — attacker-varied emails/IPs
+  behind the public deletion-request limiters — accumulated one lingering entry apiece. A new
+  `max_keys` ctor arg (default `MAX_KEYS = 100_000`) plus a `_sweep_expired(now)`, invoked from
+  `hit()` once the map outgrows `max_keys`, reclaims every *fully-expired* key (newest timestamp
+  already aged out of the window) in a single pass. A key with any live timestamp is left untouched,
+  so **no live rate-limit window is ever weakened** — the per-user LLM cap (this class is shared with
+  the cost guard) and the per-email / per-IP deletion caps are all unchanged. `max_keys` therefore
+  bounds the *lingering fully-expired* keys; a flood that keeps its keys live inside the window is
+  bounded instead by arrival-rate × window, by design.
+- **Sweep hysteresis (post-review addition).** The O(n) sweep is throttled to at most once per
+  window: a key still live at the last sweep cannot fully expire until a window later, so re-scanning
+  sooner reclaims nothing — this stops a sustained live-key flood from turning the sweep into a
+  per-request CPU sink on the request event loop, while holding the memory bound to the same order.
+- **Whitebox tests** (`apps/api/tests/quota/test_ratelimit.py`) prove: only fully-expired keys are
+  reclaimed; a *mixed*-window key (oldest timestamp expired, newest still live) survives the sweep
+  and keeps counting against its limit; live keys are never evicted (the map may legitimately exceed
+  `max_keys`); the sweep re-runs at most once per window; and the live size stays bounded across a
+  many-window soak. Internal hardening only — no API, schema, or user-facing behaviour change.
+
 ## 2026-07-08 — Planning reorganization, round-3 close-out & `/next-task` tooling
 
 A validated close-out and restructure of the planning surface, so what's left is unambiguous.
