@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -65,6 +65,22 @@ describe('ResetPassword', () => {
     });
     renderReset();
     expect(screen.getByText(/invalid or has expired/i)).toBeInTheDocument();
+  });
+
+  it('gives both new-password fields a reveal toggle', () => {
+    renderReset();
+    const password = screen.getByLabelText('New password') as HTMLInputElement;
+    const confirm = screen.getByLabelText(
+      'Confirm new password',
+    ) as HTMLInputElement;
+    expect(password).toHaveAttribute('type', 'password');
+    expect(confirm).toHaveAttribute('type', 'password');
+    const toggles = screen.getAllByRole('button', { name: 'Show password' });
+    expect(toggles).toHaveLength(2);
+
+    fireEvent.keyDown(toggles[1], { key: 'Enter' });
+    expect(confirm).toHaveAttribute('type', 'text');
+    expect(password).toHaveAttribute('type', 'password');
   });
 
   it('validates that the passwords match', async () => {

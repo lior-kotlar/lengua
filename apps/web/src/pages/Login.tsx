@@ -15,7 +15,7 @@ import { FormField } from '@/components/form-field';
 import { OAuthButtons } from '@/components/oauth-buttons';
 import { AuthCard } from '@/components/auth-card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { resendVerificationEmail, signInWithEmail } from '@/lib/auth';
 
 export default function Login() {
@@ -73,9 +73,8 @@ export default function Login() {
               Forgot password?
             </Link>
           </div>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}

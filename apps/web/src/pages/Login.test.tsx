@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -57,6 +57,17 @@ describe('Login', () => {
     renderLogin();
     expect(screen.getAllByRole('heading')).toHaveLength(1);
     expect(screen.getByText('Lengua')).toBeInTheDocument();
+  });
+
+  it('offers a show/hide toggle on the password field that keeps the label intact', async () => {
+    renderLogin();
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    expect(password).toHaveAttribute('type', 'password');
+    const toggle = screen.getByRole('button', { name: 'Show password' });
+    fireEvent.pointerDown(toggle);
+    expect(password).toHaveAttribute('type', 'text');
+    fireEvent.pointerUp(toggle);
+    expect(password).toHaveAttribute('type', 'password');
   });
 
   it('submits credentials to signInWithEmail', async () => {

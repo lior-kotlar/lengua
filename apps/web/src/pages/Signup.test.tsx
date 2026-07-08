@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,6 +40,25 @@ describe('Signup', () => {
     renderSignup();
     expect(screen.getAllByRole('heading')).toHaveLength(1);
     expect(screen.getByText('Lengua')).toBeInTheDocument();
+  });
+
+  it('gives both password fields a hold-to-reveal toggle', () => {
+    renderSignup();
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    const confirm = screen.getByLabelText(
+      'Confirm password',
+    ) as HTMLInputElement;
+    expect(password).toHaveAttribute('type', 'password');
+    expect(confirm).toHaveAttribute('type', 'password');
+    const toggles = screen.getAllByRole('button', { name: 'Show password' });
+    expect(toggles).toHaveLength(2);
+
+    // Holding the first toggle reveals only its own field.
+    fireEvent.pointerDown(toggles[0]);
+    expect(password).toHaveAttribute('type', 'text');
+    expect(confirm).toHaveAttribute('type', 'password');
+    fireEvent.pointerUp(toggles[0]);
+    expect(password).toHaveAttribute('type', 'password');
   });
 
   it('blocks submission and shows field errors when invalid', async () => {

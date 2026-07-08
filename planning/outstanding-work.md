@@ -34,7 +34,6 @@ held, legacy Streamlit kept runnable).*
 
 | Issue | What | Size | Note |
 | --- | --- | --- | --- |
-| [#99](https://github.com/lior-kotlar/lengua/issues/99) | Show/hide ("eye") toggle on password inputs | S | self-merge on green |
 | [#80](https://github.com/lior-kotlar/lengua/issues/80) | Move LLM prompts to the database with versioning | M | architectural — pause for review |
 | [#95](https://github.com/lior-kotlar/lengua/issues/95) | Free-form vs curated language list | design decision | decide with the owner first, then implement |
 
