@@ -179,6 +179,23 @@ def _skip_integration_without_db(request: pytest.FixtureRequest) -> None:
         _skip_if_db_unreachable()
 
 
+@pytest.fixture(autouse=True)
+def _reset_prompt_store() -> Iterator[None]:
+    """Reset the DB-backed prompt store singleton + clear its source hook around every test (#80).
+
+    ``create_app`` installs the process-wide :class:`~app.prompt_store.PromptStore`'s synchronous
+    ``get`` as the ``lengua_core.prompts`` source, and the singleton caches a warmed snapshot for
+    its TTL. Without a reset, a snapshot warmed by an integration test (or the installed hook
+    itself) would bleed into later tests. Clearing both before and after each test keeps every test
+    starting from "no store installed → in-code prompt defaults", like ``reset_feature_flags``.
+    """
+    from app.prompt_store import reset_prompt_store
+
+    reset_prompt_store()
+    yield
+    reset_prompt_store()
+
+
 @pytest.fixture(scope="module")
 def clean_db() -> Iterator[None]:
     """Module-scoped: truncate the app tables once so the module starts from an empty DB."""

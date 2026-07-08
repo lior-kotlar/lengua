@@ -24,6 +24,7 @@ from app.db.session import check_db_ready
 from app.error_tracking import configure_error_tracking
 from app.llm_runner import register_llm_handlers
 from app.observability import configure_observability
+from app.prompt_store import install_prompt_store
 from app.quota import register_quota_handlers
 from app.routers import (
     account,
@@ -192,6 +193,13 @@ def create_app(*, include_test_routes: bool | None = None) -> FastAPI:
     # Concurrency cap + backoff (Phase 3.5): the in-flight cap's ProviderBusy and a persistent
     # provider 429/5xx (LLMTransientError) both → 503 {"code":"server_busy",...} (+ Retry-After).
     register_llm_handlers(application)
+
+    # DB-backed prompts (GitHub #80): install the process-wide prompt store as the source for the
+    # ``lengua_core.prompts`` builders, so generation uses the ACTIVE ``prompt_versions`` (refreshed
+    # per-call within the TTL by ``app.llm_runner.run_provider``). No DB is touched here — the store
+    # reads lazily and falls back to the in-code defaults when the table is empty/unreachable, so
+    # local/CI/E2E (FakeLLM) and a DB-less boot are unaffected.
+    install_prompt_store()
 
     if include_test_routes is None:
         include_test_routes = _llm_provider() == "fake"

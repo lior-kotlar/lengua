@@ -34,7 +34,7 @@ held, legacy Streamlit kept runnable).*
 
 | Issue | What | Size | Note |
 | --- | --- | --- | --- |
-| [#80](https://github.com/lior-kotlar/lengua/issues/80) | Move LLM prompts to the database with versioning | M | architectural — pause for review |
+| [#80](https://github.com/lior-kotlar/lengua/issues/80) | Move LLM prompts to the database with versioning | M | **PR open — paused for owner review** (architectural: DB-backed prompt store + dual migration `0007`/`prompt_versions`). Implemented + verified (local gate green; DB integration in CI); do NOT self-merge — owner reviews the migration + lockdown, then merges. |
 | [#95](https://github.com/lior-kotlar/lengua/issues/95) | Free-form vs curated language list | design decision | decide with the owner first, then implement |
 
 ### 1.2 Post-v1 backlog (deliberately post-launch — pull forward only if wanted)

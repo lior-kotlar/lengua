@@ -20,8 +20,8 @@ from tests.db.alembic_helpers import (
 
 pytestmark = pytest.mark.integration
 
-# The nine tables the migration owns (the 6 app tables + the 2 cost-guard tables + the global
-# feature_flags config table from 0005).
+# The ten tables the migration owns (the 6 app tables + the 2 cost-guard tables + the global
+# feature_flags config table from 0005 + the prompt_versions config table from 0007).
 APP_TABLES = {
     "profiles",
     "languages",
@@ -32,6 +32,7 @@ APP_TABLES = {
     "llm_usage",
     "llm_budget",
     "feature_flags",
+    "prompt_versions",
 }
 
 

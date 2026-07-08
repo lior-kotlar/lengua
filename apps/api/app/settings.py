@@ -106,6 +106,14 @@ class Settings(BaseSettings):
     # resolution). The clock is injectable so the TTL refresh is deterministic in tests.
     feature_flag_ttl_seconds: int = 30
 
+    # ── DB-backed prompts (GitHub #80) ────────────────────────────────────────
+    # How long (seconds) the in-process prompt store (``app.prompt_store``) caches the resolved
+    # ACTIVE prompt versions before re-reading ``prompt_versions``. A short TTL is what lets an
+    # operator change a prompt in prod (append a new active version) and have generation pick it up
+    # WITHOUT a redeploy: the change is picked up within this window (default ~60s). The clock is
+    # injectable so the TTL refresh is deterministic in tests, exactly like the feature-flag store.
+    prompt_cache_ttl_seconds: int = 60
+
     # ── App ───────────────────────────────────────────────────────────────────
     env: str = "local"
 
