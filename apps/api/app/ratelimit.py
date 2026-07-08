@@ -36,6 +36,13 @@ from app.settings import get_settings
 #: One rolling window is a minute; the per-user *count* within it is the limit.
 WINDOW_SECONDS = 60.0
 
+#: Soft cap on the number of distinct keys held at once before a sweep of fully-expired entries is
+#: triggered (see :meth:`InProcessRateLimiter._sweep_expired`). Large enough that normal traffic
+#: never trips it; it exists purely so a long-running process fed a flood of *one-shot* distinct
+#: keys (attacker-varied emails/IPs behind the public deletion-request limiters) can't grow the map
+#: without bound. Only fully-expired keys are ever dropped, so no live rate-limit window is touched.
+MAX_KEYS = 100_000
+
 
 @dataclass(frozen=True)
 class RateLimitDecision:
@@ -68,9 +75,13 @@ class InProcessRateLimiter:
     Per user it keeps the monotonic timestamps of the requests inside the current window; each
     :meth:`hit` first evicts timestamps older than the window, then either records the new request
     (when under the limit) or rejects it. When a user's window empties (all timestamps aged out, or
-    a disabled limiter that never records any), its dict entry is reclaimed so the map stays bounded
-    rather than growing one slot per distinct user id ever seen. The clock is injectable so tests
-    advance time without sleeping; the default is :func:`time.monotonic` (immune to clock jumps).
+    a disabled limiter that never records any), its dict entry is reclaimed **on that hit** so the
+    map stays bounded rather than growing one slot per distinct user id ever seen. Because that
+    per-key reclaim only fires when a key is *re-hit*, a flood of one-shot distinct keys (never
+    revisited) is caught by a second bound: once the map outgrows ``max_keys`` a
+    :meth:`_sweep_expired` drops every fully-expired key in one pass, never touching a live window.
+    The clock is injectable so tests advance time without sleeping; the default is
+    :func:`time.monotonic` (immune to clock jumps).
     """
 
     def __init__(
@@ -79,11 +90,27 @@ class InProcessRateLimiter:
         limit: int,
         window_seconds: float = WINDOW_SECONDS,
         clock: Callable[[], float] = time.monotonic,
+        max_keys: int = MAX_KEYS,
     ) -> None:
         self._limit = limit
         self._window = float(window_seconds)
         self._clock = clock
+        self._max_keys = max_keys
         self._hits: dict[uuid.UUID, deque[float]] = defaultdict(deque)
+
+    def _sweep_expired(self, now: float) -> None:
+        """Drop every key whose window has fully aged out — the backstop bound on the map size.
+
+        The per-key reclaim in :meth:`hit` only fires when a key is *re-hit*, so a flood of distinct
+        keys hit exactly once (attacker-varied emails/IPs behind the public deletion-request
+        limiters) would each leave a lingering entry. When the map outgrows ``max_keys`` this sweeps
+        every key whose newest timestamp already sits outside the window; a key with any live
+        timestamp is left untouched, so no active limit is ever weakened.
+        """
+        cutoff = now - self._window
+        expired = [key for key, hits in self._hits.items() if not hits or hits[-1] <= cutoff]
+        for key in expired:
+            del self._hits[key]
 
     def hit(self, user_id: uuid.UUID) -> RateLimitDecision:
         """Count one request for ``user_id`` against the rolling window.
@@ -91,8 +118,13 @@ class InProcessRateLimiter:
         Evicts expired timestamps, then: if the window is full, reject with a ``retry_after`` of the
         seconds until the oldest timestamp ages out (so a slot frees); otherwise record ``now`` and
         allow. A rejected request is **not** recorded — only allowed requests consume a slot.
+
+        When the map has outgrown ``max_keys`` (a flood of one-shot distinct keys the per-hit
+        reclaim never revisits), :meth:`_sweep_expired` runs first to reclaim fully-expired keys.
         """
         now = self._clock()
+        if len(self._hits) > self._max_keys:
+            self._sweep_expired(now)
         hits = self._hits[user_id]
         cutoff = now - self._window
         while hits and hits[0] <= cutoff:

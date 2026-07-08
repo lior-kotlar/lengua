@@ -15,6 +15,23 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-08 — Bound the in-process rate limiter's key map (last non-owner hardening item)
+
+Closes Track-1.1 in `planning/outstanding-work.md` — the third and final low/latent DoS item from
+the #131 adversarial review (items 1 and 2 shipped as #138/#137).
+
+- **`InProcessRateLimiter` now bounds its key map.** The per-hit reclaim only dropped a key's entry
+  when that key was *re-hit*, so a flood of one-shot distinct keys — attacker-varied emails/IPs
+  behind the public deletion-request limiters — accumulated one lingering entry apiece. A new
+  `max_keys` ctor arg (default `MAX_KEYS = 100_000`) plus a `_sweep_expired(now)`, invoked from
+  `hit()` once the map outgrows `max_keys`, reclaims every fully-expired key in a single pass. The
+  sweep drops only keys whose newest timestamp has already aged out of the window, so **no live
+  rate-limit window is ever touched** — the per-user LLM cap (this class is shared with the cost
+  guard) and the per-email / per-IP deletion caps are all unchanged. Whitebox test
+  `test_max_keys_sweep_drops_only_expired_keys` proves the map stays bounded while a still-live key
+  is spared (`apps/api/tests/quota/test_ratelimit.py`). Internal hardening only — no API, schema, or
+  user-facing behaviour change.
+
 ## 2026-07-08 — Planning reorganization, round-3 close-out & `/next-task` tooling
 
 A validated close-out and restructure of the planning surface, so what's left is unambiguous.

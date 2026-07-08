@@ -8,8 +8,12 @@
   and a later call after the window has elapsed is allowed again. The fake clock makes the window
   deterministic (no sleeping).
 * :func:`test_reclaims_entry_when_all_timestamps_age_out` /
-  :func:`test_disabled_limiter_does_not_accumulate_entries` prove the map is bounded: an entry
-  whose window empties (aged out, or a limit-0 limiter) is dropped rather than leaked per user id.
+  :func:`test_disabled_limiter_does_not_accumulate_entries` prove the map is bounded on the
+  *re-hit* path: an entry whose window empties (aged out, or a limit-0 limiter) is dropped rather
+  than leaked per user id.
+* :func:`test_max_keys_sweep_drops_only_expired_keys` proves the second bound for *one-shot* keys
+  the re-hit reclaim never revisits: once the map outgrows ``max_keys`` the sweep reclaims every
+  fully-expired key while sparing any key that still holds a live timestamp.
 * :func:`test_default_rate_limiter_is_singleton` covers the process-wide singleton dependency.
 """
 
@@ -81,6 +85,41 @@ def test_disabled_limiter_does_not_accumulate_entries() -> None:
     for _ in range(100):
         assert limiter.hit(uuid.uuid4()).allowed is False
     assert len(limiter._hits) == 0
+
+
+def test_max_keys_sweep_drops_only_expired_keys() -> None:
+    """Once the map outgrows ``max_keys``, the sweep reclaims expired keys but spares live ones.
+
+    The per-hit reclaim in :meth:`~app.ratelimit.InProcessRateLimiter.hit` only fires when a key is
+    re-hit, so a flood of one-shot distinct keys (attacker-varied emails/IPs behind the public
+    deletion-request limiters) would otherwise accumulate unbounded. When the map grows past
+    ``max_keys`` the sweep drops every key whose window has fully aged out — without ever touching a
+    key that still holds a live timestamp.
+    """
+    clock = FakeClock(1000.0)
+    limiter = InProcessRateLimiter(limit=5, window_seconds=60.0, clock=clock, max_keys=3)
+
+    # Three one-shot keys, each hit exactly once and never revisited: the per-hit reclaim can't
+    # touch them, so they simply accumulate (the map is allowed over max_keys until the next hit).
+    old = [uuid.uuid4() for _ in range(3)]
+    for key in old:
+        assert limiter.hit(key).allowed is True
+    assert len(limiter._hits) == 3
+
+    # A fourth key recorded 30s in keeps a live timestamp once the older three have aged out.
+    clock.advance(30)
+    live = uuid.uuid4()
+    assert limiter.hit(live).allowed is True
+    assert len(limiter._hits) == 4  # over max_keys now; bounded lazily on the next hit
+
+    # 35s more ages the three original windows out (65s old) but not ``live`` (35s old). The next
+    # hit sees the map over max_keys and sweeps: the three expired keys go, ``live`` stays, and the
+    # triggering key is recorded.
+    clock.advance(35)
+    trigger = uuid.uuid4()
+    assert limiter.hit(trigger).allowed is True
+    assert set(limiter._hits) == {live, trigger}
+    assert all(key not in limiter._hits for key in old)
 
 
 def test_default_rate_limiter_is_singleton() -> None:

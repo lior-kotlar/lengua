@@ -30,25 +30,7 @@ Plus [tech debt / watch items](#tech-debt--watch-items) at the bottom.
 Everything here lands trunk-based, one PR per item, proven by the per-PR CI gate (≥80% coverage
 held, legacy Streamlit kept runnable).*
 
-### 1.1 Bound `InProcessRateLimiter` — the last hardening item · ⚠ PAUSE FOR REVIEW
-
-The third and final low/latent DoS item from the #131 adversarial review (items 1 and 2 closed in
-#138/#137). `InProcessRateLimiter` ([`apps/api/app/ratelimit.py`](../apps/api/app/ratelimit.py))
-only reclaims a key's entry on *re-hit*, so one-shot distinct keys (attacker-varied emails/IPs
-behind the deletion-request limiters) accumulate unbounded.
-
-**Plan (ready to implement):** add a `max_keys` ctor arg (default ~100 000) and a
-`_sweep_expired(now)` that drops every **fully-expired** key (newest timestamp already aged out of
-the window), invoked from `hit()` when `len(self._hits) > max_keys`. It only drops expired keys, so
-no active window is touched → `tests/quota/*` must not regress. Add a whitebox test in
-[`../apps/api/tests/quota/test_ratelimit.py`](../apps/api/tests/quota/test_ratelimit.py) (style:
-`FakeClock`, `limiter._hits`) with a small `max_keys` proving the map bounds.
-
-**verify:** all `tests/quota/*` pass unchanged + the new bound test; ≥80% coverage held; full CI green.
-**⚠ This class is shared with the LLM cost guard — open the PR and PAUSE for review; do NOT
-self-merge.**
-
-### 1.2 Open GitHub issues that are pure code
+### 1.1 Open GitHub issues that are pure code
 
 | Issue | What | Size | Note |
 | --- | --- | --- | --- |
@@ -56,7 +38,7 @@ self-merge.**
 | [#80](https://github.com/lior-kotlar/lengua/issues/80) | Move LLM prompts to the database with versioning | M | architectural — pause for review |
 | [#95](https://github.com/lior-kotlar/lengua/issues/95) | Free-form vs curated language list | design decision | decide with the owner first, then implement |
 
-### 1.3 Post-v1 backlog (deliberately post-launch — pull forward only if wanted)
+### 1.2 Post-v1 backlog (deliberately post-launch — pull forward only if wanted)
 
 Not launch-blocking; the plan schedules these after v1. Each is pure code and could be pulled into
 Track 1 by choice: **offline review + sync** (cache due batch, queue grades offline, flush on
@@ -138,8 +120,8 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   use the **session** pooler (5432) or `statement_cache_size=0`. Confirm prod `DATABASE_URL` before
   the cutover (folds into Track 2 (A)).
 - **Process-local state → shared store when scaling past one Cloud Run instance:** the product
-  metrics (`active_users`/`signups_total`), the rate limiter (incl. the Track-1.1 `max_keys` bound),
-  and the discover cache are all per-process. One shared-store move covers all three.
+  metrics (`active_users`/`signups_total`), the rate limiter (incl. its `max_keys` bound), and the
+  discover cache are all per-process. One shared-store move covers all three.
 - **Coverage carve-outs.** `lengua_core/models.py`, `app/settings.py`, the whole
   `legacy_streamlit/`, and the web `src/main.tsx` + `src/components/ui/**` presentational
   primitives are excluded from the 80% gate; ~20 backend modules are `@pytest.mark.integration`
