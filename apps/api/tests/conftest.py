@@ -180,18 +180,29 @@ def _skip_integration_without_db(request: pytest.FixtureRequest) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _reset_prompt_store() -> Iterator[None]:
-    """Reset the DB-backed prompt store singleton + clear its source hook around every test (#80).
+def _offline_prompt_store() -> Iterator[None]:
+    """Give every test an in-memory prompt store by default, reset around the test (#80).
 
-    ``create_app`` installs the process-wide :class:`~app.prompt_store.PromptStore`'s synchronous
-    ``get`` as the ``lengua_core.prompts`` source, and the singleton caches a warmed snapshot for
-    its TTL. Without a reset, a snapshot warmed by an integration test (or the installed hook
-    itself) would bleed into later tests. Clearing both before and after each test keeps every test
-    starting from "no store installed → in-code prompt defaults", like ``reset_feature_flags``.
+    Two problems this solves:
+
+    * **Cross-loop engine leak.** ``create_app`` installs the process-wide
+      :class:`~app.prompt_store.PromptStore` and the generation path warms it (in
+      ``app.llm_runner.run_provider``) via the **shared** engine/sessionmaker. Under an async test
+      that would bind the shared engine to that test's event loop and leak a connection into the
+      next async test (the same hazard the ``dispose_engine`` dance guards). Installing an in-memory
+      store here keeps every test's warm **off** the shared engine.
+    * **Snapshot/source bleed.** The DB-backed singleton caches a warmed snapshot for its TTL and
+      installs a global source hook; without a reset one test's state would bleed into the next.
+
+    An **empty** active set means every fragment resolves to its in-code default — unchanged
+    generation behaviour. The DB-integration prompt tests build their **own** ``PromptStore`` (and
+    call ``read_active_prompts_from_db`` directly), so they are unaffected; the singleton-identity
+    test calls ``reset_prompt_store`` itself first. Mirrors ``reset_feature_flags`` in spirit.
     """
-    from app.prompt_store import reset_prompt_store
+    from app.prompt_store import install_offline_prompt_store, reset_prompt_store
 
     reset_prompt_store()
+    install_offline_prompt_store()
     yield
     reset_prompt_store()
 
@@ -305,6 +316,10 @@ async def multiuser_client(db_session: AsyncSession) -> AsyncIterator[AsyncClien
     seed_dev_user()  # committed profile for user A (DEV_USER_ID) so its inserts resolve
 
     app = create_app()
+    # The autouse ``_offline_prompt_store`` fixture has already installed an in-memory prompt store,
+    # so the generation path's warm never opens the SHARED process-wide engine (which would bind it
+    # to this loop and leak into the next async test) — see #80. ``create_app`` installs that
+    # override as the source. (No explicit install needed here.)
 
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         yield db_session  # do not close — the test still queries this session afterwards

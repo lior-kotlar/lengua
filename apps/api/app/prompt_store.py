@@ -216,18 +216,45 @@ def _default_prompt_store() -> PromptStore:
     )
 
 
+#: A test-installed store that supersedes the DB-backed singleton. Tests that drive HTTP through the
+#: real app (e.g. ``tests/api``) install an in-memory store here so ``warm_prompt_store`` never
+#: opens the **shared** process-wide engine/sessionmaker (which would bind it to that test's event
+#: loop and leak a connection into the next async test — the same cross-loop hazard the ``dispose``
+#: dance guards). ``None`` ⇒ use the DB-backed singleton (production + the DB-integration tests).
+_override_store: PromptStore | None = None
+
+
 def get_prompt_store() -> PromptStore:
-    """Return the process-wide :class:`PromptStore` singleton (so the TTL cache survives calls)."""
+    """Return the active :class:`PromptStore`: a test override if installed, else the singleton.
+
+    The singleton's TTL cache survives across calls (a fresh store per call would re-read the table
+    every time). Tests may install an in-memory override via :func:`set_prompt_store`.
+    """
+    if _override_store is not None:
+        return _override_store
     return _default_prompt_store()
 
 
-def reset_prompt_store() -> None:
-    """Drop the singleton so the next :func:`get_prompt_store` rebuilds it from settings.
+def set_prompt_store(store: PromptStore | None) -> None:
+    """Install (or clear with ``None``) a test store that supersedes the DB-backed singleton.
 
-    Also clears the installed source hook so a subsequent path with no store falls back to code
-    defaults — used by tests to avoid a stale singleton (or its hook) bleeding between them.
+    A convenience for tests driving the real app over HTTP: an in-memory store keeps
+    :func:`warm_prompt_store` off the shared engine (see :data:`_override_store`). Cleared by
+    :func:`reset_prompt_store`.
+    """
+    global _override_store
+    _override_store = store
+
+
+def reset_prompt_store() -> None:
+    """Drop the singleton + any test override and clear the installed source hook.
+
+    Rebuilds the singleton from settings on the next :func:`get_prompt_store`, and restores the
+    "no store installed → in-code prompt defaults" behaviour — used by tests to avoid a stale
+    singleton (or its hook/override) bleeding between them.
     """
     _default_prompt_store.cache_clear()
+    set_prompt_store(None)
     prompts.set_prompt_source(None)
 
 
@@ -248,5 +275,25 @@ async def warm_prompt_store() -> None:
 
 
 def install_prompt_store() -> None:
-    """Install the process-wide store as the prompt source (called once from ``create_app``)."""
+    """Install the active store as the prompt source (called once from ``create_app``)."""
     get_prompt_store().install()
+
+
+def install_offline_prompt_store() -> PromptStore:
+    """Install an in-memory prompt store (empty active set) as the override + source, and return it.
+
+    For tests that drive the real app over HTTP (``tests/api``): the generation path's
+    :func:`warm_prompt_store` then reads this in-memory store instead of opening the **shared**
+    process-wide engine/sessionmaker, so it can't bind that engine to the test's event loop and leak
+    a connection into the next async test. The empty active set means every fragment resolves to its
+    in-code default (unchanged generation behaviour). Cleared by :func:`reset_prompt_store` (the
+    autouse fixture runs it around every test).
+    """
+
+    async def _empty_reader() -> dict[str, str]:
+        return {}
+
+    store = PromptStore(reader=_empty_reader, ttl_seconds=60.0)
+    set_prompt_store(store)
+    store.install()
+    return store
