@@ -15,6 +15,44 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-08 — Show/hide ("eye") toggle on every password input
+
+Closes Track-1.1 [#99](https://github.com/lior-kotlar/lengua/issues/99) — a frontend-only
+affordance so a user can check what they typed.
+
+- **New reusable `PasswordInput`** (`apps/web/src/components/ui/password-input.tsx`) renders the
+  shared `Input` inside a `relative` wrapper with a `ghost`/`icon` eye button
+  (`lucide-react` `Eye`/`EyeOff`) absolutely positioned on the right; the input gets right padding so
+  revealed text never sits under the icon. One source of truth (`show`) drives
+  `type={show ? 'text' : 'password'}`.
+- **Two non-conflicting reveal paths.** Mouse/touch is **hold-to-reveal** (Pointer Events:
+  `pointerdown` shows — with `preventDefault()` so the button doesn't steal focus; the `click`
+  browsers still synthesize after release is inert since no `onClick` is bound — and
+  `pointerup`/`pointerleave`/`pointercancel` end the hold). Keyboard is a **sticky toggle**
+  (Enter/Space flip visibility once per physical press — OS key auto-repeat is ignored;
+  `preventDefault()` on Space stops page scroll), since press-and-hold isn't reachable by
+  keyboard. The pointer re-mask handlers only act while a hold is in progress, so a plain
+  hover-out can't cancel a keyboard-toggled reveal; blur always re-masks so a password is never
+  left exposed.
+- **Wired in without breaking label wiring:** Login uses `PasswordInput` directly; `FormField` now
+  renders it whenever `type="password"`, so Signup (password + confirm) and ResetPassword (both
+  fields) inherit the toggle. The `<label htmlFor>`/`id` association is preserved, so
+  `getByLabelText('Password')` (unit) and `getByLabel('Password')` (staging e2e) still resolve to the
+  field, never the button.
+- **A11y/correctness:** button is `type="button"` (never submits), `aria-label` reflects the action
+  ("Show password" / "Hide password"), the icon is `aria-hidden`, and `autoComplete`
+  (`current-password` / `new-password`) is untouched.
+- **Tests:** a dedicated `password-input.test.tsx` (starts masked; pointer hold reveals then
+  re-masks on up/leave/cancel; `preventDefault` on pointer-down and on Space — repeats included;
+  Enter/Space sticky toggle flips once per press with auto-repeat ignored; a sticky reveal
+  survives hover-out; blur resets; does not submit its form; still accepts typed input) plus a new
+  `form-field.test.tsx` pinning `FormField`'s branch wiring (`aria-invalid` +
+  `aria-describedby`/accessible description forwarded through both branches, `type="email"`
+  passthrough, empty error = no error) and page-level assertions on Login/Signup/ResetPassword.
+  Full web gate green (eslint, prettier, tsc, vitest ≥80% coverage, vite build). The auto-repeat
+  guard, hold-gated re-mask, and `FormField` pins came out of the pre-merge adversarial review
+  (4 lenses + refute votes).
+
 ## 2026-07-08 — Bound the in-process rate limiter's key map (last non-owner hardening item)
 
 Closes Track-1.1 in `planning/outstanding-work.md` (#141) — the third and final low/latent DoS item
