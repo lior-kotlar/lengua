@@ -77,10 +77,34 @@ describe('PasswordInput', () => {
     expect(input).toHaveAttribute('type', 'text');
   });
 
+  it('flips once per physical press — key auto-repeat is ignored', () => {
+    const { input, toggle } = renderField();
+    fireEvent.keyDown(toggle(), { key: 'Enter' });
+    expect(input).toHaveAttribute('type', 'text');
+    // A held key fires a stream of keydown events with repeat: true — they must not re-flip, or
+    // the reveal strobes and lands on a parity-dependent state.
+    fireEvent.keyDown(toggle(), { key: 'Enter', repeat: true });
+    expect(input).toHaveAttribute('type', 'text');
+    fireEvent.keyDown(toggle(), { key: ' ', repeat: true });
+    expect(input).toHaveAttribute('type', 'text');
+  });
+
   it('prevents default on Space so the page does not scroll', () => {
     const { toggle } = renderField();
     const event = new KeyboardEvent('keydown', {
       key: ' ',
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(toggle(), event);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('prevents default on auto-repeated Space too (no page scroll mid-hold)', () => {
+    const { toggle } = renderField();
+    const event = new KeyboardEvent('keydown', {
+      key: ' ',
+      repeat: true,
       bubbles: true,
       cancelable: true,
     });
@@ -97,6 +121,20 @@ describe('PasswordInput', () => {
   it('re-masks on blur so a revealed password is not left exposed', () => {
     const { input, toggle } = renderField();
     fireEvent.keyDown(toggle(), { key: 'Enter' });
+    expect(input).toHaveAttribute('type', 'text');
+    fireEvent.blur(toggle());
+    expect(input).toHaveAttribute('type', 'password');
+  });
+
+  it('keeps a keyboard-toggled reveal through a plain hover-out (no hold in progress)', () => {
+    const { input, toggle } = renderField();
+    fireEvent.keyDown(toggle(), { key: 'Enter' });
+    expect(input).toHaveAttribute('type', 'text');
+    // pointerleave fires on a plain mouse sweep across the button with nothing pressed, and a
+    // stray pointerup behaves the same — neither is a deliberate action, so the sticky keyboard
+    // reveal must survive both. Only toggle/hold-release/blur re-mask.
+    fireEvent.pointerLeave(toggle());
+    fireEvent.pointerUp(toggle());
     expect(input).toHaveAttribute('type', 'text');
     fireEvent.blur(toggle());
     expect(input).toHaveAttribute('type', 'password');

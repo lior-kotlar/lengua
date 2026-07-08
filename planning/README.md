@@ -1,7 +1,7 @@
 # Lengua — planning (open work)
 
-> **Status (2026-07-08): all planned productionization code work is done except ONE required
-> hardening item** (plus three open code issues — #99/#80/#95 — and the optional post-v1 backlog).
+> **Status (2026-07-08): all planned productionization code work is done** (two open code
+> issues — #80/#95 — and the optional post-v1 backlog remain).
 > Phases 0–6 are done (M1–M3 + the M4 staging leg live); three hardening sweeps and the Phase-8
 > compliance code slice have shipped. What remains is organized into three tracks in
 > **[outstanding-work.md](outstanding-work.md)**: **Track 1** = code doable now, **Track 2** =
