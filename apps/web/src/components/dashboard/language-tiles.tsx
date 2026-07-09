@@ -1,8 +1,9 @@
 /**
  * Dashboard "Your languages" tile grid (Apple redesign PR4, spec §5.3).
  *
- * One tile per language: name + code chip, a CEFR band chip + progress bar (toward the next band),
- * and a due badge ("{n} ready" when cards await, else "Done"). Tapping a tile sets that language
+ * One tile per language: name + code chip, a CEFR band chip + progress bar (toward the next band,
+ * captioned "{p}% to {next}"), and a due badge ("{due} due · {fresh} new" when cards await, else
+ * "Done"). Tapping a tile sets that language
  * active and routes to Review — the fastest path from "which language?" to reviewing it. The active
  * language's tile carries a ring + an "Active" chip. View-models come pre-built from
  * {@link import('@/lib/dashboard').useDashboardTiles} (the existing due + proficiency fan-out).
@@ -111,7 +112,13 @@ function LanguageTile({ tile, onSelect }: LanguageTileProps) {
             />
           </div>
           <p className="text-footnote text-muted-foreground">
-            {upcoming !== null ? `Progress to ${upcoming}` : 'Top level (C2)'}
+            {upcoming !== null ? (
+              <>
+                <span className="tabular-nums">{percent}%</span> to {upcoming}
+              </>
+            ) : (
+              'Top level (C2)'
+            )}
           </p>
         </div>
       )}
@@ -128,9 +135,11 @@ function LanguageTile({ tile, onSelect }: LanguageTileProps) {
 }
 
 /**
- * The per-tile due badge: a skeleton while loading, then "{n} ready" (orange) or "Done" (green).
- * On a failed due fetch it degrades to a muted dash (like the band/progress hide on a level error)
- * rather than shimmering forever — the row layout stays intact so the chevron keeps its place.
+ * The per-tile due badge: a skeleton while loading, then "{due} due · {fresh} new" (orange) or
+ * "Done" (green) — the same breakdown copy the Today hero uses, so a language's tile and hero read
+ * identically. On a failed due fetch it degrades to a muted dash (like the band/progress hide on a
+ * level error) rather than shimmering forever — the row layout stays intact so the chevron keeps
+ * its place.
  */
 function DueBadge({
   totals,
@@ -154,7 +163,7 @@ function DueBadge({
   if (totals.total > 0) {
     return (
       <span className="rounded-full bg-hig-orange/15 px-2 py-0.5 text-caption font-semibold tabular-nums text-hig-orange-deep">
-        {totals.total} ready
+        {totals.due} due · {totals.fresh} new
       </span>
     );
   }

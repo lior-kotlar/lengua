@@ -15,6 +15,29 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-10 — Home language cards: explicit "% to next level" + due/new breakdown
+
+Closes Track-1.1 [#146](https://github.com/lior-kotlar/lengua/issues/146) — the two remaining
+gaps in the Dashboard's per-language tiles (`apps/web/src/components/dashboard/language-tiles.tsx`).
+**Frontend-only** — zero backend/API/schema diff; all data was already served by the existing
+`GET /review/due` + `GET /proficiency/{id}` fan-out (`src/lib/dashboard.ts`). No layout changes
+(the Today hero, quick actions, and Word of the Day are untouched).
+
+- **Explicit "what's left to the next level."** The progress-bar footnote gained the exact percent:
+  it now reads **`62% to B2`** (the percent is the existing `progressPercent(progress)` from
+  `src/lib/cefr.ts`, rendered in a `tabular-nums` span so the digits don't jitter). The top band
+  keeps **"Top level (C2)"**, and an unknown level still hides the bar + caption entirely.
+- **Per-tile due/new breakdown.** The due badge now uses the same copy the Today hero already
+  shows — **`{due} due · {fresh} new`** (orange) when cards await — instead of the opaque
+  `{n} ready`, so a language's tile and hero read identically. **`Done`** (green) at zero, the
+  loading skeleton, and the errored "—" dash are unchanged.
+- **Tests.** New co-located `language-tiles.test.tsx` unit-tests the caption (rounded percent,
+  C2 top-level, unknown-level hidden) and every badge state (breakdown / Done / error dash /
+  loading), plus the unchanged link/route/active-chip contract; the `Dashboard.test.tsx` tile
+  assertions were updated to the new copy. The `cefr` helpers this relies on
+  (`progressPercent` / `nextBand`) were already fully unit-tested. Web coverage stays ≥ 80%
+  (99.76% line / 98.47% branch overall).
+
 ## 2026-07-09 — Curated language picker + custom (experimental) fallback
 
 Closes Track-1.1 [#95](https://github.com/lior-kotlar/lengua/issues/95) — replace the free-text

@@ -272,8 +272,8 @@ describe('Language tiles', () => {
     expect(screen.getByRole('link', { name: /Hebrew/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /French/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Italian/ })).toBeInTheDocument();
-    // Due badges: n>0 → "{n} ready", n===0 → "Done".
-    expect(screen.getByText('3 ready')).toBeInTheDocument();
+    // Due badges: total>0 → "{due} due · {fresh} new", total===0 → "Done".
+    expect(screen.getByText('1 due · 2 new')).toBeInTheDocument();
     expect(screen.getByText('Done')).toBeInTheDocument();
     // An errored due batch degrades to a muted dash (not a perpetual loading skeleton).
     expect(screen.getByText('—')).toBeInTheDocument();
