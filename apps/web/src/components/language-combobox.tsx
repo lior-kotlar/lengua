@@ -12,9 +12,15 @@
  *
  * Presentational and callback-driven: it owns only the highlight/keyboard state, and reports a
  * choice through {@link onSelect} (a curated entry) or {@link onSelectCustom} (the custom row).
- * Keyboard: ↑/↓ move the active option, Enter selects it, Esc clears the query.
+ *
+ * As-built keyboard model (a deliberate deviation from the spec's "Esc closes", recorded in
+ * `planning/language-support-design.md`): the listbox is ALWAYS open (this is an inline in-card
+ * picker, not a popover), so `aria-expanded` is always `true` and there is nothing to collapse.
+ * ↑/↓ move the active option, Enter selects it, and Escape clears the query instead of closing.
+ * IME composition is respected — the Enter/Arrows that drive a CJK candidate list never leak into
+ * option navigation.
  */
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import {
   CURATED_LANGUAGES,
@@ -28,6 +34,12 @@ export interface LanguageComboboxProps {
   onSelect: (language: CuratedLanguage) => void;
   /** Called when the custom row is chosen; receives the trimmed current query (may be empty). */
   onSelectCustom: (query: string) => void;
+  /**
+   * Focus the search input on mount. Left off on the page's first render (so the picker doesn't
+   * steal focus on load), set when returning to the picker from a form step so keyboard/SR users
+   * land back on the search input rather than at `<body>`.
+   */
+  autoFocus?: boolean;
 }
 
 /** Case-insensitive substring match over English name, endonym, and code. */
@@ -50,6 +62,7 @@ function rowCount(filteredLength: number): number {
 export function LanguageCombobox({
   onSelect,
   onSelectCustom,
+  autoFocus = false,
 }: LanguageComboboxProps) {
   const [query, setQuery] = useState('');
   // Which option is highlighted for keyboard selection: an index into `filtered`, or the custom
@@ -58,6 +71,15 @@ export function LanguageCombobox({
   const listboxId = useId();
   const baseId = useId();
   const listRef = useRef<HTMLUListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      inputRef.current?.focus();
+    }
+    // Only on mount — `autoFocus` reflects why this instance was rendered (fresh vs. returned-to).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const trimmedQuery = query.trim();
   const needle = trimmedQuery.toLowerCase();
@@ -72,7 +94,14 @@ export function LanguageCombobox({
   // Clamp the highlight into range whenever the filtered set shrinks (typing narrows the list).
   const active = Math.min(activeIndex, total - 1);
 
-  const optionId = (index: number) => `${baseId}-option-${index}`;
+  // Per-row ids are keyed by a STABLE token (the language code, or "custom"), not the row index —
+  // so `aria-activedescendant` changes value when filtering re-targets the active row and screen
+  // readers actually announce the newly-highlighted language (a positional id would stay the same
+  // string while naming a different row, and NVDA/JAWS/VoiceOver would say nothing).
+  const optionToken = (index: number) =>
+    index >= filtered.length ? 'custom' : filtered[index].code;
+  const optionId = (token: string) => `${baseId}-option-${token}`;
+  const activeOptionId = optionId(optionToken(active));
 
   function move(delta: number) {
     setActiveIndex((current) => {
@@ -82,7 +111,7 @@ export function LanguageCombobox({
       // Guarded because jsdom (unit tests) doesn't implement Element.scrollIntoView.
       requestAnimationFrame(() => {
         const el = listRef.current?.querySelector<HTMLElement>(
-          `#${CSS.escape(optionId(next))}`,
+          `#${CSS.escape(optionId(optionToken(next)))}`,
         );
         el?.scrollIntoView?.({ block: 'nearest' });
       });
@@ -99,6 +128,13 @@ export function LanguageCombobox({
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    // Respect IME composition: the Enter that COMMITS a CJK candidate (and the arrows that walk the
+    // candidate list) must not leak into option navigation — otherwise composing an endonym like
+    // 日本語 would yank the user into the custom form. `isComposing` is true until the composition
+    // ends. `keyCode === 229` is the legacy signal some IMEs still send.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) {
+      return;
+    }
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
@@ -131,13 +167,14 @@ export function LanguageCombobox({
         Language
       </label>
       <input
+        ref={inputRef}
         id={`${baseId}-input`}
         type="text"
         role="combobox"
         aria-expanded="true"
         aria-controls={listboxId}
         aria-autocomplete="list"
-        aria-activedescendant={optionId(active)}
+        aria-activedescendant={activeOptionId}
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
@@ -162,7 +199,7 @@ export function LanguageCombobox({
           return (
             <li
               key={language.code}
-              id={optionId(index)}
+              id={optionId(language.code)}
               role="option"
               aria-selected={isActive}
               // Highlight on hover so pointer + keyboard agree on the active row.
@@ -188,7 +225,7 @@ export function LanguageCombobox({
         })}
         <li
           key="__custom__"
-          id={optionId(customIndex)}
+          id={optionId('custom')}
           role="option"
           aria-selected={active === customIndex}
           onMouseMove={() => setActiveIndex(customIndex)}

@@ -189,3 +189,15 @@ migrations/security surface (pause only if scope creeps into the API).
 - Combobox is keyboard- and screen-reader-operable; the advisory axe run stays clean on
   `/languages`.
 - Zero backend diff (`apps/api` untouched); web coverage ≥80%; FakeLLM e2e green.
+
+## As-built deviations (PR #145)
+
+- **Always-open listbox instead of "Esc closes".** The design bullet above says "Esc closes", but
+  the built picker is an **inline, always-open** filterable listbox inside the Languages card (not a
+  popover), so `aria-expanded` is permanently `true` and there is nothing to collapse. Escape is
+  repurposed to **clear the query** (keyboard nav is ↑/↓ move, Enter selects, Esc clears). This is a
+  coherent combobox pattern for an in-card picker (cf. always-open command palettes) and keeps the
+  listbox — the whole point of the picker — visible at all times. Keyboard handling additionally
+  guards IME composition (a CJK candidate-commit Enter / candidate-list arrows never leak into
+  option navigation), and per-option ids are keyed by the language code so `aria-activedescendant`
+  changes as filtering re-targets the active row (screen-reader announcements stay correct).

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -51,6 +51,38 @@ describe('AddLanguageForm — picker entry', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/code/i)).not.toBeInTheDocument();
+  });
+
+  it('does NOT steal focus onto the combobox on first render', () => {
+    render(<AddLanguageForm />);
+    // A picker mounted fresh (page load) must not autofocus — that would grab focus on the page.
+    expect(screen.getByRole('combobox')).not.toHaveFocus();
+  });
+});
+
+describe('AddLanguageForm — focus management on step transitions', () => {
+  it('focuses the level select when a curated language is picked', async () => {
+    render(<AddLanguageForm />);
+    const user = userEvent.setup();
+    await pickCurated(user, 'French');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Starting level')).toHaveFocus(),
+    );
+  });
+
+  it('focuses the Name field when the custom path opens', async () => {
+    render(<AddLanguageForm />);
+    const user = userEvent.setup();
+    await goCustom(user, 'Klingon');
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveFocus());
+  });
+
+  it('returns focus to the combobox when going back to the picker', async () => {
+    render(<AddLanguageForm />);
+    const user = userEvent.setup();
+    await pickCurated(user, 'French');
+    await user.click(screen.getByRole('button', { name: /change/i }));
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveFocus());
   });
 });
 

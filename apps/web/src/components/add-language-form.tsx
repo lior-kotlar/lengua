@@ -18,7 +18,7 @@
  *
  * On success it resets to the picker, toasts, and hands the language back via `onCreated`.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { LanguageCombobox } from '@/components/language-combobox';
 import { FormField } from '@/components/form-field';
@@ -59,9 +59,12 @@ type Step =
 function LevelSelect({
   value,
   onChange,
+  selectRef,
 }: {
   value: string;
   onChange: (value: string) => void;
+  /** Optional ref to the underlying `<select>` (used to move focus onto it on step entry). */
+  selectRef?: React.Ref<HTMLSelectElement>;
 }) {
   return (
     <div className="space-y-1.5">
@@ -69,6 +72,7 @@ function LevelSelect({
         Starting level
       </label>
       <select
+        ref={selectRef}
         id="language-band"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -89,6 +93,15 @@ export function AddLanguageForm({
   existingLanguages,
 }: AddLanguageFormProps) {
   const [step, setStep] = useState<Step>({ kind: 'picker' });
+  // Whether the user has left the picker at least once. Used so the combobox auto-focuses when we
+  // RETURN to it (Change / Back / post-submit reset) — landing keyboard & SR users back on the
+  // search input — but NOT on the page's first render (which would steal focus on load).
+  const returnedToPickerRef = useRef(false);
+
+  function goToPicker() {
+    returnedToPickerRef.current = true;
+    setStep({ kind: 'picker' });
+  }
 
   const addLanguage = useAddLanguage();
 
@@ -96,7 +109,7 @@ export function AddLanguageForm({
   function submit(input: AddLanguageInput) {
     addLanguage.mutate(input, {
       onSuccess: ({ language, created, bandError }) => {
-        setStep({ kind: 'picker' });
+        goToPicker();
         if (!created) {
           // S3: idempotent re-add — the existing language (and its CEFR level) is untouched.
           toast({
@@ -131,6 +144,7 @@ export function AddLanguageForm({
   if (step.kind === 'picker') {
     return (
       <LanguageCombobox
+        autoFocus={returnedToPickerRef.current}
         onSelect={(language) => setStep({ kind: 'curated', language })}
         onSelectCustom={(query) =>
           setStep({ kind: 'custom', initialName: query })
@@ -144,7 +158,7 @@ export function AddLanguageForm({
       <CuratedForm
         language={step.language}
         pending={addLanguage.isPending}
-        onChangeLanguage={() => setStep({ kind: 'picker' })}
+        onChangeLanguage={goToPicker}
         onSubmit={submit}
       />
     );
@@ -155,7 +169,7 @@ export function AddLanguageForm({
       initialName={step.initialName}
       existingLanguages={existingLanguages}
       pending={addLanguage.isPending}
-      onBack={() => setStep({ kind: 'picker' })}
+      onBack={goToPicker}
       onSubmit={submit}
     />
   );
@@ -177,6 +191,13 @@ function CuratedForm({
   // Fixes #95 pain point 3: default vowel marks ON for vowelizable languages so a beginner adding
   // Arabic gets harakat without opting in; advanced users untick.
   const [vowelized, setVowelized] = useState(language.vowelizable);
+  const levelRef = useRef<HTMLSelectElement>(null);
+
+  // Move focus onto the first meaningful control when this step appears, so a keyboard/SR user who
+  // pressed Enter on a curated row isn't dropped to `<body>`.
+  useEffect(() => {
+    levelRef.current?.focus();
+  }, []);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -215,7 +236,7 @@ function CuratedForm({
         </button>
       </div>
 
-      <LevelSelect value={band} onChange={setBand} />
+      <LevelSelect value={band} onChange={setBand} selectRef={levelRef} />
 
       {language.vowelizable && (
         <label className="flex items-center gap-2 text-body">
@@ -261,6 +282,20 @@ function CustomForm({
   const [vowelizedTouched, setVowelizedTouched] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Move focus onto the first field when this step appears (a keyboard/SR user who chose the custom
+  // row lands in the Name input rather than at `<body>`). Places the caret at the end of the
+  // prefilled query so they can keep typing.
+  useEffect(() => {
+    const nameInput =
+      formRef.current?.querySelector<HTMLInputElement>('#language-name');
+    if (nameInput) {
+      nameInput.focus();
+      const end = nameInput.value.length;
+      nameInput.setSelectionRange(end, end);
+    }
+  }, []);
 
   const trimmedCode = code.trim();
   const curatedByCode = findCuratedByCode(trimmedCode);
@@ -320,7 +355,12 @@ function CustomForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="space-y-4"
+      noValidate
+    >
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-headline">Custom (experimental)</h3>

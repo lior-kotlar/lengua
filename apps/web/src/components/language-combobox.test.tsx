@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,8 +45,20 @@ describe('LanguageCombobox', () => {
     const listboxId = input.getAttribute('aria-controls');
     expect(listboxId).toBeTruthy();
     expect(screen.getByRole('listbox').id).toBe(listboxId);
-    // The first option is the initial active descendant.
+    // The first option is the initial active descendant, and its id resolves to a real option.
     expect(input).toHaveAttribute('aria-activedescendant');
+    expect(activeOption(input)).toHaveTextContent('Arabic');
+  });
+
+  it('keys option ids by language code, so aria-activedescendant tracks the highlighted row', async () => {
+    const { input, user } = setup();
+    // Arabic is first: its option id is code-keyed (…-option-ar), not positional (…-option-0).
+    expect(input.getAttribute('aria-activedescendant')).toMatch(/-option-ar$/);
+    // Narrowing to a single match re-targets the active descendant to THAT language's stable id,
+    // so a screen reader announces the newly-highlighted row (a positional id would not change).
+    await user.type(input, 'Spanish');
+    expect(input.getAttribute('aria-activedescendant')).toMatch(/-option-es$/);
+    expect(activeOption(input)).toHaveTextContent('Spanish');
   });
 
   it('filters case-insensitively by English name', async () => {
@@ -144,6 +156,25 @@ describe('LanguageCombobox', () => {
     expect(screen.getAllByRole('option')).toHaveLength(
       CURATED_LANGUAGES.length + 1,
     );
+  });
+
+  it('ignores Enter/Arrow keys while an IME composition is in progress', () => {
+    const { input, onSelect, onSelectCustom } = setup();
+    // Simulate a mid-composition query (e.g. typing an endonym via a CJK IME) that matches nothing,
+    // so the custom row is active. The composition-commit Enter must NOT select it.
+    fireEvent.change(input, { target: { value: 'にほ' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(onSelectCustom).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+
+    // Arrow keys during composition must not move the option highlight either.
+    const before = input.getAttribute('aria-activedescendant');
+    fireEvent.keyDown(input, { key: 'ArrowDown', isComposing: true });
+    expect(input.getAttribute('aria-activedescendant')).toBe(before);
+
+    // Once composition ends, Enter selects normally (custom row, since the query matches nothing).
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onSelectCustom).toHaveBeenCalledWith('にほ');
   });
 
   it('keeps the highlight in range as filtering narrows the list', async () => {
