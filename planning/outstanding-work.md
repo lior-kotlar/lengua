@@ -32,12 +32,12 @@ held, legacy Streamlit kept runnable).*
 
 ### 1.1 Open GitHub issues that are pure code
 
-- **[#146](https://github.com/lior-kotlar/lengua/issues/146) — Home: language cards — explicit
-  "% to next level" + due/new breakdown.** Frontend-only gap-closing on the Dashboard tiles
-  (`apps/web/src/components/dashboard/language-tiles.tsx`): the progress footnote becomes
-  `62% to B2` (existing `progressPercent` / `ProficiencyOut.progress`), and the due badge becomes
-  `{due} due · {new} new` (existing `DueTotals`); no layout or backend changes. Full spec +
-  acceptance criteria in the issue. Status: **open** — run via `/next-task #146`.
+_No open pure-code issues right now._
+
+(#146 — Home language cards: explicit "% to next level" + per-tile due/new breakdown —
+frontend-only gap-closing on the Dashboard tiles (the progress footnote now reads `62% to B2`
+via `progressPercent`, and the due badge reads `{due} due · {fresh} new` via `DueTotals`); shipped
+2026-07-10; see [`../CHANGELOG.md`](../CHANGELOG.md).)
 
 (#95 — curated language picker + custom/experimental fallback (Option B) — implemented per
 [`language-support-design.md`](language-support-design.md); shipped 2026-07-09; see
