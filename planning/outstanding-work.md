@@ -32,9 +32,11 @@ held, legacy Streamlit kept runnable).*
 
 ### 1.1 Open GitHub issues that are pure code
 
-| Issue | What | Size | Note |
-| --- | --- | --- | --- |
-| [#95](https://github.com/lior-kotlar/lengua/issues/95) | Curated language list + custom fallback | M | **DECIDED 2026-07-09: Option B** (curated ~44-language picker, free-form "custom / experimental" fallback, Option-A code→metadata lookup folded into the custom path). Full UX + implementation spec: [`language-support-design.md`](language-support-design.md). Frontend-only — no API/schema/migration; **auto-merge mode**. Ready for `/next-task #95`. |
+_No open pure-code GitHub issues remain in Track 1._
+
+(#95 — curated language picker + custom/experimental fallback (Option B) — implemented per
+[`language-support-design.md`](language-support-design.md); shipped 2026-07-09; see
+[`../CHANGELOG.md`](../CHANGELOG.md).)
 
 (#80 — DB-backed versioned prompts — shipped in PR #143, owner-reviewed and merged 2026-07-09; see
 [`../CHANGELOG.md`](../CHANGELOG.md).)

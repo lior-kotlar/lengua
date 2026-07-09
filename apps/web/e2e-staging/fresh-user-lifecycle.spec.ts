@@ -93,11 +93,18 @@ async function loginAs(page: Page, user: CreatedUser): Promise<void> {
   await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
 }
 
-/** Fill + submit the "Add a language" form. Code is filled before the vowel-marks flag flips its label. */
+/**
+ * Fill + submit the "Add a language" form via the custom (experimental) path (issue #95).
+ * These tests use timestamp-unique names that are never on the curated list, so they always take
+ * the free-form path: search the picker, choose "Add … as a custom language…", then fill the
+ * Name/Code/level/vowel fields. Code is filled before the vowel-marks flag flips its label.
+ */
 async function addLanguage(
   page: Page,
   opts: { name: string; code?: string; band?: string; vowelized?: boolean },
 ): Promise<void> {
+  await page.getByRole('combobox', { name: 'Language' }).fill(opts.name);
+  await page.getByRole('option', { name: /as a custom language/ }).click();
   await page.getByLabel('Name').fill(opts.name);
   if (opts.code !== undefined) {
     // Label is "Code (optional)" until "Include vowel marks" is checked (then it becomes "Code").

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -36,6 +36,8 @@ import Languages from '@/pages/Languages';
 const LANGS: LanguageOut[] = [
   { id: 1, name: 'Spanish', code: 'es', vowelized: false },
   { id: 2, name: 'French', code: null, vowelized: false },
+  // Not in the curated list → carries the "Experimental" badge (issue #95).
+  { id: 3, name: 'Klingon', code: 'tlh', vowelized: false },
 ];
 
 function makeValue(
@@ -105,6 +107,23 @@ describe('Languages page', () => {
     // Each row has a two-letter avatar (from the code, else the name): Spanish "es" → ES, French → FR.
     expect(screen.getByText('ES')).toBeInTheDocument();
     expect(screen.getByText('FR')).toBeInTheDocument();
+  });
+
+  it('badges only the non-curated (experimental) languages', () => {
+    renderPage(makeValue());
+    // Klingon (id 3) is not in the curated list → one "Experimental" badge, on that row only.
+    const badges = screen.getAllByText('Experimental');
+    expect(badges).toHaveLength(1);
+    // Sanity: the curated Spanish/French rows carry no badge.
+    const spanishRow = screen.getByText('Spanish').closest('li');
+    expect(spanishRow).not.toBeNull();
+    expect(
+      within(spanishRow as HTMLElement).queryByText('Experimental'),
+    ).not.toBeInTheDocument();
+    const klingonRow = screen.getByText('Klingon').closest('li');
+    expect(
+      within(klingonRow as HTMLElement).getByText('Experimental'),
+    ).toBeInTheDocument();
   });
 
   it('exposes exactly one heading — the h1 equal to the nav label (the "Your languages" eyebrow is not a heading)', () => {

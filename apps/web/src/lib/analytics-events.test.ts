@@ -48,7 +48,7 @@ describe('activation funnel events', () => {
     bootWithConsent();
 
     trackSignup('email');
-    trackLanguageAdded('es');
+    trackLanguageAdded('es', true);
     trackGenerate(3);
     trackReview(4);
 
@@ -63,6 +63,7 @@ describe('activation funnel events', () => {
     expect(capture).toHaveBeenNthCalledWith(1, 'signup', { method: 'email' });
     expect(capture).toHaveBeenNthCalledWith(2, 'language_added', {
       code: 'es',
+      curated: true,
     });
     expect(capture).toHaveBeenNthCalledWith(3, 'generate', { word_count: 3 });
     expect(capture).toHaveBeenNthCalledWith(4, 'review', { rating: 4 });
@@ -78,10 +79,11 @@ describe('activation funnel events', () => {
   it('defaults the signup method to email and passes a null language code through', () => {
     bootWithConsent();
     trackSignup();
-    trackLanguageAdded(null);
+    trackLanguageAdded(null, false);
     expect(capture).toHaveBeenNthCalledWith(1, 'signup', { method: 'email' });
     expect(capture).toHaveBeenNthCalledWith(2, 'language_added', {
       code: null,
+      curated: false,
     });
   });
 
@@ -89,7 +91,7 @@ describe('activation funnel events', () => {
     setAnalyticsCapturer(capture);
     // No consent / no boot.
     trackSignup('email');
-    trackLanguageAdded('he');
+    trackLanguageAdded('he', true);
     trackGenerate(1);
     trackReview(2);
     expect(capture).not.toHaveBeenCalled();

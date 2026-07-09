@@ -11,6 +11,7 @@ import type { components } from 'api-types';
 import { trackLanguageAdded } from '@/lib/analytics-events';
 import { getApiClient, isApiError, unwrap } from '@/lib/api-client';
 import { CEFR_BANDS } from '@/lib/cefr';
+import { findCurated } from '@/lib/curated-languages';
 import { proficiencyKey } from '@/lib/proficiency';
 
 /** A language as returned by the API (`GET /languages`). */
@@ -134,9 +135,13 @@ export function useAddLanguage() {
     },
     onSuccess: ({ language, created }) => {
       // Activation-funnel event (5.9.2): consent-gated, only on an actual create (not a re-add),
-      // and only the (non-PII) language code.
+      // and only non-PII signals — the language code and whether it's a curated pick (#95), never
+      // the display name.
       if (created) {
-        trackLanguageAdded(language.code ?? null);
+        trackLanguageAdded(
+          language.code ?? null,
+          findCurated(language.name) !== undefined,
+        );
       }
       // S12: invalidate on POST success regardless of the band PUT outcome, so a freshly created
       // language always shows up in the list (and the panel reflects any level change).

@@ -1,46 +1,294 @@
 /**
- * Add-language form (task 4.4.2).
+ * Add-language form (task 4.4.2; reworked for issue #95 — curated picker + custom fallback).
  *
- * Collects name (required), a code, a starting CEFR band, and the vowel-marks flag, then creates the
- * language via {@link useAddLanguage} (which also `PUT`s the starting band for a brand-new language
- * when it isn't the default A1 — see the hook for the create-vs-proficiency reconciliation). On
- * success it resets, toasts, and hands the language back via `onCreated` so the caller can make it
- * active.
+ * PICKER-FIRST flow. The primary entry is a searchable {@link LanguageCombobox} over the curated
+ * language list, not the free-text Name/Code fields:
  *
- * Text direction + script font are DERIVED from the language `code` (group 4.9) — there is no manual
- * "direction" field. Because of that, vowel marks (harakat / nikkud) only render correctly when a
- * code is set, so the code is REQUIRED whenever vowel marks are enabled (with inline help for the
- * common right-to-left codes). A blank-code + vowelized language would otherwise fall back to an
- * LTR Latin font with mispositioned diacritics (finding S14).
+ *  - **Curated selection** → NO Name/Code inputs at all (the choice shows as a chip with a "Change"
+ *    affordance). Below it: the Starting level select and — ONLY when the language is `vowelizable`
+ *    (Arabic / Hebrew / Persian) — a vowel-marks toggle defaulted ON. Submits `{name, code,
+ *    vowelized}` exactly as before; the S14 "code required when vowelized" rule holds by
+ *    construction (a curated entry always has a code).
+ *  - **Custom (experimental)** → today's free-form fields (Name prefilled from the search query,
+ *    optional Code, level, vowel-marks checkbox) under a "Custom (experimental)" heading, keeping
+ *    the S14 validation (a code is required when vowel marks are on) and deriving text direction +
+ *    script font from the code as before. Typing a code whose primary subtag matches a curated
+ *    entry pre-sets the vowel default; a soft, non-blocking hint warns if another of the user's
+ *    languages already uses that code's primary subtag.
+ *
+ * On success it resets to the picker, toasts, and hands the language back via `onCreated`.
  */
 import { useState } from 'react';
 
+import { LanguageCombobox } from '@/components/language-combobox';
 import { FormField } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { CEFR_BANDS } from '@/lib/cefr';
+import {
+  findCuratedByCode,
+  type CuratedLanguage,
+} from '@/lib/curated-languages';
 import { isApiError } from '@/lib/api-client';
-import { useAddLanguage, type LanguageOut } from '@/lib/languages';
+import { scriptFontClass, isRtlCode } from '@/lib/language-text';
+import {
+  useAddLanguage,
+  type AddLanguageInput,
+  type LanguageOut,
+} from '@/lib/languages';
+import { cn } from '@/lib/utils';
 
 export interface AddLanguageFormProps {
   /** Called with the created (or already-existing) language after a successful add. */
   onCreated?: (language: LanguageOut) => void;
+  /**
+   * The user's existing languages — used only for the custom path's soft duplicate hint (a
+   * non-blocking notice when another language already uses the typed code's primary subtag).
+   * Optional; the hint is simply skipped when omitted.
+   */
+  existingLanguages?: readonly LanguageOut[];
 }
 
-export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
-  const [name, setName] = useState('');
+/** The three states of the form: the picker, a chosen curated language, or the custom fields. */
+type Step =
+  | { kind: 'picker' }
+  | { kind: 'curated'; language: CuratedLanguage }
+  | { kind: 'custom'; initialName: string };
+
+/** A CEFR-level `<select>` shared by both submit paths. */
+function LevelSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor="language-band" className="text-body font-medium">
+        Starting level
+      </label>
+      <select
+        id="language-band"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="select-chevron h-10 w-full rounded-md border border-input bg-card px-3.5 pr-8 text-body transition-[border-color,box-shadow] duration-150 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25 disabled:opacity-50"
+      >
+        {CEFR_BANDS.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+export function AddLanguageForm({
+  onCreated,
+  existingLanguages,
+}: AddLanguageFormProps) {
+  const [step, setStep] = useState<Step>({ kind: 'picker' });
+
+  const addLanguage = useAddLanguage();
+
+  /** Shared success/error handling for both submit paths. */
+  function submit(input: AddLanguageInput) {
+    addLanguage.mutate(input, {
+      onSuccess: ({ language, created, bandError }) => {
+        setStep({ kind: 'picker' });
+        if (!created) {
+          // S3: idempotent re-add — the existing language (and its CEFR level) is untouched.
+          toast({
+            title: 'Already in your languages',
+            description: `You already have ${language.name}.`,
+          });
+        } else if (bandError) {
+          // S12: created, but the starting-level write failed — flag it without claiming failure.
+          toast({
+            variant: 'destructive',
+            title: 'Added, but the starting level wasn’t set',
+            description: `${language.name} was added at the default level — set its level from the level panel.`,
+          });
+        } else {
+          toast({
+            title: 'Language added',
+            description: `${language.name} is ready to use.`,
+          });
+        }
+        onCreated?.(language);
+      },
+      onError: (error) => {
+        toast({
+          variant: 'destructive',
+          title: 'Could not add language',
+          description: isApiError(error) ? error.message : 'Please try again.',
+        });
+      },
+    });
+  }
+
+  if (step.kind === 'picker') {
+    return (
+      <LanguageCombobox
+        onSelect={(language) => setStep({ kind: 'curated', language })}
+        onSelectCustom={(query) =>
+          setStep({ kind: 'custom', initialName: query })
+        }
+      />
+    );
+  }
+
+  if (step.kind === 'curated') {
+    return (
+      <CuratedForm
+        language={step.language}
+        pending={addLanguage.isPending}
+        onChangeLanguage={() => setStep({ kind: 'picker' })}
+        onSubmit={submit}
+      />
+    );
+  }
+
+  return (
+    <CustomForm
+      initialName={step.initialName}
+      existingLanguages={existingLanguages}
+      pending={addLanguage.isPending}
+      onBack={() => setStep({ kind: 'picker' })}
+      onSubmit={submit}
+    />
+  );
+}
+
+/** The curated submit path: a chip + level + (conditional) vowel-marks toggle. No Name/Code inputs. */
+function CuratedForm({
+  language,
+  pending,
+  onChangeLanguage,
+  onSubmit,
+}: {
+  language: CuratedLanguage;
+  pending: boolean;
+  onChangeLanguage: () => void;
+  onSubmit: (input: AddLanguageInput) => void;
+}) {
+  const [band, setBand] = useState<string>(CEFR_BANDS[0]);
+  // Fixes #95 pain point 3: default vowel marks ON for vowelizable languages so a beginner adding
+  // Arabic gets harakat without opting in; advanced users untick.
+  const [vowelized, setVowelized] = useState(language.vowelizable);
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    onSubmit({
+      name: language.name,
+      code: language.code,
+      vowelized: language.vowelizable ? vowelized : false,
+      band,
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {/* The selection chip — the read-only substitute for the Name/Code inputs. */}
+      <div className="flex items-center justify-between gap-3 rounded-md border bg-secondary/50 px-3.5 py-2.5">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-body font-medium">
+            {language.name}
+          </span>
+          <span
+            lang={language.code}
+            className={cn(
+              'shrink-0 text-subhead text-muted-foreground',
+              scriptFontClass(language.code),
+            )}
+          >
+            {language.nativeName}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={onChangeLanguage}
+          className="shrink-0 rounded text-subhead font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          Change
+        </button>
+      </div>
+
+      <LevelSelect value={band} onChange={setBand} />
+
+      {language.vowelizable && (
+        <label className="flex items-center gap-2 text-body">
+          <input
+            type="checkbox"
+            checked={vowelized}
+            onChange={(event) => setVowelized(event.target.checked)}
+            className="h-4 w-4 rounded border-input"
+          />
+          Include vowel marks (harakat / nikkud)
+        </label>
+      )}
+
+      <Button type="submit" disabled={pending}>
+        {pending ? 'Adding…' : 'Add language'}
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * The custom (experimental) submit path: today's free-form fields, with the code→curated
+ * smart-default and a soft duplicate hint. RTL/font are derived from the code exactly as before.
+ */
+function CustomForm({
+  initialName,
+  existingLanguages,
+  pending,
+  onBack,
+  onSubmit,
+}: {
+  initialName: string;
+  existingLanguages?: readonly LanguageOut[];
+  pending: boolean;
+  onBack: () => void;
+  onSubmit: (input: AddLanguageInput) => void;
+}) {
+  const [name, setName] = useState(initialName);
   const [code, setCode] = useState('');
   const [band, setBand] = useState<string>(CEFR_BANDS[0]);
   const [vowelized, setVowelized] = useState(false);
+  // Once the user hand-toggles the vowel checkbox, stop letting a code lookup override their choice.
+  const [vowelizedTouched, setVowelizedTouched] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
 
-  const addLanguage = useAddLanguage();
+  const trimmedCode = code.trim();
+  const curatedByCode = findCuratedByCode(trimmedCode);
+
+  // Soft, non-blocking duplicate hint: another of the user's languages already uses this code's
+  // primary subtag. Submission stays allowed (the server is idempotent by name).
+  const subtag = trimmedCode.toLowerCase().split('-')[0];
+  const duplicate =
+    subtag !== '' && existingLanguages !== undefined
+      ? existingLanguages.find(
+          (lang) =>
+            (lang.code ?? '').trim().toLowerCase().split('-')[0] === subtag,
+        )
+      : undefined;
+
+  function handleCodeChange(next: string) {
+    setCode(next);
+    setCodeError(null);
+    // Smart default: typing a known code pre-sets the vowel-marks default (until the user overrides).
+    if (!vowelizedTouched) {
+      const curated = findCuratedByCode(next);
+      setVowelized(curated?.vowelizable ?? false);
+    }
+  }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const trimmedName = name.trim();
-    const trimmedCode = code.trim();
 
     let invalid = false;
     if (trimmedName === '') {
@@ -63,50 +311,34 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
       return;
     }
 
-    addLanguage.mutate(
-      { name: trimmedName, code: trimmedCode, vowelized, band },
-      {
-        onSuccess: ({ language, created, bandError }) => {
-          setName('');
-          setCode('');
-          setBand(CEFR_BANDS[0]);
-          setVowelized(false);
-          if (!created) {
-            // S3: idempotent re-add — the existing language (and its CEFR level) is untouched.
-            toast({
-              title: 'Already in your languages',
-              description: `You already have ${language.name}.`,
-            });
-          } else if (bandError) {
-            // S12: created, but the starting-level write failed — flag it without claiming failure.
-            toast({
-              variant: 'destructive',
-              title: 'Added, but the starting level wasn’t set',
-              description: `${language.name} was added at the default level — set its level from the level panel.`,
-            });
-          } else {
-            toast({
-              title: 'Language added',
-              description: `${language.name} is ready to use.`,
-            });
-          }
-          onCreated?.(language);
-        },
-        onError: (error) => {
-          toast({
-            variant: 'destructive',
-            title: 'Could not add language',
-            description: isApiError(error)
-              ? error.message
-              : 'Please try again.',
-          });
-        },
-      },
-    );
+    onSubmit({
+      name: trimmedName,
+      code: trimmedCode,
+      vowelized,
+      band,
+    });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-headline">Custom (experimental)</h3>
+          <button
+            type="button"
+            onClick={onBack}
+            className="shrink-0 rounded text-subhead font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Back to list
+          </button>
+        </div>
+        <p className="text-footnote text-muted-foreground">
+          Not on the curated list — sentence quality depends on the AI model’s
+          coverage of this language. Text direction and vowel marks are derived
+          from the code.
+        </p>
+      </div>
+
       <FormField
         id="language-name"
         label="Name"
@@ -117,6 +349,7 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
         error={nameError}
         required
       />
+
       <div className="space-y-1.5">
         <FormField
           id="language-code"
@@ -124,7 +357,7 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
           placeholder="es"
           autoComplete="off"
           value={code}
-          onChange={(event) => setCode(event.target.value)}
+          onChange={(event) => handleCodeChange(event.target.value)}
           error={codeError}
           required={vowelized}
         />
@@ -137,38 +370,38 @@ export function AddLanguageForm({ onCreated }: AddLanguageFormProps) {
           Arabic <code className="font-mono">ar</code>, Persian{' '}
           <code className="font-mono">fa</code>.
         </p>
+        {curatedByCode !== undefined && (
+          <p className="text-footnote text-muted-foreground">
+            Recognized as{' '}
+            <span className="font-medium">{curatedByCode.name}</span> (
+            {isRtlCode(trimmedCode) ? 'right-to-left' : 'left-to-right'}).
+          </p>
+        )}
+        {duplicate !== undefined && (
+          <p role="status" className="text-footnote text-hig-orange-deep">
+            You already have a language with code{' '}
+            <code className="font-mono">{subtag}</code> ({duplicate.name}).
+          </p>
+        )}
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="language-band" className="text-body font-medium">
-          Starting level
-        </label>
-        <select
-          id="language-band"
-          value={band}
-          onChange={(event) => setBand(event.target.value)}
-          className="select-chevron h-10 w-full rounded-md border border-input bg-card px-3.5 pr-8 text-body transition-[border-color,box-shadow] duration-150 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25 disabled:opacity-50"
-        >
-          {CEFR_BANDS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
+      <LevelSelect value={band} onChange={setBand} />
 
       <label className="flex items-center gap-2 text-body">
         <input
           type="checkbox"
           checked={vowelized}
-          onChange={(event) => setVowelized(event.target.checked)}
+          onChange={(event) => {
+            setVowelized(event.target.checked);
+            setVowelizedTouched(true);
+          }}
           className="h-4 w-4 rounded border-input"
         />
         Include vowel marks (harakat / nikkud)
       </label>
 
-      <Button type="submit" disabled={addLanguage.isPending}>
-        {addLanguage.isPending ? 'Adding…' : 'Add language'}
+      <Button type="submit" disabled={pending}>
+        {pending ? 'Adding…' : 'Add language'}
       </Button>
     </form>
   );

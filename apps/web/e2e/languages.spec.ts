@@ -47,10 +47,15 @@ test.describe('language management & CEFR level (ephemeral stack)', () => {
     await expect(band).toHaveText('A1');
 
     // 4.4.2 — add a language with a non-default starting band (B1 → create + PUT proficiency).
+    // A timestamp-unique throwaway name is not on the curated list, so this drives the picker's
+    // custom (experimental) path (issue #95): search → "Add … as a custom language…" → the
+    // free-form Name/Code/level fields.
     await page
       .getByRole('navigation', { name: 'Primary' })
       .getByRole('link', { name: 'Languages' })
       .click();
+    await page.getByRole('combobox', { name: 'Language' }).fill(throwaway);
+    await page.getByRole('option', { name: /as a custom language/ }).click();
     await page.getByLabel('Name').fill(throwaway);
     await page.getByLabel('Code (optional)').fill('eo');
     await page.getByLabel('Starting level').selectOption('B1');
