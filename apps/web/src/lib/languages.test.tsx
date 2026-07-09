@@ -101,8 +101,9 @@ describe('useAddLanguage', () => {
     expect(put).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['languages'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['proficiency', 1] });
-    // Funnel event fires with the (non-PII) language code from the created row.
-    expect(trackLanguageAdded).toHaveBeenCalledWith('es');
+    // Funnel event fires with the (non-PII) language code from the created row, plus whether the
+    // name is a curated pick (#95) — "Spanish" is in the curated list, so `curated: true`.
+    expect(trackLanguageAdded).toHaveBeenCalledWith('es', true);
   });
 
   it('omits the code when blank and defaults vowelized to false', async () => {
@@ -116,7 +117,26 @@ describe('useAddLanguage', () => {
     expect(post).toHaveBeenCalledWith('/languages', {
       body: { name: 'Spanish', code: null, vowelized: false },
     });
-    expect(trackLanguageAdded).toHaveBeenCalledWith(null);
+    expect(trackLanguageAdded).toHaveBeenCalledWith(null, true);
+  });
+
+  it('reports curated:false for a name that is not in the curated list', async () => {
+    // A custom/experimental language (not in the curated table) → the funnel event marks it uncurated.
+    post.mockReturnValue(
+      ok({
+        id: 7,
+        name: 'Klingon',
+        code: 'tlh',
+        vowelized: false,
+        created: true,
+      }),
+    );
+    const { wrapper } = makeClient();
+
+    const { result } = renderHook(() => useAddLanguage(), { wrapper });
+    await result.current.mutateAsync({ name: 'Klingon', code: 'tlh' });
+
+    expect(trackLanguageAdded).toHaveBeenCalledWith('tlh', false);
   });
 
   it('PUTs the starting band when it is not the default A1 (newly created)', async () => {

@@ -7,7 +7,7 @@ import { expect, test, type Page } from './fixtures';
  * the static `/login` page, which `.github/workflows/ci.yml`'s `a11y-perf` job already scans with
  * `@axe-core/cli`. This spec runs under the FakeLLM e2e harness the `e2e` job stands up (seeded demo
  * account + API container with `LLM_PROVIDER=fake` + the served web bundle), logs in as the demo
- * user, and runs axe on Dashboard / Generate / Review / Discover / Settings.
+ * user, and runs axe on Dashboard / Generate / Review / Discover / Languages / Settings.
  *
  * GATING for `color-contrast` (WCAG 2.1 AA). After the design-token contrast pass (round-3 sweep)
  * the authenticated surfaces are clean of serious/critical `color-contrast` violations, so this spec
@@ -177,7 +177,13 @@ test.describe('accessibility (axe) @a11y', () => {
     await login(page);
     findings.push(...(await auditScreen(page, 'dashboard')));
 
-    for (const screen of ['Generate', 'Review', 'Discover', 'Settings']) {
+    for (const screen of [
+      'Generate',
+      'Review',
+      'Discover',
+      'Languages',
+      'Settings',
+    ]) {
       await navigateTo(page, screen);
       findings.push(...(await auditScreen(page, screen.toLowerCase())));
     }

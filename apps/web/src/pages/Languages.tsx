@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { findCurated } from '@/lib/curated-languages';
 import type { LanguageOut } from '@/lib/languages';
 
 /** Two-letter avatar initials — the language code when set, otherwise its name. */
@@ -29,6 +30,17 @@ function languageInitials(language: LanguageOut): string {
       ? language.code
       : language.name;
   return source.replace(/\s+/g, '').slice(0, 2).toUpperCase();
+}
+
+/**
+ * Whether a language should carry the "experimental" badge (issue #95) — derived client-side from
+ * the name: a language whose `name` has no case-insensitive curated match came from the custom
+ * path, where sentence quality depends on the model's coverage. Name-based on purpose: generation
+ * interpolates the NAME, so the name is what predicts quality. Existing rows need no backfill — an
+ * old `Spanish` row matches the curated list and shows no badge.
+ */
+function isExperimental(language: LanguageOut): boolean {
+  return findCurated(language.name) === undefined;
 }
 
 export default function Languages() {
@@ -99,6 +111,11 @@ export default function Languages() {
                             {language.code}
                           </span>
                         )}
+                        {isExperimental(language) && (
+                          <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-caption text-muted-foreground">
+                            Experimental
+                          </span>
+                        )}
                         {isActive && (
                           <span className="shrink-0 rounded-full bg-hig-blue/15 px-2 py-0.5 text-caption font-semibold text-hig-blue-deep">
                             Active
@@ -123,6 +140,7 @@ export default function Languages() {
           </CardHeader>
           <CardContent>
             <AddLanguageForm
+              existingLanguages={languages}
               onCreated={(language) => setActiveLanguageId(language.id)}
             />
           </CardContent>

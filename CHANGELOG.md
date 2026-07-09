@@ -15,6 +15,46 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-09 — Curated language picker + custom (experimental) fallback
+
+Closes Track-1.1 [#95](https://github.com/lior-kotlar/lengua/issues/95) — replace the free-text
+Name/Code entry on the web **Add a language** form with a searchable **curated picker**, keeping a
+free-form fallback for anything off the list. **Frontend-only** (Option B; full spec in
+`planning/language-support-design.md`) — zero backend/API/schema/migration diff; the legacy
+Streamlit app is untouched, and the create call still posts the same `{name, code, vowelized}`.
+
+- **Curated list as the single source of truth (`apps/web/src/lib/curated-languages.ts`).** A typed
+  readonly table of 44 languages (`name` / `nativeName` endonym / `code` / `script` / `vowelizable`)
+  — the CEFR-taught European canon plus the major world languages the model handles confidently.
+  `rtl` is deliberately NOT duplicated: direction + script font stay derived from the `code` by the
+  existing `language-text.ts` (`directionForCode` / `scriptFontClass`); `script` is carried for
+  future font work but never persisted. Helpers `findCurated(name)` (case-insensitive, trimmed) and
+  `findCuratedByCode(code)` (primary-subtag match). Invariant tests assert unique/lowercase codes,
+  unique names, `vowelizable ⊆ {ar, he, fa}`, and every Arabic/Hebrew-script entry is RTL.
+- **ARIA combobox (`apps/web/src/components/language-combobox.tsx`).** A search input
+  (`role="combobox"`, `aria-expanded`/`aria-controls`/`aria-activedescendant`) over a `role="listbox"`;
+  case-insensitive substring filter on name/endonym/code, full list on empty query, scrollable
+  max-height, endonym shown as muted secondary text in its own script (`scriptFontClass`) so each
+  row doubles as a script preview. Keyboard ↑/↓/Enter/Esc. The last row is always
+  `Add "<query>" as a custom language…` (the only row when nothing matches).
+- **Picker-first add form (`add-language-form.tsx`).** Choosing a curated language shows NO Name/Code
+  inputs (a chip with a Change affordance) + Starting level + — only when `vowelizable` — a
+  vowel-marks toggle **defaulted ON** (fixes #95 pain point 3: a beginner adding Arabic gets harakat
+  without opting in). The custom path keeps today's free-form fields (Name prefilled from the query,
+  optional Code, level, vowel checkbox with the existing S14 "code required when vowelized"
+  validation) under a **"Custom (experimental)"** heading with a coverage footnote; typing a code
+  whose primary subtag matches a curated entry pre-sets the vowel default, and a soft, non-blocking
+  hint warns when another of the user's languages already uses that code's subtag. A back affordance
+  returns to the picker.
+- **"Experimental" badge (`pages/Languages.tsx`).** A small muted badge on any language whose `name`
+  has no case-insensitive curated match — derived client-side (name-based, since generation
+  interpolates the name), so existing rows need no backfill.
+- **Analytics.** `trackLanguageAdded` now also carries a non-PII `curated: boolean` alongside the
+  language code (asserted PII-free in `analytics-events.test.ts`).
+- **E2E sweep.** The Playwright specs that drive the add form (`e2e/languages.spec.ts`,
+  `e2e-staging/{full-flow,fresh-user-lifecycle}.spec.ts`) now go through the custom path for their
+  timestamp-unique throwaway languages. Web unit coverage held ≥80% (full suite green).
+
 ## 2026-07-09 — Move LLM prompts to the database with versioning (PR #143, merged)
 
 Closes Track-1.1 [#80](https://github.com/lior-kotlar/lengua/issues/80) — move the LLM prompt
