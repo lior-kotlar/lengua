@@ -34,7 +34,7 @@ held, legacy Streamlit kept runnable).*
 
 | Issue | What | Size | Note |
 | --- | --- | --- | --- |
-| [#95](https://github.com/lior-kotlar/lengua/issues/95) | Free-form vs curated language list | design decision | decide with the owner first, then implement |
+| [#95](https://github.com/lior-kotlar/lengua/issues/95) | Curated language list + custom fallback | M | **DECIDED 2026-07-09: Option B** (curated ~44-language picker, free-form "custom / experimental" fallback, Option-A code→metadata lookup folded into the custom path). Full UX + implementation spec: [`language-support-design.md`](language-support-design.md). Frontend-only — no API/schema/migration; **auto-merge mode**. Ready for `/next-task #95`. |
 
 (#80 — DB-backed versioned prompts — shipped in PR #143, owner-reviewed and merged 2026-07-09; see
 [`../CHANGELOG.md`](../CHANGELOG.md).)
