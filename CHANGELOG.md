@@ -15,6 +15,46 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-09 — Move LLM prompts to the database with versioning (PR open, paused for review)
+
+Track-1.1 [#80](https://github.com/lior-kotlar/lengua/issues/80) — move the LLM prompt fragments
+out of the codebase and into the DB **with versioning**, so a prompt can be tweaked (or rolled
+back) in production **without a code change + redeploy**, keeping full history. The PR is **paused
+for owner review** (architectural: a new DB-backed prompt store + a dual migration).
+
+- **New `public.prompt_versions` table (dual migration).** Append-only, keyed by a logical `key`
+  per fragment (`rules`, `generation_instruction`, `vocalization_instruction`, `level_instruction`,
+  `output_format`, `suggestion_instruction`); `(key, version)` unique, a **partial unique index**
+  (`WHERE is_active`) enforcing at most one active version per key, plus `content` / `note` /
+  `created_at` / `created_by`. Seeded with the current in-code prompt text as **version 1
+  (active)** for each key. Canonical Supabase SQL
+  (`supabase/migrations/20260709000000_prompt_versions.sql`) + a semantically-identical Alembic
+  migration (`migrations/versions/20260709_0007_prompt_versions.py`, `to_regrole`-guarded so it
+  round-trips on bare Postgres). **Locked down like `feature_flags`/`llm_budget`:** `REVOKE ALL …
+  FROM authenticated, anon` + deny-by-default RLS (no policy) — prompts are global operator config,
+  server-read-only, never reachable by a client.
+- **New prompt store (`apps/api/app/prompt_store.py`).** Reads the **active** version per key on a
+  privileged, RLS-bypassing app session, caches the snapshot for `PROMPT_CACHE_TTL_SECONDS`
+  (default 60s, injectable clock) so a change is picked up within one TTL — no redeploy. `resolve()`
+  supports the `-1` sentinel (→ active) and a positive pinned version (reproducibility / A-B).
+  Fails safe to the in-code defaults when the table is empty/unreachable.
+- **Refactored builders keep assembly in code (`lengua_core/prompts.py`).** `system_instruction` /
+  `suggestion_instruction` now source each fragment's **text** via a synchronous, injectable source
+  hook (DB override → cached snapshot, else the code constant), while all assembly + placeholder
+  interpolation stays in code. Builder signatures are unchanged, so the **legacy Streamlit app** and
+  the **CI/E2E FakeLLM path** keep working against the code constants with **zero DB dependency**.
+  The store's snapshot is refreshed on the event loop in `app.llm_runner.run_provider` (the single
+  async chokepoint) *before* the blocking provider call is offloaded to its worker thread, so the
+  synchronous builders read a materialised snapshot without ever awaiting.
+- **Tests (offline unit + DB integration).** Source-hook fallback + override; store warm/get, the
+  TTL cache + change-without-redeploy refresh (injected clock), TTL floor, invalidate,
+  concurrent-warm-once, `resolve` active + pinned + fallbacks; DB reader mapping + fail-safe; a
+  seed round-trip asserting the seeded rows equal the in-code defaults; the acceptance path (a new
+  active version changes resolution with no redeploy); and the SECURITY lockdown (RLS deny-by-default
+  + `authenticated`/`anon` denied at runtime), plus an Alembic-0007 lockstep regression. Full local
+  gate green (ruff, ruff-format, mypy repo-wide, offline pytest); DB-backed integration + the
+  Alembic drift check run in CI.
+
 ## 2026-07-08 — Show/hide ("eye") toggle on every password input
 
 Closes Track-1.1 [#99](https://github.com/lior-kotlar/lengua/issues/99) — a frontend-only

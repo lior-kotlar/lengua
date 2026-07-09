@@ -107,14 +107,57 @@ uv run alembic downgrade base       # revert everything
 uv run alembic check                # fail if the migrations drift from the ORM models
 ```
 
-The first migration is the entire schema (the 6 app tables + the `llm_usage` / `llm_budget`
+The first migration is the entire base schema (the 6 app tables + the `llm_usage` / `llm_budget`
 cost-guard tables), kept equivalent to `supabase/migrations/…_initial_schema.sql` and applyable
-on a bare Postgres (no `auth.users` FK, no RLS — those stay Supabase / Phase-2 concerns). After
-`upgrade head`, seed the fixed dev-user profile (idempotent):
+on a bare Postgres (no `auth.users` FK, no RLS — those stay Supabase / Phase-2 concerns). Later
+migrations add the global operator-config tables `feature_flags` (`0005`) and `prompt_versions`
+(`0007`, see [DB-backed prompts](#db-backed-prompts-prompt_versions)). After `upgrade head`, seed
+the fixed dev-user profile (idempotent):
 
 ```
 uv run python scripts/seed_dev_user.py
 ```
+
+## DB-backed prompts (`prompt_versions`)
+
+The LLM prompt fragments live in an append-only, versioned **global** table `prompt_versions`
+(migration `0007`), resolved at generation time by [`app/prompt_store.py`](app/prompt_store.py).
+Each logical fragment is keyed by `key` — one of `rules`, `generation_instruction`,
+`vocalization_instruction`, `level_instruction`, `output_format`, `suggestion_instruction` — and
+each edit **appends** a new row; exactly one row per key is `is_active` (a partial unique index
+enforces this). Generation always uses the **active** version. The active set is cached in-process
+for `PROMPT_CACHE_TTL_SECONDS` (default 60), so a change is picked up within one TTL **with no
+redeploy**.
+
+The in-code constants in [`lengua_core/prompts.py`](lengua_core/prompts.py) are both the **seed**
+(migration `0007` inserts them as version 1, active) and the runtime **fallback**: when the table is
+empty/unreachable — or for the legacy Streamlit app and CI/E2E (FakeLLM), which never install the
+store — the builders (`system_instruction` / `suggestion_instruction`) use the code defaults, so
+those paths have **zero DB dependency**. The builders keep all assembly + placeholder interpolation
+in code; only each fragment's *text* comes from the DB (or the code default).
+
+`prompt_versions` is operator config **locked down to the server** — `REVOKE ALL … FROM
+authenticated, anon` + deny-by-default RLS (like `feature_flags` / `llm_budget`), so a client can
+never read or rewrite the prompts. Reads happen on the backend's privileged connection.
+
+**Add a new prompt version** (SQL for now; an admin UI is a follow-up). Templates may contain
+placeholders (`{language}`, `{level}`, `{count}`, `{level_band}`, and for the suggestion template the
+code-assembled `{known_block}` / `{topic_line}`) — keep them intact. Append the next version and move
+the active pointer atomically:
+
+```sql
+-- new active 'rules' version (bump version, flip the pointer in one transaction)
+begin;
+update public.prompt_versions set is_active = false where key = 'rules' and is_active;
+insert into public.prompt_versions (key, version, content, is_active, note, created_by)
+values ('rules',
+        (select coalesce(max(version), 0) + 1 from public.prompt_versions where key = 'rules'),
+        $prompt$…new rules text…$prompt$, true, 'why this change', 'operator');
+commit;
+```
+
+Roll back by flipping `is_active` to an earlier version instead of deleting rows. Changes take
+effect within `PROMPT_CACHE_TTL_SECONDS`.
 
 ## Importing legacy data
 

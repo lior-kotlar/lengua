@@ -49,6 +49,7 @@ def test_all_expected_tables_present() -> None:
         "llm_usage",
         "llm_budget",
         "feature_flags",
+        "prompt_versions",
     }
 
 
@@ -61,6 +62,31 @@ def test_feature_flags_is_global_name_pk_table() -> None:
     assert feature_flags.c["enabled"].nullable is False
     assert isinstance(feature_flags.c["updated_at"].type, DateTime)
     assert "user_id" not in feature_flags.c
+
+
+def test_prompt_versions_is_global_versioned_table() -> None:
+    """``prompt_versions`` (#80) is global config: a uuid PK, ``(key, version)`` unique, an active
+    partial-unique index, ``content`` text, and no per-user ``user_id`` (owner/server config)."""
+    pv = METADATA.tables["prompt_versions"]
+    assert list(pv.primary_key.columns.keys()) == ["id"]
+    assert isinstance(pv.c["id"].type, UUID)
+    assert isinstance(pv.c["version"].type, Integer)
+    assert pv.c["content"].nullable is False
+    assert pv.c["is_active"].nullable is False
+    assert isinstance(pv.c["is_active"].type, Boolean)
+    assert "user_id" not in pv.c
+    # UNIQUE (key, version) keeps versions monotonic per key.
+    key_version_uniques = [
+        tuple(c.name for c in con.columns)
+        for con in pv.constraints
+        if isinstance(con, UniqueConstraint)
+    ]
+    assert ("key", "version") in key_version_uniques
+    # Partial unique index enforces at most one active version per key.
+    active_indexes = [ix for ix in pv.indexes if ix.name == "prompt_versions_one_active_per_key"]
+    assert len(active_indexes) == 1
+    assert active_indexes[0].unique is True
+    assert [c.name for c in active_indexes[0].columns] == ["key"]
 
 
 def test_profiles_id_is_uuid_pk_without_auth_fk() -> None:

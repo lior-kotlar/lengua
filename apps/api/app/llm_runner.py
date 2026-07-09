@@ -51,6 +51,7 @@ from app.llm_observability import (
     ATTR_LLM_TOKENS_OUT,
     record_tokens,
 )
+from app.prompt_store import warm_prompt_store
 from app.settings import get_settings
 from lengua_core.llm import LLMProvider, LLMTransientError
 from lengua_core.llm.usage import capture_usage
@@ -151,7 +152,16 @@ async def run_provider[R](
     because that is where the tokens were actually spent. With no span (a provider call outside a
     gated request, e.g. a service unit test) it is a thin pass-through to the limiter. Any exception
     from ``call`` propagates unchanged.
+
+    Before dispatching the (blocking, threaded) provider call, it refreshes the DB-backed prompt
+    snapshot on the event loop (GitHub #80): ``prompts.system_instruction`` /
+    ``suggestion_instruction`` run **inside** ``call`` on a worker thread and can't ``await``, so
+    the active ``prompt_versions`` set must be materialised first. The warm is best-effort and fails
+    safe to the code defaults, so it never blocks or breaks a generation.
     """
+    # Materialise the active prompt set for the synchronous builders (see the docstring). Cheap
+    # after the first call (TTL-cached); a no-op fast path when no store installed / on any error.
+    await warm_prompt_store()
     if span is not None:
         name, model = _provider_identity(provider)
         span.set_attribute(ATTR_LLM_PROVIDER, name)

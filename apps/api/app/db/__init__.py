@@ -16,6 +16,7 @@ from app.db.models import (
     LlmUsage,
     Proficiency,
     Profile,
+    PromptVersion,
     Review,
     UserSettings,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "LlmUsage",
     "Profile",
     "Proficiency",
+    "PromptVersion",
     "Review",
     "UserSettings",
     "async_dsn",

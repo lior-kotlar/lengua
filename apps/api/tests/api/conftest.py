@@ -46,6 +46,11 @@ async def api_client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
     seed_dev_user()  # fixed-UUID dev profile so current_user's FK-bound inserts resolve
 
     app = create_app()
+    # The autouse ``_offline_prompt_store`` fixture (tests/conftest.py) has already installed an
+    # in-memory prompt store, so the generation path's warm (app.llm_runner.run_provider) never
+    # opens the SHARED process-wide engine — which would bind it to this test's loop and leak a
+    # connection into the next async test (#80). ``create_app`` picks that override up when it
+    # installs the source. (No explicit install needed here.)
 
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         yield db_session  # do not close — the test still queries this session afterwards

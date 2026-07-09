@@ -124,6 +124,20 @@ enable their own flags), and only the resolved PUBLIC map reaches the browser vi
 `GET /experimental/word-of-the-day` route + a Dashboard card) ships dark behind `word_of_the_day`
 (off by default) — `404`/absent until the flag is on.
 
+**DB-backed prompts (tweak a prompt without a redeploy).** The LLM prompt fragments (the numbered
+rules block, the generation/vocalization/level instructions, the output-format spec, and the
+Discover suggestion template) live in an append-only, versioned **global** `prompt_versions` table,
+resolved by [`app/prompt_store.py`](apps/api/app/prompt_store.py). Generation always uses the
+**active** version per fragment, cached in-process for `PROMPT_CACHE_TTL_SECONDS` (default 60), so
+appending a new active row changes generation for everyone within one TTL with **no redeploy** (and
+you can roll back by moving the active pointer to an older version). The builders keep all assembly +
+interpolation in code and fall back to the in-code defaults in
+[`lengua_core/prompts.py`](apps/api/lengua_core/prompts.py) when the table is empty/unreachable — so
+the legacy Streamlit app and CI/E2E (FakeLLM) work with zero DB dependency. Like `feature_flags`,
+`prompt_versions` is operator config locked down to the server (REVOKE from `authenticated`/`anon` +
+deny-by-default RLS — never reachable by a client). Adding a version today is a SQL `INSERT`
+(active-pointer move); an admin UI is a follow-up.
+
 **Usage & cost limits.** Every LLM request passes a gate chain before the provider is called, in
 order **email-verified → rate-limit → daily-cap → global-budget**; the earliest failure is the one
 returned.
@@ -382,10 +396,14 @@ This opens the app in your browser. Data is stored locally in `apps/api/data/len
 
 The rules that govern *how* sentences are written live in
 [`apps/api/lengua_core/prompts.py`](apps/api/lengua_core/prompts.py) as an editable `RULES`
-list. To add or change a rule, edit one entry — the prompt text is reassembled
-automatically. The output shape (sentence / translation / used_words) is enforced by the
-schema in [`apps/api/lengua_core/gemini.py`](apps/api/lengua_core/gemini.py), so the rules
-only affect writing style, not format.
+list. To change them **in code**, edit one entry — the prompt text is reassembled
+automatically. In the productionized API these code constants are the **fallback** default: the
+active prompt text is read from the versioned `prompt_versions` table (see *DB-backed prompts*
+above and [`apps/api/README.md`](apps/api/README.md#db-backed-prompts-prompt_versions)), so a
+prompt can also be changed in a running deployment without a code change. The output shape
+(sentence / translation / used_words) is enforced by the schema in
+[`apps/api/lengua_core/gemini.py`](apps/api/lengua_core/gemini.py), so the rules only affect
+writing style, not format.
 
 ## Project layout
 

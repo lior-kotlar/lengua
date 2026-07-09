@@ -193,3 +193,50 @@ class FeatureFlag(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class PromptVersion(Base):
+    """One append-only, versioned override of an LLM-prompt fragment (GitHub #80).
+
+    GLOBAL operator config — **not** per-user data. Each logical fragment (``rules``,
+    ``generation_instruction``, ``output_format``, ``suggestion_instruction``, …) is keyed by
+    ``key``; every edit appends a new row with ``version = MAX(version)+1`` for that key and the
+    active pointer moves (``is_active``). Generation resolves the *active* version by default
+    (``app.prompt_store``) so an operator can change a prompt in prod — or roll back to an older
+    wording — **without a redeploy**, keeping full history. The builders
+    (``lengua_core.prompts``) source each fragment's text from the resolved active row and fall
+    back to the in-code default when the table is empty/unreachable.
+
+    Like ``feature_flags`` / ``llm_budget`` it is locked down to the server — ``REVOKE``\\d from
+    ``authenticated`` / ``anon`` and under deny-by-default RLS (Alembic 0007 / the canonical
+    Supabase SQL) — so a user can never read or rewrite the prompts: reads happen server-side on the
+    privileged app connection; writes are admin/service-role only.
+
+    The partial unique index ``prompt_versions_one_active_per_key`` (``UNIQUE (key) WHERE
+    is_active``) enforces **at most one active version per key** at the DB level, and
+    ``UNIQUE (key, version)`` keeps versions monotonic per key.
+    """
+
+    __tablename__ = "prompt_versions"
+    __table_args__ = (
+        UniqueConstraint("key", "version", name="prompt_versions_key_version_key"),
+        Index(
+            "prompt_versions_one_active_per_key",
+            "key",
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    key: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    created_by: Mapped[str | None] = mapped_column(Text)
