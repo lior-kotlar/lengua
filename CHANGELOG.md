@@ -8,19 +8,20 @@ This is the source of truth for **what is done**; open work lives in
 
 > The productionization ran trunk-based, one PR per task, in phase order (PRs #1 → #114), so the
 > PR ranges below map to phases by merge order (the top-of-log post-close-out sections carry the
-> later PR refs, currently up to #139).
+> later PR refs, currently up to #143).
 > Milestones: **M1** = backend loop over HTTP;
 > **M2** = multi-user (auth + RLS) with the LLM cost guard armed; **M3** = React web app at full
 > parity; **M4** = deployed to staging **and** prod (staging leg live; prod leg = owner cutover).
 
 ---
 
-## 2026-07-09 — Move LLM prompts to the database with versioning (PR open, paused for review)
+## 2026-07-09 — Move LLM prompts to the database with versioning (PR #143, merged)
 
-Track-1.1 [#80](https://github.com/lior-kotlar/lengua/issues/80) — move the LLM prompt fragments
-out of the codebase and into the DB **with versioning**, so a prompt can be tweaked (or rolled
-back) in production **without a code change + redeploy**, keeping full history. The PR is **paused
-for owner review** (architectural: a new DB-backed prompt store + a dual migration).
+Closes Track-1.1 [#80](https://github.com/lior-kotlar/lengua/issues/80) — move the LLM prompt
+fragments out of the codebase and into the DB **with versioning**, so a prompt can be tweaked (or
+rolled back) in production **without a code change + redeploy**, keeping full history. The PR was
+paused for owner review per protocol (architectural: a new DB-backed prompt store + a dual
+migration), then **owner-approved and merged 2026-07-09** (squash `17facfe`, CI 10/10 green).
 
 - **New `public.prompt_versions` table (dual migration).** Append-only, keyed by a logical `key`
   per fragment (`rules`, `generation_instruction`, `vocalization_instruction`, `level_instruction`,

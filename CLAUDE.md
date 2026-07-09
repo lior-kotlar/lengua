@@ -22,7 +22,7 @@ store-listing/data-inventory) have also shipped. The domain logic lives in
 [`apps/api/lengua_core/`](apps/api/lengua_core) and the original Streamlit app in
 [`apps/api/legacy_streamlit/`](apps/api/legacy_streamlit) (still runnable). **What's left** is
 organized into three tracks in [`planning/outstanding-work.md`](planning/outstanding-work.md):
-Track 1 = code doable now (two open code issues + an optional post-v1 backlog), Track 2 =
+Track 1 = code doable now (one open code issue + an optional post-v1 backlog), Track 2 =
 owner-gated (prod cutover, live observability, owner setup), Track 3 =
 deferred by decision (mobile → store consoles → launch, after the Track-2 prod cutover). What shipped is recorded in [`CHANGELOG.md`](CHANGELOG.md); start at
 [`planning/README.md`](planning/README.md). See **Autonomous build protocol** below.
