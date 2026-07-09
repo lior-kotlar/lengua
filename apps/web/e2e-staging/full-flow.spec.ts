@@ -62,7 +62,11 @@ async function addLanguage(
   page: Page,
   opts: { name: string; code?: string; band?: string; vowelized?: boolean },
 ): Promise<void> {
-  await page.getByRole('combobox', { name: 'Language' }).fill(opts.name);
+  // `exact` so this is the picker's "Language" combobox, not the header "Active language" one
+  // (Playwright's accessible-name match is a substring by default).
+  await page
+    .getByRole('combobox', { name: 'Language', exact: true })
+    .fill(opts.name);
   await page.getByRole('option', { name: /as a custom language/ }).click();
   await page.getByLabel('Name').fill(opts.name);
   if (opts.code !== undefined) {

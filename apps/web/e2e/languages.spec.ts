@@ -54,7 +54,11 @@ test.describe('language management & CEFR level (ephemeral stack)', () => {
       .getByRole('navigation', { name: 'Primary' })
       .getByRole('link', { name: 'Languages' })
       .click();
-    await page.getByRole('combobox', { name: 'Language' }).fill(throwaway);
+    // `exact` so this is the picker's "Language" combobox, not the header "Active language" one
+    // (Playwright's accessible-name match is a substring by default).
+    await page
+      .getByRole('combobox', { name: 'Language', exact: true })
+      .fill(throwaway);
     await page.getByRole('option', { name: /as a custom language/ }).click();
     await page.getByLabel('Name').fill(throwaway);
     await page.getByLabel('Code (optional)').fill('eo');
