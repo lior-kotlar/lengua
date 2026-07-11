@@ -48,6 +48,17 @@ describe('progressPercent', () => {
     expect(progressPercent(1)).toBe(100);
   });
 
+  it('holds a below-1 fraction that rounds up to 100 at 99', () => {
+    // The band only advances at the integer boundary, so a "100% to next" caption while the chip
+    // still shows the current band would misread. Round-to-100 while progress < 1 is capped at 99.
+    expect(progressPercent(0.995)).toBe(99); // Math.round(99.5) === 100, but progress < 1
+    expect(progressPercent(0.999)).toBe(99);
+    // Just below the round-up threshold already lands at 99 by ordinary rounding — no discontinuity.
+    expect(progressPercent(0.994)).toBe(99);
+    // Only an exact 1.0 (the absolute top, where the caption is hidden) shows 100.
+    expect(progressPercent(1)).toBe(100);
+  });
+
   it('clamps out-of-range and non-finite values', () => {
     expect(progressPercent(-0.5)).toBe(0);
     expect(progressPercent(2)).toBe(100);

@@ -63,9 +63,12 @@ Surfaced and adversarially confirmed by the [2026-07-11 completion audit](audit-
   threads the **real submit path** from the form (a `curated` field on `AddLanguageInput`) instead
   of a name-table lookup — a custom add of a curated-named language reads as custom, as the event's
   docstring promises.
-- **A3 = #152 — Home-tile percent edge (#146)** — `progressPercent` `Math.round` can show "100% to B2"
-  while the band chip still says B1 at the top of a band; floor or cap at 99 and add the boundary
-  test.
+- ~~**A3 = #152 — Home-tile percent edge (#146)**~~ — **shipped 2026-07-11** (frontend display-only;
+  self-merged, green CI). `progressPercent` (`apps/web/src/lib/cefr.ts`) now caps a below-1 fraction
+  that rounds up to 100 (≥ 0.995) at **99**, so the "% to next" caption can no longer read "100% to B2"
+  while the band chip still shows B1 — the band only advances at the integer boundary. Chosen cap-at-99
+  over a plain floor to leave every other percent unchanged (0.62 → 62, 0.555 → 56; an exact 1.0 still
+  reads 100). Added the ≥0.995 boundary tests. **§1.1 now has no open code items.**
 
 (#146 — Home language cards: explicit "% to next level" + per-tile due/new breakdown —
 frontend-only gap-closing on the Dashboard tiles (the progress footnote now reads `62% to B2`

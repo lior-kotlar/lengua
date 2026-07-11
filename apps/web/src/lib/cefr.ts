@@ -37,13 +37,22 @@ export function nextBand(band: string): CefrBand | null {
 /**
  * Convert a 0..1 intra-band `progress` fraction to a whole-number percentage, clamped to 0..100.
  *
+ * Rounds to the nearest whole percent, with one exception: a fraction that is below 1 but rounds
+ * up to 100 (≥ 0.995) is held at 99. The backend only advances the band at the integer boundary
+ * (`band_progress` returns 1.0 solely at the absolute top, where the "% to next" caption is
+ * hidden), so a true 100% caption while the band chip still shows the current band would misread.
+ * Capping the near-top window at 99 keeps the caption honest without shifting any other percentage
+ * (0.62 → 62, 0.555 → 56 are unchanged); an exact 1.0 still renders 100.
+ *
  * Defensive against out-of-range/NaN inputs (a bad payload renders an empty bar, never a broken one).
  */
 export function progressPercent(progress: number): number {
   if (!Number.isFinite(progress)) {
     return 0;
   }
-  return Math.round(Math.max(0, Math.min(1, progress)) * 100);
+  const clamped = Math.max(0, Math.min(1, progress));
+  const rounded = Math.round(clamped * 100);
+  return rounded === 100 && clamped < 1 ? 99 : rounded;
 }
 
 /**
