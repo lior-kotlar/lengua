@@ -9,8 +9,11 @@ to the templates instead of going stale.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
+from lengua_core import prompts
 from lengua_core.prompts import (
     GENERATION_INSTRUCTION,
     LEVEL_INSTRUCTION,
@@ -22,6 +25,13 @@ from lengua_core.prompts import (
 )
 
 pytestmark = pytest.mark.disable_socket
+
+
+@pytest.fixture
+def _restore_source() -> Iterator[None]:
+    """Clear the module-global prompt source after a test that installs one (offline, no store)."""
+    yield
+    prompts.set_prompt_source(None)
 
 # Substrings unique to the two optional blocks, used to assert whether each branch was taken.
 _VOCAL_MARKER = "fully vocalized"  # only in VOCALIZATION_INSTRUCTION
@@ -100,3 +110,66 @@ def test_suggestion_known_words_with_topic() -> None:
 def test_suggestion_empty_topic_is_treated_as_absent() -> None:
     # `if topic:` truthiness — "" must not emit the topic line.
     assert _TOPIC not in suggestion_instruction("Spanish", "A2", [], 5, topic="")
+
+
+# ── Render guard: a malformed DB override falls back to the code default (#150) ────────────────────
+# A DB override is fed into ``str.format``; a bad template (unknown/positional placeholder, stray
+# brace) must NOT raise across every generation request — it must degrade that one fragment to its
+# code default and log loudly. These install a raw per-key source (no store) to inject a bad override.
+
+
+def _install_source(overrides: dict[str, str]) -> None:
+    """Install a per-key source returning ``overrides[key]`` (or None) — the legacy no-snapshot path."""
+    prompts.set_prompt_source(lambda key: overrides.get(key))
+
+
+@pytest.mark.parametrize(
+    "bad_template",
+    [
+        "You teach {unknown_placeholder} — bad.",  # unknown named field → KeyError
+        "You teach {0} — positional.",  # positional field → IndexError
+        "You teach {} — auto-positional.",  # auto-numbered field → IndexError
+        "You teach {language — stray unbalanced brace.",  # malformed → ValueError
+    ],
+)
+def test_system_instruction_bad_override_falls_back_to_code_default(
+    bad_template: str, _restore_source: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed ``generation_instruction`` override renders the code default instead of raising."""
+    _install_source({prompts.KEY_GENERATION_INSTRUCTION: bad_template})
+    with caplog.at_level("ERROR"):
+        out = system_instruction("Spanish", level="A2")
+    # The bad fragment degraded to its code default (interpolated), not the raw broken template.
+    assert GENERATION_INSTRUCTION.format(language="Spanish") in out
+    assert "unknown_placeholder" not in out and "auto-positional" not in out
+    # Other fragments are unaffected and the failure was logged loudly.
+    assert LEVEL_INSTRUCTION.format(language="Spanish", level="A2") in out
+    assert any(
+        prompts.KEY_GENERATION_INSTRUCTION in r.getMessage() for r in caplog.records
+    )
+
+
+def test_suggestion_instruction_bad_override_falls_back_to_code_default(
+    _restore_source: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed ``suggestion_instruction`` override degrades to the code default, no raise."""
+    _install_source({prompts.KEY_SUGGESTION_INSTRUCTION: "Pick {count} in {no_such_field}."})
+    with caplog.at_level("ERROR"):
+        out = suggestion_instruction("French", "B1", ["a"], 3, topic="travel")
+    # Fell back to the full code default (still interpolated with the real fields).
+    assert "French vocabulary coach" in out and "exactly 3" in out
+    assert f"{_TOPIC} travel." in out
+
+
+def test_good_override_still_renders_normally(_restore_source: None) -> None:
+    """A well-formed override is still used verbatim (the guard doesn't over-trigger)."""
+    _install_source({prompts.KEY_GENERATION_INSTRUCTION: "Teach me {language} now."})
+    out = system_instruction("German")
+    assert "Teach me German now." in out
+
+
+def test_rules_override_with_literal_braces_is_not_formatted(_restore_source: None) -> None:
+    """The ``rules`` block is appended verbatim — literal braces in an override are preserved."""
+    _install_source({prompts.KEY_RULES: "Rules with a literal {brace} kept as-is."})
+    out = system_instruction("Spanish")
+    assert "Rules with a literal {brace} kept as-is." in out

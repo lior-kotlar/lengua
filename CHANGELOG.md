@@ -15,6 +15,48 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-11 — Prompt-store hardening (#80 follow-ups) · awaiting owner review
+
+Addresses Track-1.1 [#150](https://github.com/lior-kotlar/lengua/issues/150) (the one HIGH audit
+finding): the DB-backed prompt store's fail-safe covered **read** failures but not **render** or
+**assembly** failures. Internal hardening of the generation-critical prompt path — **no API/route/
+schema change** — in `apps/api/lengua_core/prompts.py` and `apps/api/app/prompt_store.py`. The PR is
+**paused for owner review** rather than self-merged (a fault here 500s every generation; #80 itself
+was owner-reviewed).
+
+- **(a) Render guard.** Every DB-overridden fragment fed to `str.format(...)` is now wrapped in a
+  try/except (`_render_fragment`): a malformed override — unknown `{placeholder}`, positional `{}`,
+  stray unbalanced brace — is logged loudly and that **one** fragment falls back to its
+  `CODE_DEFAULTS` text, instead of raising inside every generation request and 500-ing the whole app
+  until the row is fixed. The `rules` block (no placeholders, may hold literal braces) is still
+  appended verbatim, never `.format`-rendered. Code-default templates are rendered unguarded so a
+  genuine code bug still surfaces in tests.
+- **(b) Read-time validation.** `read_active_prompts_from_db` now sanitises the snapshot via
+  `_validate_snapshot`: rows whose key isn't in `PROMPT_KEYS` are dropped (they can never resolve),
+  and **empty-string** overrides are dropped so `''` can't silently blank a fragment (e.g. an empty
+  `output_format` deleting the whole output-shape instruction). Both warn.
+- **(c) End-to-end wiring test.** A new `@pytest.mark.integration` test boots `create_app` with a
+  non-empty in-memory store installed (deliberately overriding the autouse empty offline-store
+  fixture), drives a real `POST /generate`, and — via a spy provider that assembles the true
+  `system_instruction` — asserts the DB override reached the assembled system prompt. Proves the
+  install → warm → snapshot-capture → render chain a silent wiring regression would otherwise hide.
+- **(d) Torn-assembly race fixed.** A single prompt build resolved 2–4 fragments, each re-reading a
+  snapshot a concurrent `warm()` could swap mid-build (mixing two prompt versions in one request).
+  Builds now capture the **whole** active map once via a new `PromptStore.snapshot()` hook (installed
+  alongside the per-key `get`), cached as a read-only `MappingProxyType`; every fragment in that
+  build resolves from the one frozen map.
+- **(e) Version-pinning path trimmed.** `resolve(version>0)` / `read_pinned_prompt_from_db` /
+  `_SELECT_PINNED` / the `ACTIVE_VERSION` sentinel / the `pinned_reader` ctor arg had **zero
+  production callers** (the advertised reproducibility/A-B path was unreachable). Trimmed — the
+  lower-risk choice vs wiring a new request-param/feature-flag with no product owner — and the module
+  docstring + `apps/api/README.md` corrected: generation resolves only the **active** version;
+  rollback is still an `is_active` flip over the append-only history.
+- **(f) intentionally skipped.** A DB `CHECK (content <> '')` / key-enum constraint is
+  migration-gated and left for the owner per protocol; (b) already covers it at read time.
+- **Tests.** `lengua_core/prompts.py` and `app/prompt_store.py` are at 100% line+branch from the
+  offline unit suite; the pinning-path tests were removed and render-guard / validation / snapshot /
+  wiring tests added. Backend gate held.
+
 ## 2026-07-10 — Home language cards: explicit "% to next level" + due/new breakdown
 
 Closes Track-1.1 [#146](https://github.com/lior-kotlar/lengua/issues/146) (PR #148, squash
@@ -102,6 +144,8 @@ migration), then **owner-approved and merged 2026-07-09** (squash `17facfe`, CI 
   privileged, RLS-bypassing app session, caches the snapshot for `PROMPT_CACHE_TTL_SECONDS`
   (default 60s, injectable clock) so a change is picked up within one TTL — no redeploy. `resolve()`
   supports the `-1` sentinel (→ active) and a positive pinned version (reproducibility / A-B).
+  <!-- The pinned-version path had zero callers and was trimmed on 2026-07-11 (#150); generation
+  resolves only the active version. -->
   Fails safe to the in-code defaults when the table is empty/unreachable.
 - **Refactored builders keep assembly in code (`lengua_core/prompts.py`).** `system_instruction` /
   `suggestion_instruction` now source each fragment's **text** via a synchronous, injectable source

@@ -29,17 +29,29 @@ thread (:mod:`app.llm_runner`). They therefore can't ``await`` a DB read. So thi
 
 * an **async refresh** (:meth:`PromptStore.warm`) run on the event loop *before* the provider call
   is dispatched (see :func:`warm_prompt_store`, wired into ``run_provider``), and
-* a **synchronous** :meth:`PromptStore.get` the builders call from the worker thread, which only
-  reads the already-materialised in-memory snapshot (no I/O). :meth:`PromptStore.install` registers
-  it as the :func:`lengua_core.prompts.set_prompt_source` hook.
+* a **synchronous** :meth:`PromptStore.get` / :meth:`PromptStore.snapshot` the builders call from
+  the worker thread, which only read the already-materialised in-memory snapshot (no I/O).
+  :meth:`PromptStore.install` registers them as the :func:`lengua_core.prompts.set_prompt_source`
+  hooks. A single build captures the whole snapshot **once** (via ``snapshot``) so a concurrent
+  ``warm()`` can't swap versions mid-build (GitHub #150).
 
-**"Always use the latest version" + the -1 sentinel.** :meth:`resolve` takes an optional
-``version``: ``-1`` (the default) resolves to the current **active** version for the key (via the
-cached snapshot); a positive ``version`` **pins** that exact version (reproducibility / debugging /
-A/B) by reading it straight from the DB. The default generation path always uses the active version.
+**"Always use the latest version".** Generation always uses the current **active** version per key
+(one active row per key, enforced by a partial unique index) via the cached snapshot. There is no
+per-request version pinning: the append-only history in ``prompt_versions`` still lets an operator
+**roll back** by flipping ``is_active`` to an earlier row (see ``apps/api/README.md``), but the app
+resolves only the active set. (An earlier ``resolve(version=N)`` pin path had zero callers and was
+removed in #150 to keep the store lean.)
+
+**Read-time validation** (#150). The snapshot is sanitised before it's cached: keys not in
+:data:`lengua_core.prompts.PROMPT_KEYS` are dropped (they can never be resolved and only add noise),
+and an **empty-string** override is skipped so it can't silently blank a fragment — e.g. an empty
+``output_format`` would otherwise delete the whole output-shape instruction. Both cases warn loudly
+and fall the fragment back to its code default.
 
 **Fail-safe.** A DB read failure yields an empty snapshot, so every fragment falls back to its code
-default — a prompt read must never take generation down.
+default — a prompt read must never take generation down. A **malformed** (but non-empty) override
+template that survives validation is caught one layer down, at render time, by the guard in
+:func:`lengua_core.prompts` (#150).
 """
 
 from __future__ import annotations
@@ -47,8 +59,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from functools import lru_cache
+from types import MappingProxyType
 
 from sqlalchemy import text
 
@@ -57,9 +70,6 @@ from app.settings import get_settings
 from lengua_core import prompts
 
 logger = logging.getLogger(__name__)
-
-#: Sentinel meaning "resolve the current active version" (see :meth:`PromptStore.resolve`).
-ACTIVE_VERSION = -1
 
 #: Floor for the in-process cache TTL, mirroring ``app.feature_flags.MIN_TTL_SECONDS``: a
 #: non-positive ``PROMPT_CACHE_TTL_SECONDS`` would re-read ``prompt_versions`` on *every* generation
@@ -70,8 +80,40 @@ MIN_TTL_SECONDS = 1.0
 # row per key (the partial unique index guarantees at most one).
 _SELECT_ACTIVE = text("select key, content from prompt_versions where is_active")
 
-# Read one pinned (key, version) row's content — the reproducibility/A-B path.
-_SELECT_PINNED = text("select content from prompt_versions where key = :key and version = :version")
+
+def _validate_snapshot(raw: Mapping[str, str]) -> dict[str, str]:
+    """Sanitise a raw active-prompt map before it's cached (#150 read-time validation).
+
+    Two failure modes a raw DB read would otherwise pass through silently:
+
+    * an **unknown key** (not in :data:`lengua_core.prompts.PROMPT_KEYS`) — it can never resolve to
+      a fragment, so it is only noise; and
+    * an **empty-string** content — ``''`` is distinct from "no override", so it would install as a
+      valid override and silently blank that fragment (e.g. wiping ``output_format`` deletes the
+      whole output-shape instruction the model relies on).
+
+    Both are dropped with a loud warning so the fragment falls back to its code default. Content is
+    otherwise passed through verbatim; a non-empty but **malformed** template is caught later, at
+    render time, by the guard in :mod:`lengua_core.prompts`.
+    """
+    known = set(prompts.PROMPT_KEYS)
+    validated: dict[str, str] = {}
+    for key, content in raw.items():
+        if key not in known:
+            logger.warning(
+                "prompt_versions has an unknown active key %r (not in PROMPT_KEYS); ignoring it",
+                key,
+            )
+            continue
+        if content == "":
+            logger.warning(
+                "prompt_versions active override for key %r is empty; ignoring it so the fragment "
+                "falls back to its code default (an empty override would silently blank it)",
+                key,
+            )
+            continue
+        validated[key] = content
+    return validated
 
 
 async def read_active_prompts_from_db() -> dict[str, str]:
@@ -79,42 +121,27 @@ async def read_active_prompts_from_db() -> dict[str, str]:
 
     Opens its **own** plain session from the sessionmaker (the connecting ``postgres``/owner role,
     which bypasses ``prompt_versions``' deny-by-default RLS) — never the per-request RLS session,
-    which runs as ``authenticated`` and is denied. Returns ``{}`` on any failure (DB
-    unreachable/unset, table absent) so the builders degrade to the in-code defaults rather than
-    erroring — a prompt read must never take generation down (see the module fail-safe note).
+    which runs as ``authenticated`` and is denied. The raw rows pass through
+    :func:`_validate_snapshot` (drop unknown keys / empty overrides, #150). Returns ``{}`` on any
+    failure (DB unreachable/unset, table absent) so the builders degrade to the in-code defaults
+    rather than erroring — a prompt read must never take generation down (see the fail-safe note).
     """
     try:
         async with get_sessionmaker()() as session:
             result = await session.execute(_SELECT_ACTIVE)
-            return {str(m["key"]): str(m["content"]) for m in result.mappings()}
+            raw = {str(m["key"]): str(m["content"]) for m in result.mappings()}
     except Exception:  # noqa: BLE001 — fail safe to code defaults; a prompt read must never 500
         logger.warning(
             "prompt_versions table read failed; falling back to in-code prompt defaults",
             exc_info=True,
         )
         return {}
+    return _validate_snapshot(raw)
 
 
-async def read_pinned_prompt_from_db(key: str, version: int) -> str | None:
-    """Read one pinned ``(key, version)`` row's content, or ``None`` if it doesn't exist / on error.
-
-    The reproducibility / A-B path (:meth:`PromptStore.resolve` with a positive ``version``). Uses
-    the same privileged session as :func:`read_active_prompts_from_db`; ``None`` means "no such
-    pinned version" so the caller falls back to the code default.
-    """
-    try:
-        async with get_sessionmaker()() as session:
-            result = await session.execute(_SELECT_PINNED.bindparams(key=key, version=version))
-            row = result.first()
-            return None if row is None else str(row[0])
-    except Exception:  # noqa: BLE001 — fail safe to the code default
-        logger.warning(
-            "pinned prompt_versions read failed (key=%s version=%s); using code default",
-            key,
-            version,
-            exc_info=True,
-        )
-        return None
+#: The empty snapshot the builders see before any warm / when the DB is empty (a shared read-only
+#: singleton so :meth:`PromptStore.snapshot` never allocates on the hot path when there is no data).
+_EMPTY_SNAPSHOT: Mapping[str, str] = MappingProxyType({})
 
 
 class PromptStore:
@@ -122,8 +149,9 @@ class PromptStore:
 
     The active snapshot is fetched through ``reader`` and cached for ``ttl_seconds`` (floored at
     :data:`MIN_TTL_SECONDS`) against an injectable ``clock``. All are injectable so tests are fully
-    deterministic (fake reader + fake clock) and the production singleton reads the real DB. A
-    ``pinned_reader`` backs the positive-``version`` pin path (defaults to the real DB reader).
+    deterministic (fake reader + fake clock) and the production singleton reads the real DB. The
+    cached snapshot is stored as a read-only :class:`~types.MappingProxyType` so the builders, which
+    capture it via :meth:`snapshot`, can never mutate the shared cache.
     """
 
     def __init__(
@@ -132,14 +160,12 @@ class PromptStore:
         reader: Callable[[], Awaitable[dict[str, str]]],
         ttl_seconds: float,
         clock: Callable[[], float] = time.monotonic,
-        pinned_reader: Callable[[str, int], Awaitable[str | None]] | None = None,
     ) -> None:
         self._reader = reader
-        self._pinned_reader = pinned_reader or read_pinned_prompt_from_db
         # Clamp non-positive TTLs up to the floor so we never re-read the table on every generation.
         self._ttl = max(float(ttl_seconds), MIN_TTL_SECONDS)
         self._clock = clock
-        self._active: dict[str, str] | None = None
+        self._active: Mapping[str, str] | None = None
         self._fetched_at = 0.0
         # Dedupes a refresh storm: concurrent warms with an expired cache make ONE table read.
         self._lock = asyncio.Lock()
@@ -150,12 +176,12 @@ class PromptStore:
             return True
         return (self._clock() - self._fetched_at) >= self._ttl
 
-    async def warm(self) -> dict[str, str]:
-        """Refresh the active snapshot if the TTL has expired, and return it.
+    async def warm(self) -> Mapping[str, str]:
+        """Refresh the active snapshot if the TTL has expired, and return it (read-only).
 
         Called on the event loop *before* the (blocking, threaded) provider call so the synchronous
-        :meth:`get` the builders call in the worker thread reads a materialised snapshot. Returns
-        the current snapshot (possibly the cached one when still fresh).
+        :meth:`get` / :meth:`snapshot` the builders call in the worker thread read a materialised
+        snapshot. Returns the current snapshot (possibly the cached one when still fresh).
         """
         if not self._expired():
             assert self._active is not None  # _expired() is False only once a snapshot exists
@@ -163,43 +189,45 @@ class PromptStore:
         async with self._lock:
             # Re-check under the lock: another coroutine may have refreshed while we waited.
             if self._expired():
-                self._active = await self._reader()
+                # Freeze the newly-read map so a build that captured it via ``snapshot`` can't
+                # mutate the shared cache. The rebind is atomic: a concurrent reader sees one whole.
+                self._active = MappingProxyType(dict(await self._reader()))
                 self._fetched_at = self._clock()
             assert self._active is not None
             return self._active
 
+    def snapshot(self) -> Mapping[str, str]:
+        """Synchronously return the whole ACTIVE override map (read-only), for one build (#150).
+
+        Reads only the in-memory snapshot (no I/O), so it is safe on the provider worker thread. A
+        prompt build captures this **once** and resolves every fragment from it, so a concurrent
+        :meth:`warm` swapping the cache can't tear the build across two prompt versions. Returns an
+        empty map before the first warm / when the DB is empty (⇒ every fragment uses its code
+        default). Installed as the snapshot hook via :func:`lengua_core.prompts.set_prompt_source`.
+        """
+        active = self._active
+        return active if active is not None else _EMPTY_SNAPSHOT
+
     def get(self, key: str) -> str | None:
         """Synchronously return the ACTIVE content for ``key``, or ``None`` to fall back to code.
 
-        Reads only the in-memory snapshot (no I/O), so it is safe to call from the provider worker
-        thread. ``None`` — no snapshot yet, or the key isn't active in the DB — makes the builder
-        use its code default. This is the callable installed via
-        :func:`lengua_core.prompts.set_prompt_source`.
+        The per-key companion to :meth:`snapshot` — reads only the in-memory snapshot (no I/O), so
+        it is safe on the provider worker thread. ``None`` — no snapshot yet, or the key isn't
+        active in the DB — makes the builder use its code default. Installed as the per-key source
+        hook via :func:`lengua_core.prompts.set_prompt_source`.
         """
         active = self._active
         if active is None:
             return None
         return active.get(key)
 
-    async def resolve(self, key: str, version: int = ACTIVE_VERSION) -> str:
-        """Resolve ``key`` to its text: the ACTIVE version (``version == -1``) or a pinned positive.
-
-        ``version == ACTIVE_VERSION`` (``-1``, the default) uses the cached active snapshot (warming
-        it if needed). A positive ``version`` reads that exact row from the DB (reproducibility /
-        debugging / A-B). Either way, a miss (key not active / no such pinned version / DB down)
-        falls back to :data:`lengua_core.prompts.CODE_DEFAULTS`.
-        """
-        default: str = prompts.CODE_DEFAULTS[key]
-        if version == ACTIVE_VERSION:
-            active = await self.warm()
-            resolved = active.get(key)
-            return resolved if resolved is not None else default
-        pinned = await self._pinned_reader(key, version)
-        return pinned if pinned is not None else default
-
     def install(self) -> None:
-        """Register this store's synchronous :meth:`get` as the ``lengua_core.prompts`` source."""
-        prompts.set_prompt_source(self.get)
+        """Register this store's synchronous hooks as the ``lengua_core.prompts`` prompt source.
+
+        Registers both :meth:`get` (per-key) and :meth:`snapshot` (whole-map, for the atomic
+        per-build capture that prevents the torn-assembly race, #150).
+        """
+        prompts.set_prompt_source(self.get, self.snapshot)
 
     def invalidate(self) -> None:
         """Drop the cached snapshot so the next :meth:`warm` re-reads the table immediately."""

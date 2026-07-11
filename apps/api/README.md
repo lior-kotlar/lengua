@@ -156,8 +156,15 @@ values ('rules',
 commit;
 ```
 
-Roll back by flipping `is_active` to an earlier version instead of deleting rows. Changes take
-effect within `PROMPT_CACHE_TTL_SECONDS`.
+Roll back by flipping `is_active` to an earlier version instead of deleting rows. Generation only
+ever resolves the **active** version — there is no per-request version pinning. Changes take effect
+within `PROMPT_CACHE_TTL_SECONDS`.
+
+**Bad overrides degrade safely, they don't take generation down (#150).** A bad edit can't 500 the
+app: at read time an override for an unknown key or with empty content is dropped (and warned), and
+at render time an override whose template has a bad placeholder or an unbalanced brace is logged and
+falls back to that fragment's in-code default. Watch the logs for `prompt override for key … failed
+to render` (or the drop warnings) and fix the offending `prompt_versions` row.
 
 ## Importing legacy data
 
