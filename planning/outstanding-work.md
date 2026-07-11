@@ -38,13 +38,20 @@ Surfaced and adversarially confirmed by the [2026-07-11 completion audit](audit-
 [#151](https://github.com/lior-kotlar/lengua/issues/151) (A2),
 [#152](https://github.com/lior-kotlar/lengua/issues/152) (A3) — run via `/next-task #150` etc.:
 
-- **A1 = #150 — Prompt-store hardening (#80 follow-ups)** — (a) guard the `.format()` render of
-  DB-overridden prompt fragments with a fall-back to `CODE_DEFAULTS` (a malformed override
-  currently 500s every generation — the one HIGH finding); (b) validate snapshot keys against
-  `PROMPT_KEYS` and skip/warn on blank content at read time; (c) add one integration test proving
-  a `create_app`-installed store actually overrides an HTTP generation's system prompt;
-  (d) read the snapshot once per prompt build (torn-assembly race); (e) wire or trim the
-  caller-less version-pinning path.
+- ~~**A1 = #150 — Prompt-store hardening (#80 follow-ups)**~~ — code shipped in a PR **awaiting
+  owner review** (not self-merged — it edits generation-critical prompt-assembly code, same reason
+  #80 was owner-gated). (a) each DB-overridden fragment render is wrapped in a try/except that logs
+  loudly and falls back to `CODE_DEFAULTS` for that fragment — a malformed override no longer 500s
+  every generation; (b) read-time validation drops unknown keys (vs `PROMPT_KEYS`) and empty-string
+  overrides so they can't silently blank a fragment; (c) an integration test boots `create_app`
+  with a non-empty store and asserts a real HTTP generation's assembled system instruction carries
+  the DB override; (d) each prompt build captures the whole active snapshot **once** (new
+  `snapshot()` hook + `MappingProxyType`), so a concurrent `warm()` can't tear a build across two
+  versions; (e) the caller-less version-pinning path (`resolve(version>0)` /
+  `read_pinned_prompt_from_db`) was **trimmed** (lower-risk than wiring a new request-param/flag
+  with no product owner) and the docs corrected — rollback still works via `is_active`. **(f)** (a
+  DB `CHECK`/key-enum constraint — migration-gated) is intentionally **left for the owner** per
+  protocol; A1.b covers the same failure at read time.
 - **A2 = #151 — Language-picker follow-ups (#95)** — (a) case-insensitive duplicate check before a
   curated POST (case-variant duplicate rows today); (b) guard the add-form's `onSuccess` reset
   when the user navigated mid-flight; (c) one e2e through the curated pick→submit path (all e2e

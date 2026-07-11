@@ -18,19 +18,17 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 
 import psycopg
 import pytest
 
 import app.prompt_store as ps
 from app.prompt_store import (
-    ACTIVE_VERSION,
     MIN_TTL_SECONDS,
     PromptStore,
     get_prompt_store,
     read_active_prompts_from_db,
-    read_pinned_prompt_from_db,
     reset_prompt_store,
     warm_prompt_store,
 )
@@ -45,7 +43,6 @@ def make_store(
     active: dict[str, str] | None = None,
     ttl: float = 60.0,
     clock: Callable[[], float] | None = None,
-    pinned_reader: Callable[[str, int], Awaitable[str | None]] | None = None,
 ) -> PromptStore:
     """A :class:`PromptStore` whose active layer is a fixed dict and whose clock is frozen at 0."""
     snapshot = dict(active or {})
@@ -57,7 +54,6 @@ def make_store(
         reader=reader,
         ttl_seconds=ttl,
         clock=clock or (lambda: 0.0),
-        pinned_reader=pinned_reader,
     )
 
 
@@ -243,47 +239,60 @@ async def test_concurrent_warm_reads_the_table_once() -> None:
     assert reads["n"] == 1
 
 
-# ── resolve: -1 → active, positive → pinned, both with a code fallback ───────────────────────────
+# ── snapshot(): the whole-map capture that prevents the torn-assembly race (#150) ────────────────
 
 
 @pytest.mark.asyncio
-async def test_resolve_default_uses_active_version() -> None:
-    """``resolve(key)`` (default ``version=-1``) returns the active content, warming as needed."""
-    store = make_store(active={prompts.KEY_RULES: "ACTIVE"})
-    assert await store.resolve(prompts.KEY_RULES) == "ACTIVE"
-    assert ACTIVE_VERSION == -1
+async def test_snapshot_is_empty_before_warm() -> None:
+    """A cold store's ``snapshot`` is an empty map (⇒ every fragment uses its code default)."""
+    store = make_store(active={prompts.KEY_RULES: "X"})
+    assert dict(store.snapshot()) == {}
 
 
 @pytest.mark.asyncio
-async def test_resolve_active_falls_back_to_code_default_when_key_absent() -> None:
-    """``resolve`` for a key with no active row falls back to the code default."""
-    store = make_store(active={})
-    assert await store.resolve(prompts.KEY_OUTPUT_FORMAT) == prompts.OUTPUT_FORMAT
+async def test_snapshot_returns_the_whole_active_map_and_is_read_only() -> None:
+    """After ``warm``, ``snapshot`` returns the whole active map and it cannot be mutated."""
+    store = make_store(active={prompts.KEY_RULES: "R", prompts.KEY_OUTPUT_FORMAT: "O"})
+    await store.warm()
+    snap = store.snapshot()
+    assert dict(snap) == {prompts.KEY_RULES: "R", prompts.KEY_OUTPUT_FORMAT: "O"}
+    with pytest.raises(TypeError):  # a read-only MappingProxyType — a build can't mutate the cache
+        snap[prompts.KEY_RULES] = "MUTATED"  # type: ignore[index]
 
 
 @pytest.mark.asyncio
-async def test_resolve_positive_version_pins_that_version() -> None:
-    """A positive ``version`` reads that exact pinned row (reproducibility / A-B)."""
-    seen: list[tuple[str, int]] = []
+async def test_install_wires_snapshot_so_a_build_reads_one_coherent_version() -> None:
+    """A build captures the whole snapshot once; a concurrent warm can't tear it across versions.
 
-    async def pinned(key: str, version: int) -> str | None:
-        seen.append((key, version))
-        return f"PINNED v{version}"
+    Reproduces the #150 race deterministically: with the store installed, we begin a build (capture
+    the snapshot), then swap the store's active snapshot to v2 *before* the build resolves its
+    remaining fragments — the build must still see v1 throughout, not a v1/v2 mix.
+    """
+    reader_state = {prompts.KEY_RULES: "RULES v1", prompts.KEY_OUTPUT_FORMAT: "OUTPUT v1"}
+    now = {"t": 0.0}
 
-    store = make_store(active={prompts.KEY_RULES: "ACTIVE"}, pinned_reader=pinned)
-    assert await store.resolve(prompts.KEY_RULES, version=3) == "PINNED v3"
-    assert seen == [(prompts.KEY_RULES, 3)]
+    async def reader() -> dict[str, str]:
+        return dict(reader_state)
 
-
-@pytest.mark.asyncio
-async def test_resolve_positive_version_missing_falls_back_to_code_default() -> None:
-    """A pinned version that doesn't exist (reader returns ``None``) falls back to code default."""
-
-    async def pinned(_key: str, _version: int) -> str | None:
-        return None
-
-    store = make_store(pinned_reader=pinned)
-    assert await store.resolve(prompts.KEY_RULES, version=99) == prompts.RULES_PROMPT
+    store = PromptStore(reader=reader, ttl_seconds=60.0, clock=lambda: now["t"])
+    await store.warm()
+    store.install()
+    try:
+        # A build captures the coherent snapshot once (what ``system_instruction`` does internally).
+        captured = prompts._capture_overrides()
+        # A concurrent warm now swaps in v2 (new active versions land + TTL expires).
+        reader_state[prompts.KEY_RULES] = "RULES v2"
+        reader_state[prompts.KEY_OUTPUT_FORMAT] = "OUTPUT v2"
+        now["t"] = 999.0
+        await store.warm()
+        # The in-flight build still resolves every fragment from its v1 capture — no torn mix.
+        assert prompts.resolve_fragment(prompts.KEY_RULES, captured) == "RULES v1"
+        assert prompts.resolve_fragment(prompts.KEY_OUTPUT_FORMAT, captured) == "OUTPUT v1"
+        # A *fresh* build (new capture) now sees v2 — the swap did take effect for later requests.
+        fresh = prompts._capture_overrides()
+        assert prompts.resolve_fragment(prompts.KEY_RULES, fresh) == "RULES v2"
+    finally:
+        prompts.set_prompt_source(None)
 
 
 # ── read_active_prompts_from_db (stubbed sessionmaker — the DB seam, offline) ─────────────────────
@@ -295,9 +304,6 @@ class _FakeResult:
 
     def mappings(self) -> list[dict[str, object]]:
         return self._rows
-
-    def first(self) -> tuple[object, ...] | None:
-        return None if not self._rows else tuple(self._rows[0].values())
 
 
 class _FakeSession:
@@ -336,30 +342,46 @@ async def test_read_active_prompts_from_db_is_fail_safe(monkeypatch: pytest.Monk
     assert await read_active_prompts_from_db() == {}
 
 
+# ── Read-time validation: drop unknown keys + empty overrides (#150) ─────────────────────────────
+
+
 @pytest.mark.asyncio
-async def test_read_pinned_prompt_from_db_returns_content(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The pinned reader returns the single row's content."""
-    rows: list[dict[str, object]] = [{"content": "PINNED"}]
+async def test_read_active_prompts_drops_unknown_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A row whose key isn't in ``PROMPT_KEYS`` is dropped (it can never resolve to a fragment)."""
+    rows: list[dict[str, object]] = [
+        {"key": prompts.KEY_RULES, "content": "R"},
+        {"key": "bogus_key", "content": "ignored"},
+    ]
     monkeypatch.setattr(ps, "get_sessionmaker", lambda: lambda: _FakeSession(rows))
-    assert await read_pinned_prompt_from_db("rules", 2) == "PINNED"
+    assert await read_active_prompts_from_db() == {prompts.KEY_RULES: "R"}
 
 
 @pytest.mark.asyncio
-async def test_read_pinned_prompt_from_db_none_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The pinned reader returns ``None`` for a missing (key, version)."""
-    monkeypatch.setattr(ps, "get_sessionmaker", lambda: lambda: _FakeSession([]))
-    assert await read_pinned_prompt_from_db("rules", 2) is None
+async def test_read_active_prompts_drops_empty_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty override is dropped so it can't silently blank a fragment (e.g. output_format)."""
+    rows: list[dict[str, object]] = [
+        {"key": prompts.KEY_OUTPUT_FORMAT, "content": ""},
+        {"key": prompts.KEY_RULES, "content": "R"},
+    ]
+    monkeypatch.setattr(ps, "get_sessionmaker", lambda: lambda: _FakeSession(rows))
+    active = await read_active_prompts_from_db()
+    assert active == {prompts.KEY_RULES: "R"}  # the empty output_format is gone
+    # And through the builder, the blanked key falls back to its full code default.
+    store = make_store(active=active)
+    await store.warm()
+    store.install()
+    try:
+        assert prompts.system_instruction("Spanish").endswith(
+            prompts.OUTPUT_FORMAT.format(language="Spanish")
+        )
+    finally:
+        prompts.set_prompt_source(None)
 
 
-@pytest.mark.asyncio
-async def test_read_pinned_prompt_from_db_is_fail_safe(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A pinned-read failure returns ``None`` (→ code default), never raises."""
-
-    def boom() -> object:
-        raise RuntimeError("db down")
-
-    monkeypatch.setattr(ps, "get_sessionmaker", boom)
-    assert await read_pinned_prompt_from_db("rules", 2) is None
+def test_validate_snapshot_keeps_valid_overrides() -> None:
+    """The validator passes through known, non-empty overrides verbatim."""
+    raw = {prompts.KEY_RULES: "R", prompts.KEY_LEVEL_INSTRUCTION: "L {level}"}
+    assert ps._validate_snapshot(raw) == raw
 
 
 # ── Singleton wiring + warm_prompt_store best-effort ─────────────────────────────────────────────
@@ -463,6 +485,163 @@ async def test_new_active_version_changes_resolution_without_redeploy() -> None:
                 "UPDATE prompt_versions SET is_active = true WHERE key = 'rules' AND version = 1"
             )
         await dispose_engine()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_db_override_reaches_the_http_generation_system_instruction() -> None:
+    """End-to-end wiring proof (#150 A1.c): a DB override reaches a real HTTP generation's prompt.
+
+    A wiring regression (``create_app`` not installing the store, ``run_provider`` not warming it,
+    the builder not reading the snapshot) would be invisible today because the autouse offline-store
+    fixture installs an **empty** store for every test. Here we deliberately **override** that
+    fixture with an in-memory store carrying a distinctive ``generation_instruction`` override, boot
+    the real app, and drive a ``POST /generate`` through it. A spy provider assembles the *real*
+    ``system_instruction`` (the exact call the production providers make in their worker thread) and
+    records it; we assert the override text is present — proving install → warm → snapshot-capture →
+    render all fired through the HTTP path.
+
+    Uses an **in-memory** reader (not the DB) so the generation-path warm never opens the shared
+    process-wide engine on this test's loop (the cross-loop leak the offline fixture guards). It's
+    still marked ``integration`` because the route needs Postgres for the seeded profile + language.
+    """
+    import uuid as _uuid
+    from collections.abc import AsyncIterator
+
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+    from app.db.session import UsageSession, async_dsn, dispose_engine
+    from app.deps import get_db, get_llm_provider, get_usage_db
+    from app.llm_runner import LLMConcurrencyLimiter, get_llm_limiter
+    from app.main import create_app
+    from app.ratelimit import InProcessRateLimiter, RateLimiter, get_rate_limiter
+    from lengua_core.llm.base import LLMProvider
+    from lengua_core.llm.fake import FakeLLM
+    from lengua_core.models import GeneratedCard
+    from scripts.seed_dev_user import DEV_USER_ID, seed_dev_user
+    from tests.auth_helpers import authenticate_as
+
+    marker = f"DB-OVERRIDE-{_uuid.uuid4().hex[:8]}"
+    captured: dict[str, str] = {}
+
+    class _SpyLLM:
+        """A provider that assembles the *real* system instruction, records it, then delegates.
+
+        Wraps (rather than subclasses) :class:`FakeLLM` — ``FakeLLM`` lives in the mypy-excluded
+        ``lengua_core`` so it types as ``Any`` — and calls ``prompts.system_instruction`` exactly
+        as the production providers do inside their worker thread, so ``captured["system"]`` is the
+        real assembled prompt the DB override flowed into.
+        """
+
+        def __init__(self) -> None:
+            self._delegate = FakeLLM()
+
+        def generate_cards(
+            self,
+            words: list[str],
+            language: str,
+            vowelized: bool = False,
+            level_band: str | None = None,
+        ) -> list[GeneratedCard]:
+            captured["system"] = prompts.system_instruction(
+                language, vowelized=vowelized, level=level_band
+            )
+            cards: list[GeneratedCard] = self._delegate.generate_cards(
+                words, language, vowelized, level_band
+            )
+            return cards
+
+        def suggest_new_words(
+            self,
+            language: str,
+            level_band: str,
+            known_words: list[str],
+            count: int = 5,
+            topic: str | None = None,
+        ) -> list[str]:
+            words: list[str] = self._delegate.suggest_new_words(
+                language, level_band, known_words, count, topic
+            )
+            return words
+
+        def explain_word(self, word: str, sentence: str, translation: str, language: str) -> str:
+            note: str = self._delegate.explain_word(word, sentence, translation, language)
+            return note
+
+    async def _override_reader() -> dict[str, str]:
+        # A non-empty active set: override the generation_instruction with our marker text.
+        return {prompts.KEY_GENERATION_INSTRUCTION: f"{marker} — teach {{language}}."}
+
+    await dispose_engine()  # rebuild the engine on THIS test's loop (route needs the real DB)
+    seed_dev_user()
+
+    # Override the autouse offline (empty) store with our non-empty in-memory store, and install it
+    # as the prompt source. ``create_app`` re-installs whatever ``get_prompt_store`` returns, so the
+    # override store is what the generation path warms + reads. The autouse fixture's ``reset`` (run
+    # after this test) tears it back down.
+    store = PromptStore(reader=_override_reader, ttl_seconds=60.0)
+    ps.set_prompt_store(store)
+    store.install()
+
+    engine = create_async_engine(async_dsn(database_url()))
+    conn = await engine.connect()
+    trans = await conn.begin()
+    session = AsyncSession(
+        bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint"
+    )
+    try:
+        app = create_app()
+
+        async def _override_get_db() -> AsyncIterator[AsyncSession]:
+            yield session
+
+        async def _override_get_usage_db() -> AsyncIterator[UsageSession]:
+            yield UsageSession(session)
+
+        def _override_provider() -> LLMProvider:
+            return _SpyLLM()
+
+        test_rate_limiter = InProcessRateLimiter(limit=1_000_000)
+        test_llm_limiter = LLMConcurrencyLimiter(max_concurrency=4)
+
+        def _override_rate_limiter() -> RateLimiter:
+            return test_rate_limiter
+
+        def _override_llm_limiter() -> LLMConcurrencyLimiter:
+            return test_llm_limiter
+
+        app.dependency_overrides[get_db] = _override_get_db
+        app.dependency_overrides[get_usage_db] = _override_get_usage_db
+        app.dependency_overrides[get_llm_provider] = _override_provider
+        app.dependency_overrides[get_rate_limiter] = _override_rate_limiter
+        app.dependency_overrides[get_llm_limiter] = _override_llm_limiter
+        authenticate_as(app, _uuid.UUID(DEV_USER_ID))
+        FakeLLM.reset_call_count()
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            lang = await client.post("/languages", json={"name": "Spanish", "code": "es"})
+            assert lang.status_code == 200, lang.text
+            language_id = int(lang.json()["id"])
+            resp = await client.post(
+                "/generate", json={"language_id": language_id, "words": ["hola"]}
+            )
+            assert resp.status_code == 200, resp.text
+        app.dependency_overrides.clear()
+    finally:
+        await session.close()
+        if trans.is_active:
+            await trans.rollback()
+        await conn.close()
+        await engine.dispose()
+        await dispose_engine()
+
+    # The spy assembled the real system instruction and it carries the DB override — the whole
+    # install → warm → snapshot → render chain fired through the live HTTP generation path.
+    assert "system" in captured, "the spy provider's generate_cards was never called"
+    assert marker in captured["system"]
+    assert "teach Spanish." in captured["system"]  # the {language} placeholder was interpolated
 
 
 @pytest.mark.integration

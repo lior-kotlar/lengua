@@ -35,8 +35,11 @@ here only govern *how* sentences are written, not their formatting.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 # ── Logical prompt-fragment keys ─────────────────────────────────────────────────────────────────
 # The stable string keys under which each fragment is stored/overridden (the ``prompt_versions.key``
@@ -215,7 +218,7 @@ CODE_DEFAULTS: dict[str, str] = {
 }
 
 
-# ── The synchronous DB-override source hook ──────────────────────────────────────────────────────
+# ── The synchronous DB-override source hooks ─────────────────────────────────────────────────────
 # A ``key -> text | None`` callable the app layer installs (:func:`set_prompt_source`). ``None`` is
 # "no override — use the code default". It is intentionally **synchronous**: the builders run inside
 # the blocking provider call (offloaded to a worker thread by ``app.llm_runner``), so they can't
@@ -225,33 +228,97 @@ CODE_DEFAULTS: dict[str, str] = {
 _PromptSource = Callable[[str], str | None]
 _prompt_source: _PromptSource | None = None
 
+# The **snapshot** hook (GitHub #150): a zero-arg callable returning the whole active override map as
+# one immutable mapping. A single prompt build resolves several fragments; if it re-read a mutable,
+# swap-on-warm snapshot key-by-key (via ``_prompt_source``), a concurrent ``warm()`` could replace it
+# mid-build and mix two prompt versions into one request (the torn-assembly race). The builders
+# instead capture this map **once** at the start of each build and resolve every fragment from that
+# frozen copy, so one request always sees one coherent version. The app layer installs both hooks
+# together; when only the legacy per-key ``_prompt_source`` is installed (or none), the builders
+# fall back to reading it per key — still correct, just without the atomicity guarantee.
+_PromptSnapshotSource = Callable[[], Mapping[str, str]]
+_prompt_snapshot_source: _PromptSnapshotSource | None = None
 
-def set_prompt_source(source: _PromptSource | None) -> None:
-    """Install (or clear with ``None``) the synchronous DB-override source used by the builders.
+
+def set_prompt_source(
+    source: _PromptSource | None,
+    snapshot: _PromptSnapshotSource | None = None,
+) -> None:
+    """Install (or clear with ``None``) the synchronous DB-override source(s) used by the builders.
 
     ``source(key)`` returns the active override text for ``key`` or ``None`` to fall back to the code
-    default. Installed once at app startup by :mod:`app.prompt_store`; never called by
-    :mod:`lengua_core` itself, so this module stays DB-agnostic. Passing ``None`` restores the
-    pure code-default behaviour (used by tests and the no-DB paths).
+    default. The optional ``snapshot()`` returns the whole active override map at once so a build can
+    read a single coherent version (see :data:`_prompt_snapshot_source`); when omitted the builders
+    fall back to per-key ``source`` reads. Installed once at app startup by :mod:`app.prompt_store`;
+    never called by :mod:`lengua_core` itself, so this module stays DB-agnostic. Passing ``None``
+    (both args) restores the pure code-default behaviour (used by tests and the no-DB paths).
     """
-    global _prompt_source
+    global _prompt_source, _prompt_snapshot_source
     _prompt_source = source
+    _prompt_snapshot_source = snapshot
 
 
-def resolve_fragment(key: str) -> str:
-    """Return the text for ``key``: the installed source's override, else the code default.
+def _capture_overrides() -> Mapping[str, str] | None:
+    """Snapshot the active override map **once** for a single build (see the snapshot hook).
 
-    A missing/unknown ``key`` with no source (or a source returning ``None``) falls back to
-    :data:`CODE_DEFAULTS`; an unknown key not present there raises ``KeyError`` (a programming error,
-    not a runtime override miss). This never performs I/O — it only reads the in-memory snapshot the
-    source closes over — so it is safe to call from the provider worker thread.
+    Returns the installed snapshot hook's map when one is installed, else ``None`` — in which case
+    the builders fall back to per-key ``_prompt_source`` reads (the legacy hook) or, absent that too,
+    the code defaults. Reads only the already-materialised in-memory snapshot (no I/O), so it is safe
+    on the provider worker thread. ``None`` (rather than ``{}``) is deliberate: an empty map would
+    mask a per-key source, whereas ``None`` means "no whole-map snapshot — consult the per-key hook".
     """
-    source = _prompt_source
-    if source is not None:
-        override = source(key)
-        if override is not None:
-            return override
+    snapshot = _prompt_snapshot_source
+    if snapshot is not None:
+        return snapshot()
+    return None
+
+
+def resolve_fragment(key: str, overrides: Mapping[str, str] | None = None) -> str:
+    """Return the text for ``key``: a build's captured override, else the code default.
+
+    ``overrides`` is the per-build snapshot captured by :func:`_capture_overrides` (the atomic
+    path); when it is ``None`` (the legacy/no-snapshot path) the installed per-key ``_prompt_source``
+    is consulted instead. Either way a miss falls back to :data:`CODE_DEFAULTS`; an unknown key not
+    present there raises ``KeyError`` (a programming error, not a runtime override miss). This never
+    performs I/O — it only reads the in-memory snapshot the source closes over — so it is safe to
+    call from the provider worker thread.
+    """
+    if overrides is not None:
+        override: str | None = overrides.get(key)
+    else:
+        source = _prompt_source
+        override = source(key) if source is not None else None
+    if override is not None:
+        return override
     return CODE_DEFAULTS[key]
+
+
+def _render_fragment(key: str, overrides: Mapping[str, str] | None, /, **fmt: object) -> str:
+    """Resolve ``key`` from ``overrides`` and ``str.format`` it, falling back on a bad override.
+
+    The render guard (GitHub #150): a DB **override** may contain a malformed template — an unknown
+    ``{placeholder}``, a positional ``{}``, or a stray unbalanced brace — which would raise inside
+    ``str.format`` on **every** generation request and 500 the whole app until the row is fixed.
+    Instead, a render failure is logged loudly and that one fragment falls back to its
+    :data:`CODE_DEFAULTS` text (which the module's own tests keep renderable), so a bad operator edit
+    degrades a single fragment rather than taking generation down. The code default is rendered
+    without a guard: if a *code* template were malformed that is a bug we want surfaced in tests.
+    """
+    text = resolve_fragment(key, overrides)
+    default = CODE_DEFAULTS[key]
+    if text is default:
+        return default.format(**fmt)
+    try:
+        return text.format(**fmt)
+    except (KeyError, IndexError, ValueError) as exc:
+        logger.error(
+            "prompt override for key %r failed to render (%s); falling back to the code default. "
+            "Fix the active prompt_versions row — its template has a bad placeholder or brace.",
+            key,
+            exc,
+            exc_info=True,
+        )
+        return default.format(**fmt)
 
 
 def suggestion_instruction(
@@ -275,7 +342,10 @@ def suggestion_instruction(
         else "The learner has no prior vocabulary yet."
     )
     topic_line = f"\nFocus on the topic or domain: {topic}." if topic else ""
-    return resolve_fragment(KEY_SUGGESTION_INSTRUCTION).format(
+    overrides = _capture_overrides()  # one coherent version per build (#150)
+    return _render_fragment(
+        KEY_SUGGESTION_INSTRUCTION,
+        overrides,
         language=language,
         level_band=level_band,
         count=count,
@@ -297,15 +367,16 @@ def system_instruction(
     assembly — which fragments are included, in what order, and their ``{language}`` / ``{level}``
     interpolation — stays here in code.
     """
+    overrides = _capture_overrides()  # capture once so a concurrent warm can't tear the build (#150)
+    # The ``rules`` block carries no ``{placeholder}`` and is appended verbatim (an override may
+    # legitimately contain literal braces), so it is resolved but never ``str.format``-rendered.
     parts = [
-        resolve_fragment(KEY_RULES),
-        resolve_fragment(KEY_GENERATION_INSTRUCTION).format(language=language),
+        resolve_fragment(KEY_RULES, overrides),
+        _render_fragment(KEY_GENERATION_INSTRUCTION, overrides, language=language),
     ]
     if vowelized:
-        parts.append(resolve_fragment(KEY_VOCALIZATION_INSTRUCTION).format(language=language))
+        parts.append(_render_fragment(KEY_VOCALIZATION_INSTRUCTION, overrides, language=language))
     if level:
-        parts.append(
-            resolve_fragment(KEY_LEVEL_INSTRUCTION).format(language=language, level=level)
-        )
-    parts.append(resolve_fragment(KEY_OUTPUT_FORMAT).format(language=language))
+        parts.append(_render_fragment(KEY_LEVEL_INSTRUCTION, overrides, language=language, level=level))
+    parts.append(_render_fragment(KEY_OUTPUT_FORMAT, overrides, language=language))
     return "\n\n".join(parts)
