@@ -38,9 +38,10 @@ Surfaced and adversarially confirmed by the [2026-07-11 completion audit](audit-
 [#151](https://github.com/lior-kotlar/lengua/issues/151) (A2),
 [#152](https://github.com/lior-kotlar/lengua/issues/152) (A3) — run via `/next-task #150` etc.:
 
-- ~~**A1 = #150 — Prompt-store hardening (#80 follow-ups)**~~ — code shipped in a PR **awaiting
-  owner review** (not self-merged — it edits generation-critical prompt-assembly code, same reason
-  #80 was owner-gated). (a) each DB-overridden fragment render is wrapped in a try/except that logs
+- ~~**A1 = #150 — Prompt-store hardening (#80 follow-ups)**~~ — **shipped 2026-07-11** (PR #153,
+  squash `de1ecc4`, green CI). It was opened as an owner-review PR (it edits generation-critical
+  prompt-assembly code, same reason #80 was owner-gated), then **merged after the owner explicitly
+  authorized it**. (a) each DB-overridden fragment render is wrapped in a try/except that logs
   loudly and falls back to `CODE_DEFAULTS` for that fragment — a malformed override no longer 500s
   every generation; (b) read-time validation drops unknown keys (vs `PROMPT_KEYS`) and empty-string
   overrides so they can't silently blank a fragment; (c) an integration test boots `create_app`
