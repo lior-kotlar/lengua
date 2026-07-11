@@ -68,10 +68,11 @@ def resolve_llm_key(user: KeyUser | None = None, *, provider: str | None = None)
 
     ``provider`` selects which operator key to read (defaults to the active ``LLM_PROVIDER``); the
     providers pass their own name explicitly so e.g. ``GeminiProvider.from_env()`` always resolves
-    ``GEMINI_API_KEY`` regardless of ``LLM_PROVIDER``. ``user`` is the future BYOK override point and
-    is **ignored** today (the operator key is used for every user). Raises :class:`RuntimeError` if
-    the selected provider's key is unset (fail-fast at startup), and :class:`ValueError` for a
-    provider with no configured operator key.
+    ``GEMINI_API_KEY`` regardless of ``LLM_PROVIDER``. ``user`` is the future BYOK override point
+    and is **ignored** today (the operator key is used for every user). Raises
+    :class:`RuntimeError` if the selected provider's key is unset (fail-fast on the first
+    LLM-dependent request — providers are constructed per-request, not at process boot), and
+    :class:`ValueError` for a provider with no configured operator key.
     """
     # ``user`` is intentionally unused: today the operator key serves everyone. A future BYOK
     # implementation branches here on ``user.plan`` (see the module's design note) — the providers

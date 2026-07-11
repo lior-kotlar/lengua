@@ -1,9 +1,9 @@
 # Lengua — planning (open work)
 
-> **Status (2026-07-11): all planned productionization code work is done and re-verified.**
-> Track 1 had emptied of open code issues (#80, #95, #146 all shipped — see CHANGELOG); a full
-> completion audit ([audit-2026-07-11.md](audit-2026-07-11.md)) then re-verified every done-claim
-> in-tree and surfaced a small set of follow-up items, now listed in outstanding-work §1.1.
+> **Status (2026-07-12): ALL code work is done, re-verified, and follow-ups closed.**
+> A full completion audit ([audit-2026-07-11.md](audit-2026-07-11.md)) re-verified every
+> done-claim in-tree; its follow-up items (#150–#152) shipped the same day and the last wording
+> corrections landed 2026-07-12. **Track 1 is empty** — only the optional post-v1 backlog remains.
 > Phases 0–6 are done (M1–M3 + the M4 staging leg live); three hardening sweeps and the Phase-8
 > compliance code slice have shipped. What remains is organized into three tracks in
 > **[outstanding-work.md](outstanding-work.md)**: **Track 1** = code doable now, **Track 2** =

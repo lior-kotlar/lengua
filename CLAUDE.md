@@ -22,7 +22,8 @@ store-listing/data-inventory) have also shipped. The domain logic lives in
 [`apps/api/lengua_core/`](apps/api/lengua_core) and the original Streamlit app in
 [`apps/api/legacy_streamlit/`](apps/api/legacy_streamlit) (still runnable). **What's left** is
 organized into three tracks in [`planning/outstanding-work.md`](planning/outstanding-work.md):
-Track 1 = code doable now (the 2026-07-11 audit follow-up items + an optional post-v1 backlog),
+Track 1 = code doable now (currently **empty** — the 2026-07-11 audit follow-ups #150–#152 all
+shipped; only an optional post-v1 backlog remains),
 Track 2 = owner-gated (prod cutover, live observability, owner setup), Track 3 =
 deferred by decision (mobile → store consoles → launch, after the Track-2 prod cutover). A full
 completion audit ([`planning/audit-2026-07-11.md`](planning/audit-2026-07-11.md)) re-verified

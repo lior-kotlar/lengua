@@ -1,9 +1,9 @@
 """Persistence for user profiles (task 2.4.4).
 
 A profile row is 1:1 with an ``auth.users`` row (PK = the user's UUID) and carries the account
-``plan``. Like every repository this is the only DB-touching layer; it is scoped by ``user_id``
-implicitly because the user id *is* the primary key, so a lookup can only ever return the
-caller's own row.
+``plan``. Like every repository this is the domain data's DB-touching layer; it is scoped by
+``user_id`` implicitly because the user id *is* the primary key, so a lookup can only ever return
+the caller's own row.
 
 This repository is read-only for now (``/me``); the first-login *creation* of a profile is owned
 by the ``handle_new_user`` Postgres trigger (Supabase) / task 2.5.1, not by app code.

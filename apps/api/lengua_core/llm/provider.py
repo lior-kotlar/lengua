@@ -29,7 +29,8 @@ def get_provider(name: str | None = None) -> LLMProvider:
 
     ``name`` defaults to the ``LLM_PROVIDER`` env var (falling back to ``groq``, the
     app-settings default). An unknown value raises :class:`ValueError`; a real provider
-    selected without its API key raises :class:`RuntimeError` (fail-fast at startup).
+    selected without its API key raises :class:`RuntimeError` (fail-fast on the first
+    LLM-dependent request — the provider is constructed per-request, not at process boot).
     """
     resolved = (name or os.getenv("LLM_PROVIDER", "groq")).strip().lower()
     if resolved == "fake":
@@ -42,6 +43,4 @@ def get_provider(name: str | None = None) -> LLMProvider:
         from .gemini import GeminiProvider
 
         return GeminiProvider.from_env()
-    raise ValueError(
-        f"Unknown LLM provider {resolved!r}. Expected one of: fake, groq, gemini."
-    )
+    raise ValueError(f"Unknown LLM provider {resolved!r}. Expected one of: fake, groq, gemini.")
