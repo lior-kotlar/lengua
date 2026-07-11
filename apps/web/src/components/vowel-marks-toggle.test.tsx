@@ -17,6 +17,12 @@ const HEBREW: LanguageOut = {
   code: 'he',
   vowelized: true,
 };
+const ARABIC: LanguageOut = {
+  id: 4,
+  name: 'Arabic',
+  code: 'ar',
+  vowelized: true,
+};
 const SPANISH: LanguageOut = {
   id: 1,
   name: 'Spanish',
@@ -76,5 +82,26 @@ describe('VowelMarksToggle', () => {
     await user.click(toggle);
     expect(toggle).toHaveAttribute('aria-checked', 'true');
     expect(localStorage.getItem(VOWEL_MARKS_STORAGE_KEY)).toBe('true');
+  });
+
+  it('labels the toggle with the script-specific term (nikkud for Hebrew)', () => {
+    renderToggle(HEBREW);
+    expect(screen.getByText('Vowel marks (nikkud)')).toBeInTheDocument();
+  });
+
+  it('labels the toggle with the script-specific term (harakat for Arabic)', () => {
+    renderToggle(ARABIC);
+    expect(screen.getByText('Vowel marks (harakat)')).toBeInTheDocument();
+  });
+
+  it('offers a help affordance explaining what vowel marks are', async () => {
+    const user = userEvent.setup();
+    renderToggle(HEBREW);
+
+    const help = screen.getByRole('button', { name: /about vowel marks/i });
+    await user.click(help);
+    expect(
+      screen.getByText(/optional pronunciation guides/i),
+    ).toBeInTheDocument();
   });
 });

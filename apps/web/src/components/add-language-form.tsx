@@ -31,8 +31,14 @@ import {
   findCuratedByCode,
   type CuratedLanguage,
 } from '@/lib/curated-languages';
+import { HelpTip, VOWEL_MARKS_HELP } from '@/components/help-tip';
 import { isApiError } from '@/lib/api-client';
-import { scriptFontClass, isRtlCode } from '@/lib/language-text';
+import {
+  scriptFontClass,
+  isRtlCode,
+  isVowelizableCode,
+  vowelMarkTerm,
+} from '@/lib/language-text';
 import {
   useAddLanguage,
   type AddLanguageInput,
@@ -246,15 +252,19 @@ function CuratedForm({
       <LevelSelect value={band} onChange={setBand} selectRef={levelRef} />
 
       {language.vowelizable && (
-        <label className="flex items-center gap-2 text-body">
-          <input
-            type="checkbox"
-            checked={vowelized}
-            onChange={(event) => setVowelized(event.target.checked)}
-            className="h-4 w-4 rounded border-input"
-          />
-          Include vowel marks (harakat / nikkud)
-        </label>
+        <div className="flex items-center gap-2 text-body">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={vowelized}
+              onChange={(event) => setVowelized(event.target.checked)}
+              className="h-4 w-4 rounded border-input"
+            />
+            Include vowel marks (
+            {vowelMarkTerm(language.code) ?? 'harakat / nikkud'})
+          </label>
+          <HelpTip text={VOWEL_MARKS_HELP} label="About vowel marks" />
+        </div>
       )}
 
       <Button type="submit" disabled={pending}>
@@ -306,6 +316,9 @@ function CustomForm({
 
   const trimmedCode = code.trim();
   const curatedByCode = findCuratedByCode(trimmedCode);
+  // The script-specific vowel-mark term for the typed code (`'harakat'` / `'nikkud'`), or null when
+  // the code's script has no vowel marks — in which case the checkbox is not offered at all.
+  const vowelTerm = vowelMarkTerm(trimmedCode);
 
   // Soft, non-blocking duplicate hint: another of the user's languages already uses this code's
   // primary subtag. Submission stays allowed (the server is idempotent by name).
@@ -321,6 +334,14 @@ function CustomForm({
   function handleCodeChange(next: string) {
     setCode(next);
     setCodeError(null);
+    // The vowel-marks checkbox only exists for Arabic/Hebrew-script codes. When the code isn't one,
+    // the checkbox is hidden — so force the option OFF (and clear the manual-touch flag) rather than
+    // carry a stale `vowelized: true` that a Latin language would then submit / trip S14 on.
+    if (!isVowelizableCode(next)) {
+      setVowelized(false);
+      setVowelizedTouched(false);
+      return;
+    }
     // Smart default: typing a known code pre-sets the vowel-marks default (until the user overrides).
     if (!vowelizedTouched) {
       const curated = findCuratedByCode(next);
@@ -440,18 +461,23 @@ function CustomForm({
 
       <LevelSelect value={band} onChange={setBand} />
 
-      <label className="flex items-center gap-2 text-body">
-        <input
-          type="checkbox"
-          checked={vowelized}
-          onChange={(event) => {
-            setVowelized(event.target.checked);
-            setVowelizedTouched(true);
-          }}
-          className="h-4 w-4 rounded border-input"
-        />
-        Include vowel marks (harakat / nikkud)
-      </label>
+      {vowelTerm !== null && (
+        <div className="flex items-center gap-2 text-body">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={vowelized}
+              onChange={(event) => {
+                setVowelized(event.target.checked);
+                setVowelizedTouched(true);
+              }}
+              className="h-4 w-4 rounded border-input"
+            />
+            Include vowel marks ({vowelTerm})
+          </label>
+          <HelpTip text={VOWEL_MARKS_HELP} label="About vowel marks" />
+        </div>
+      )}
 
       <Button type="submit" disabled={pending}>
         {pending ? 'Adding…' : 'Add language'}

@@ -5,8 +5,10 @@ import {
   displayText,
   hasDiacritics,
   isRtlCode,
+  isVowelizableCode,
   scriptFontClass,
   stripDiacritics,
+  vowelMarkTerm,
 } from '@/lib/language-text';
 
 // Built from explicit code points so the marks are unambiguous regardless of editor normalisation.
@@ -63,6 +65,55 @@ describe('scriptFontClass', () => {
     expect(scriptFontClass('es')).toBe('');
     expect(scriptFontClass('zxx')).toBe('');
     expect(scriptFontClass(null)).toBe('');
+  });
+});
+
+describe('vowelMarkTerm', () => {
+  it("is 'harakat' for Arabic-script codes (case/region-insensitive)", () => {
+    for (const code of [
+      'ar',
+      'ar-EG',
+      'AR',
+      'fa',
+      'fa-IR',
+      'ur',
+      'ckb',
+      'ps',
+      'sd',
+      'ug',
+    ]) {
+      expect(vowelMarkTerm(code)).toBe('harakat');
+    }
+  });
+
+  it("is 'nikkud' for Hebrew-script codes", () => {
+    for (const code of ['he', 'he-IL', 'iw', 'yi', 'ji']) {
+      expect(vowelMarkTerm(code)).toBe('nikkud');
+    }
+  });
+
+  it('is null for other scripts and a missing/blank code', () => {
+    for (const code of ['es', 'en', 'ru', 'zxx', '', '  ', null, undefined]) {
+      expect(vowelMarkTerm(code)).toBeNull();
+    }
+  });
+});
+
+describe('isVowelizableCode', () => {
+  it('is true for Arabic/Hebrew-script codes and false otherwise', () => {
+    expect(isVowelizableCode('ar')).toBe(true);
+    expect(isVowelizableCode('he')).toBe(true);
+    expect(isVowelizableCode('fa')).toBe(true);
+    expect(isVowelizableCode('ur')).toBe(true);
+    expect(isVowelizableCode('es')).toBe(false);
+    expect(isVowelizableCode('')).toBe(false);
+    expect(isVowelizableCode(null)).toBe(false);
+  });
+
+  it('mirrors vowelMarkTerm(...) !== null', () => {
+    for (const code of ['ar', 'he', 'fa', 'es', 'zxx', '', null, undefined]) {
+      expect(isVowelizableCode(code)).toBe(vowelMarkTerm(code) !== null);
+    }
   });
 });
 
