@@ -30,13 +30,13 @@ Plus [tech debt / watch items](#tech-debt--watch-items) at the bottom.
 Everything here lands trunk-based, one PR per item, proven by the per-PR CI gate (≥80% coverage
 held, legacy Streamlit kept runnable).*
 
-### 1.1 Open code items (2026-07-11 completion-audit follow-ups)
+### 1.1 Open code items
 
-Surfaced and adversarially confirmed by the [2026-07-11 completion audit](audit-2026-07-11.md)
-(full details + failure scenarios there). Filed as GitHub issues
-[#150](https://github.com/lior-kotlar/lengua/issues/150) (A1),
-[#151](https://github.com/lior-kotlar/lengua/issues/151) (A2),
-[#152](https://github.com/lior-kotlar/lengua/issues/152) (A3) — run via `/next-task #150` etc.:
+_No open code items right now._ The 2026-07-11 completion-audit follow-ups (issues
+[#150](https://github.com/lior-kotlar/lengua/issues/150),
+[#151](https://github.com/lior-kotlar/lengua/issues/151),
+[#152](https://github.com/lior-kotlar/lengua/issues/152)) all **shipped 2026-07-11** and the
+audit's A4 wording corrections landed 2026-07-12; shipped-record below:
 
 - ~~**A1 = #150 — Prompt-store hardening (#80 follow-ups)**~~ — **shipped 2026-07-11** (PR #153,
   squash `de1ecc4`, green CI). It was opened as an owner-review PR (it edits generation-critical
@@ -86,8 +86,7 @@ see [`../CHANGELOG.md`](../CHANGELOG.md).)
 ### 1.2 Post-v1 backlog (deliberately post-launch — pull forward only if wanted)
 
 Not launch-blocking; the plan schedules these after v1. Each is pure code and could be pulled into
-Track 1 by choice: **offline review + sync** (cache due batch, queue grades offline, flush on
-reconnect — the stated #1 post-launch item); **accessibility remainder** (screen-reader labels,
+Track 1 by choice: **accessibility remainder** (screen-reader labels,
 font scaling — colour contrast is already WCAG 2.1 AA and CI-gated, #135); server push
 notifications (FCM/APNs; v1 uses on-device local reminders); TTS audio (on-device first); streaks /
 gamification; import/export & shared decks (beyond Anki import); UI internationalization (the
@@ -95,6 +94,9 @@ app's own UI is English-only); spaced-repetition insights (progress charts, revi
 admin / support tooling (support views, abuse review, manual budget override); UI-wire the
 `vowelized` toggle on an *existing* language (backend already supports it via
 `PATCH /languages/{id}`; today the flag is set only at add time — see `docs/streamlit-parity.md` §1).
+
+(**Offline review + sync** was removed from this backlog by owner decision 2026-07-12 — deemed not
+necessary.)
 
 ---
 

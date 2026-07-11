@@ -430,7 +430,9 @@ hygiene.
   + attaching violations without ever asserting. Wired into the `e2e` job as an advisory run (the
   required run `--grep-invert`s the `@a11y` tag; the advisory run is `|| echo`-guarded), so it is
   never a merge gate. Its first run surfaced serious `color-contrast` violations on every
-  authenticated surface — tracked under the post-v1 accessibility-pass backlog.
+  authenticated surface — tracked under the post-v1 accessibility-pass backlog. *(Superseded in
+  part by #135: the sweep now **asserts** zero serious/critical `color-contrast` — that one rule
+  became a merge gate; all other axe rules remain advisory.)*
 - **Docs (#128).** Repointed the code-comment citations of the planning design docs deleted in
   #115/#116 (`app/quota.py` ×3, `app/repositories/__init__.py`, `lengua_core/llm/keys.py`,
   `.github/workflows/ci.yml`, `apps/web/e2e-staging/signup.spec.ts`) to the root `CHANGELOG.md` /

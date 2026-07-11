@@ -1,7 +1,8 @@
 """Persistence for a user's languages (task 1.3.3).
 
-A repository is the **only** layer that touches the database: it owns the SQL/ORM statements and
-nothing above it (services, routers) issues queries. Every method takes ``user_id`` explicitly
+A repository is the **only** layer that touches the domain tables: it owns the SQL/ORM statements
+and nothing above it (services, routers) issues domain queries (privileged-path exceptions are
+listed in this package's ``__init__``). Every method takes ``user_id`` explicitly
 and scopes its query to it, so a caller can never read or mutate another user's rows — the
 multi-tenant safety boundary the API depends on.
 
