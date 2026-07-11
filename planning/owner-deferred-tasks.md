@@ -8,8 +8,8 @@ branch protection on early would actually break the autonomous PR + self-merge f
 relies on (it self-merges low-risk green PRs with 0 approvals).
 
 > **Owner:** Lior Kotlar (repo admin). Ben (`benartzi4@gmail.com`) cannot do these without admin.
-> **Status:** deferred — *non-blocking*. When done, tick the matching boxes in
-> this file (`0.6.3` branch protection, `0.6.4` Dependabot) — the phase-0 task file was retired post-completion (see [`../CHANGELOG.md`](../CHANGELOG.md)).
+> **Status:** deferred — *non-blocking*. When done, mark the matching sections below as done
+> (`0.6.3` branch protection, `0.6.4` Dependabot) — the phase-0 task file was retired post-completion (see [`../CHANGELOG.md`](../CHANGELOG.md)).
 
 ---
 

@@ -7,9 +7,10 @@
 #
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # GATING (two independent gates):
-#   1. `if: ${{ vars.DEPLOY_ENABLED == 'true' }}` on EVERY job — with the repo variable unset
-#      (current state) every job SKIPS, so a manual run is a green no-op and the `production`
-#      approval is never even requested. (Owner enables CD: `gh variable set DEPLOY_ENABLED -b true`.)
+#   1. `if: ${{ vars.DEPLOY_ENABLED == 'true' }}` on EVERY job — DEPLOY_ENABLED has been `true`
+#      since 2026-06-29 (staging CD armed), so this gate currently passes; if the variable is ever
+#      unset again every job SKIPS and a manual run is a green no-op with the `production`
+#      approval never requested.
 #   2. `environment: production` on the `approval` gate — a required reviewer must approve before
 #      anything downstream runs (6.7.1). OWNER ACTION: create the GitHub `production` environment
 #      and add a required reviewer (Settings → Environments). Until then the environment exists

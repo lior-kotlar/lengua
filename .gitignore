@@ -240,6 +240,9 @@ test-results/
 playwright-report/
 playwright/.cache/
 
+# Playwright-MCP browser-session scratch snapshots (tool output, never project content)
+.playwright-mcp/
+
 # Monorepo task runner cache
 .turbo/
 

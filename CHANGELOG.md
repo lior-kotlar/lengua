@@ -8,7 +8,7 @@ This is the source of truth for **what is done**; open work lives in
 
 > The productionization ran trunk-based, one PR per task, in phase order (PRs #1 → #114), so the
 > PR ranges below map to phases by merge order (the top-of-log post-close-out sections carry the
-> later PR refs, currently up to #143).
+> later PR refs).
 > Milestones: **M1** = backend loop over HTTP;
 > **M2** = multi-user (auth + RLS) with the LLM cost guard armed; **M3** = React web app at full
 > parity; **M4** = deployed to staging **and** prod (staging leg live; prod leg = owner cutover).
@@ -17,7 +17,8 @@ This is the source of truth for **what is done**; open work lives in
 
 ## 2026-07-10 — Home language cards: explicit "% to next level" + due/new breakdown
 
-Closes Track-1.1 [#146](https://github.com/lior-kotlar/lengua/issues/146) — the two remaining
+Closes Track-1.1 [#146](https://github.com/lior-kotlar/lengua/issues/146) (PR #148, squash
+`a9344c8`) — the two remaining
 gaps in the Dashboard's per-language tiles (`apps/web/src/components/dashboard/language-tiles.tsx`).
 **Frontend-only** — zero backend/API/schema diff; all data was already served by the existing
 `GET /review/due` + `GET /proficiency/{id}` fan-out (`src/lib/dashboard.ts`). No layout changes
@@ -42,8 +43,8 @@ gaps in the Dashboard's per-language tiles (`apps/web/src/components/dashboard/l
 
 Closes Track-1.1 [#95](https://github.com/lior-kotlar/lengua/issues/95) — replace the free-text
 Name/Code entry on the web **Add a language** form with a searchable **curated picker**, keeping a
-free-form fallback for anything off the list. **Frontend-only** (Option B; full spec in
-`planning/language-support-design.md`) — zero backend/API/schema/migration diff; the legacy
+free-form fallback for anything off the list. **Frontend-only** (Option B; the full spec lived in
+`planning/language-support-design.md`, retired post-ship — git history retains it) — zero backend/API/schema/migration diff; the legacy
 Streamlit app is untouched, and the create call still posts the same `{name, code, vowelized}`.
 
 - **Curated list as the single source of truth (`apps/web/src/lib/curated-languages.ts`).** A typed
@@ -214,7 +215,7 @@ repo-wide completeness sweep) before any file was changed.
   regen discipline) baked into the prompt. The orchestrating session stays on the session model;
   implementation agents run Opus.
 - **Doc-link CI broadened.** `scripts/check_doc_links.py` now also scans `planning/**/*.md` +
-  `infra/**/*.md` (24 files, 168 links), so retiring a planning file can no longer silently strand
+  `infra/**/*.md`, so retiring a planning file can no longer silently strand
   links (previously only links *from* docs/README/CHANGELOG were protected).
 - **Stale-doc fixes:** `phase-task-runner.md` / `run-phase` no longer point at the retired
   numbered design docs / phase-0 task file; `deploy-staging.yml`'s header no longer claims
@@ -435,7 +436,7 @@ Hebrew RTL → discover → settings → account) is verified working on live st
   middleware (nosniff / `X-Frame-Options: DENY` / Referrer-Policy / HSTS), and a baseline CSP on the
   web tier; owner-approved.
 - **S2** OAuth Google-only default · **S3/S12/S14 (#88)** language add/CEFR atomicity · **S4 (#79)**
-  idempotent staging seed (demo deck = 12 ES + 6 HE/RTL) · **S5 (#82)** Sentry per-env tag + sample
+  idempotent staging seed (demo deck = 6 ES + 6 HE/RTL card pairs from 3+3 seeded sentences) · **S5 (#82)** Sentry per-env tag + sample
   rate · **S6/S13/S19 (#86)** review order + RTL copy · **S7/S11 (#89)** used-word coverage +
   empty-generate guard · **S8/S15 (#84)** + **S22 (#97)** discover cache / known-word / vowel-mark
   dedup · **S9/S10 (#90)** settings server-side validation. **S21** diagnosed benign (Cloud Run 4xx
@@ -539,8 +540,8 @@ Infra + CD **as-code**, then armed and green-verified end-to-end on the staging 
 
 ## Locked decisions & rationale (preserved)
 
-Design rationale worth keeping as the numbered `planning/0X-*.md` design docs are retired into
-implemented-status stubs:
+Design rationale worth keeping — the numbered `planning/0X-*.md` design docs were deleted after
+completion (PR #116; git history retains them):
 
 - **Stay-free-by-design.** Every dependency (LLM, DB, hosting, observability) is chosen to fit a
   viable free tier — the reason the whole cost-guard + provider-choice architecture exists.
@@ -575,7 +576,8 @@ implemented-status stubs:
 **M4 prod cutover** (owner — go-live §F: prod DB schema + IPv6→session-pooler swap, prod Auth/CORS,
 `production`-environment reviewer + digest promotion, web prod, rollback drill) · **Phase 5 live
 observability** (owner — Grafana/Sentry/PostHog/uptime dashboards + alert channels) · **Phase 7**
-mobile (Capacitor, store accounts, on-device validation) · **Phase 8** compliance & store (real
-privacy policy, data-safety declarations, listings) · **Phase 9** launch. Plus owner setup: Google/
+mobile (Capacitor, store accounts, on-device validation) · **Phase 8 store-console half** (Apple
+privacy labels, Play Data Safety, age ratings, console listings, screenshots, closed tests — the
+buildable code slice shipped 2026-07-06, see above) · **Phase 9** launch. Plus owner setup: Google/
 Apple OAuth, Resend SMTP + SPF/DKIM/DMARC (+ re-enable prod email confirmation, issue #103), branch
 protection, Dependabot, prod `/docs` gating.

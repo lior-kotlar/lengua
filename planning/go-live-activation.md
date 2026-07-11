@@ -43,7 +43,7 @@ web locally against the hosted **staging** Supabase.
 
 ---
 
-## C. Deploy the web to Vercel — **staging** · **Ben** · 🔒 OWNER-GATED — the canonical `lengua` Vercel project is on Kotlar's account (Ben's local Vercel CLI is his own personal account). Deploy via the CD (Kotlar's `VERCEL_*` secrets) or from Kotlar's account.
+## C. Deploy the web to Vercel — **staging** · **Ben** · ✅ DONE via CD 2026-06-29 (the `deploy-web-staging` job deploys with Kotlar's `VERCEL_*` secrets and aliases to the stable `STAGING_WEB_ORIGIN` — see §E). 🔒 Manual deploys stay owner-gated: the canonical `lengua` Vercel project is on Kotlar's account (Ben's local Vercel CLI is his own personal account).
 
 - **C1 — Link `apps/web`** (`vercel link` with `VERCEL_ORG_ID`/`PROJECT_ID`; root dir `apps/web`, install/build via `corepack pnpm`). **verify:** the project appears in `vercel projects ls`.
 - **C2 — Set Vercel env (staging), client-safe only:** `VITE_API_BASE_URL=<staging Cloud Run URL>`, `VITE_SUPABASE_URL/ANON_KEY` (staging), `VITE_SENTRY_DSN_WEB`, optional `VITE_POSTHOG_KEY`. **verify:** `vercel env ls` shows **no** service-role / LLM / JWT secret.
@@ -53,10 +53,10 @@ web locally against the hosted **staging** Supabase.
 
 ## D. Supabase Auth wiring — **staging** · **Ben (config) + Kotlar (DNS/SMTP)**
 
-- **D1 — Redirect/allow-list URLs** = staging web origin (+ `capacitor://localhost`, `app.lengua://` for later). **verify:** an email-confirmation link returns to the staging web origin; an un-listed redirect is refused.
-- **D2 — Custom SMTP (Resend) + SPF/DKIM/DMARC** on the sending domain (`RESEND_API_KEY` ready). **verify:** a staging signup email arrives via Resend (provider dashboard), not the Supabase built-in sender. *(Kotlar owns the DNS records.)*
-- **D3 — API CORS allow-list** = exactly the staging web origin, no wildcard. **verify:** `pytest tests/test_cors.py`; allowed origin gets headers, disallowed rejected.
-- **D4 — (optional) Google OAuth** (creds in `GOOGLE_OAUTH_*`). **verify:** Google sign-in completes on staging. *(Apple deferred to Phase 7 — paid account.)*
+- **D1 — Redirect/allow-list URLs** = staging web origin (+ `capacitor://localhost`, `app.lengua://` for later). **verify:** an email-confirmation link returns to the staging web origin; an un-listed redirect is refused. ✅ DONE (staging signup/e2e-staging green).
+- **D2 — Custom SMTP (Resend) + SPF/DKIM/DMARC** on the sending domain (`RESEND_API_KEY` ready). **verify:** a staging signup email arrives via Resend (provider dashboard), not the Supabase built-in sender. *(Kotlar owns the DNS records.)* ☐ OPEN — [issue #103](https://github.com/lior-kotlar/lengua/issues/103); staging runs the interim `mailer_autoconfirm=true`, which must NOT ship to prod.
+- **D3 — API CORS allow-list** = exactly the staging web origin, no wildcard. **verify:** `pytest tests/test_cors.py`; allowed origin gets headers, disallowed rejected. ✅ DONE (S16/S17, #83).
+- **D4 — (optional) Google OAuth** (creds in `GOOGLE_OAUTH_*`). **verify:** Google sign-in completes on staging. *(Apple deferred to Phase 7 — paid account.)* ☐ OPEN (optional; merged default is Google-only and the button is hidden until creds exist).
 
 ---
 
@@ -160,7 +160,7 @@ and administer the host** on the free tier · ☐ CI's `deploy-web-*` job is gre
 
 | Doer | Scope |
 |---|---|
-| **Ben** (CLIs already authed: gcloud / supabase / vercel / gh) | schema apply, image build/push, Cloud Run deploys, Vercel link/deploy, CORS, `DEPLOY_ENABLED`, all validation `verify:` runs, local fast-path (§A). |
+| **Ben** (CLIs already authed: gcloud / supabase / vercel / gh) | schema apply, image build/push, Cloud Run deploys, Vercel deploy **via CD only** (canonical project is on Kotlar's account — see §C), CORS, `DEPLOY_ENABLED`, all validation `verify:` runs, local fast-path (§A). |
 | **Kotlar** (account admin / paid / dashboards) | Resend SMTP + SPF/DKIM/DMARC DNS, Grafana/Sentry/PostHog dashboard + alert-channel config, **approve prod promotion** (GitHub `production` env reviewer), Apple/Play accounts + domain (Phase 7). |
 
 ## Cross-links
