@@ -30,18 +30,36 @@ Plus [tech debt / watch items](#tech-debt--watch-items) at the bottom.
 Everything here lands trunk-based, one PR per item, proven by the per-PR CI gate (≥80% coverage
 held, legacy Streamlit kept runnable).*
 
-### 1.1 Open GitHub issues that are pure code
+### 1.1 Open code items (2026-07-11 completion-audit follow-ups)
 
-_No open pure-code issues right now._
+Surfaced and adversarially confirmed by the [2026-07-11 completion audit](audit-2026-07-11.md)
+(full details + failure scenarios there). Not yet filed as GitHub issues — file on request or run
+via `/next-task`:
+
+- **A1 — Prompt-store hardening (#80 follow-ups)** — (a) guard the `.format()` render of
+  DB-overridden prompt fragments with a fall-back to `CODE_DEFAULTS` (a malformed override
+  currently 500s every generation — the one HIGH finding); (b) validate snapshot keys against
+  `PROMPT_KEYS` and skip/warn on blank content at read time; (c) add one integration test proving
+  a `create_app`-installed store actually overrides an HTTP generation's system prompt;
+  (d) read the snapshot once per prompt build (torn-assembly race); (e) wire or trim the
+  caller-less version-pinning path.
+- **A2 — Language-picker follow-ups (#95)** — (a) case-insensitive duplicate check before a
+  curated POST (case-variant duplicate rows today); (b) guard the add-form's `onSuccess` reset
+  when the user navigated mid-flight; (c) one e2e through the curated pick→submit path (all e2e
+  currently exercise only the custom fallback); (d) make the analytics `curated` flag match its
+  documented path-provenance semantics (or fix the docstring).
+- **A3 — Home-tile percent edge (#146)** — `progressPercent` `Math.round` can show "100% to B2"
+  while the band chip still says B1 at the top of a band; floor or cap at 99 and add the boundary
+  test.
 
 (#146 — Home language cards: explicit "% to next level" + per-tile due/new breakdown —
 frontend-only gap-closing on the Dashboard tiles (the progress footnote now reads `62% to B2`
 via `progressPercent`, and the due badge reads `{due} due · {fresh} new` via `DueTotals`); shipped
-2026-07-10; see [`../CHANGELOG.md`](../CHANGELOG.md).)
+2026-07-10 (PR #148); see [`../CHANGELOG.md`](../CHANGELOG.md).)
 
-(#95 — curated language picker + custom/experimental fallback (Option B) — implemented per
-[`language-support-design.md`](language-support-design.md); shipped 2026-07-09; see
-[`../CHANGELOG.md`](../CHANGELOG.md).)
+(#95 — curated language picker + custom/experimental fallback (Option B) — implemented per the
+`language-support-design.md` spec (retired post-ship; git history retains it); shipped 2026-07-09;
+see [`../CHANGELOG.md`](../CHANGELOG.md).)
 
 (#80 — DB-backed versioned prompts — shipped in PR #143, owner-reviewed and merged 2026-07-09; see
 [`../CHANGELOG.md`](../CHANGELOG.md).)
@@ -55,7 +73,9 @@ font scaling — colour contrast is already WCAG 2.1 AA and CI-gated, #135); ser
 notifications (FCM/APNs; v1 uses on-device local reminders); TTS audio (on-device first); streaks /
 gamification; import/export & shared decks (beyond Anki import); UI internationalization (the
 app's own UI is English-only); spaced-repetition insights (progress charts, review forecast);
-admin / support tooling (support views, abuse review, manual budget override).
+admin / support tooling (support views, abuse review, manual budget override); UI-wire the
+`vowelized` toggle on an *existing* language (backend already supports it via
+`PATCH /languages/{id}`; today the flag is set only at add time — see `docs/streamlit-parity.md` §1).
 
 ---
 

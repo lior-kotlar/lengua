@@ -14,6 +14,8 @@ Project documentation: privacy policy, legal, and operational runbooks.
   8): the published URLs, store-listing copy (name/subtitle/description/keywords/category), the
   data-inventory matrix behind the Apple/Play data-safety answers, and per-processor data residency.
 - [`byok-seam.md`](byok-seam.md) — bring-your-own-key design note (Phase 3 seam).
+- [`../architecture.html`](../architecture.html) — interactive single-file architecture map of the
+  monorepo (PR #94); open it directly in a browser.
 
 The `runbook.md` On-call and Store-release sections remain Phase-0 placeholders filled in at launch
 (Phase 9). Relative links across these docs, and the `store-listing.md` character limits, are checked

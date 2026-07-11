@@ -1,8 +1,9 @@
 # Lengua — planning (open work)
 
-> **Status (2026-07-09): all planned productionization code work is done** (one open code
-> issue — #95, decided Option B + spec'd in [language-support-design.md](language-support-design.md),
-> ready to implement — and the optional post-v1 backlog remain).
+> **Status (2026-07-11): all planned productionization code work is done and re-verified.**
+> Track 1 had emptied of open code issues (#80, #95, #146 all shipped — see CHANGELOG); a full
+> completion audit ([audit-2026-07-11.md](audit-2026-07-11.md)) then re-verified every done-claim
+> in-tree and surfaced a small set of follow-up items, now listed in outstanding-work §1.1.
 > Phases 0–6 are done (M1–M3 + the M4 staging leg live); three hardening sweeps and the Phase-8
 > compliance code slice have shipped. What remains is organized into three tracks in
 > **[outstanding-work.md](outstanding-work.md)**: **Track 1** = code doable now, **Track 2** =
@@ -30,6 +31,7 @@ completion (git history retains them).
 | File | What's in it |
 | --- | --- |
 | [outstanding-work.md](outstanding-work.md) | **What's left** — the single source of truth, in three tracks (code-now / owner-gated / deferred) + tech debt. |
+| [audit-2026-07-11.md](audit-2026-07-11.md) | The 2026-07-11 completion audit — every done-claim re-verified in-tree; confirmed follow-up items + the consolidated owner manual-actions list. |
 | [go-live-activation.md](go-live-activation.md) | The owner-run launch runbook — a `verify:` gate on every step (§A local → §F prod → §G observability → §H host migration). |
 | [owner-deferred-tasks.md](owner-deferred-tasks.md) | Owner-only repo hardening (branch protection, Dependabot) + owner setup residuals. |
 | [tasks/task-tracker.md](tasks/task-tracker.md) | Phase rollup (7–9) + milestones. |
