@@ -33,22 +33,24 @@ held, legacy Streamlit kept runnable).*
 ### 1.1 Open code items (2026-07-11 completion-audit follow-ups)
 
 Surfaced and adversarially confirmed by the [2026-07-11 completion audit](audit-2026-07-11.md)
-(full details + failure scenarios there). Not yet filed as GitHub issues — file on request or run
-via `/next-task`:
+(full details + failure scenarios there). Filed as GitHub issues
+[#150](https://github.com/lior-kotlar/lengua/issues/150) (A1),
+[#151](https://github.com/lior-kotlar/lengua/issues/151) (A2),
+[#152](https://github.com/lior-kotlar/lengua/issues/152) (A3) — run via `/next-task #150` etc.:
 
-- **A1 — Prompt-store hardening (#80 follow-ups)** — (a) guard the `.format()` render of
+- **A1 = #150 — Prompt-store hardening (#80 follow-ups)** — (a) guard the `.format()` render of
   DB-overridden prompt fragments with a fall-back to `CODE_DEFAULTS` (a malformed override
   currently 500s every generation — the one HIGH finding); (b) validate snapshot keys against
   `PROMPT_KEYS` and skip/warn on blank content at read time; (c) add one integration test proving
   a `create_app`-installed store actually overrides an HTTP generation's system prompt;
   (d) read the snapshot once per prompt build (torn-assembly race); (e) wire or trim the
   caller-less version-pinning path.
-- **A2 — Language-picker follow-ups (#95)** — (a) case-insensitive duplicate check before a
+- **A2 = #151 — Language-picker follow-ups (#95)** — (a) case-insensitive duplicate check before a
   curated POST (case-variant duplicate rows today); (b) guard the add-form's `onSuccess` reset
   when the user navigated mid-flight; (c) one e2e through the curated pick→submit path (all e2e
   currently exercise only the custom fallback); (d) make the analytics `curated` flag match its
   documented path-provenance semantics (or fix the docstring).
-- **A3 — Home-tile percent edge (#146)** — `progressPercent` `Math.round` can show "100% to B2"
+- **A3 = #152 — Home-tile percent edge (#146)** — `progressPercent` `Math.round` can show "100% to B2"
   while the band chip still says B1 at the top of a band; floor or cap at 99 and add the boundary
   test.
 
