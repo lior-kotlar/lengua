@@ -11,7 +11,6 @@ import type { components } from 'api-types';
 import { trackLanguageAdded } from '@/lib/analytics-events';
 import { getApiClient, isApiError, unwrap } from '@/lib/api-client';
 import { CEFR_BANDS } from '@/lib/cefr';
-import { findCurated } from '@/lib/curated-languages';
 import { proficiencyKey } from '@/lib/proficiency';
 
 /** A language as returned by the API (`GET /languages`). */
@@ -50,6 +49,13 @@ export interface AddLanguageInput {
    * proficiency — so a non-default starting band is applied with a follow-up `PUT /proficiency`.
    */
   band?: string;
+  /**
+   * Provenance for the activation-funnel `language_added` event (issue #151): `true` when the add
+   * came from the curated picker, `false` from the custom/experimental path. The form knows which
+   * step submitted, so it threads the *real* path here rather than inferring it from a name lookup
+   * (which misclassified a custom add of a curated-named language). Defaults to `false`.
+   */
+  curated?: boolean;
 }
 
 /** Outcome of {@link useAddLanguage}: the language plus how the add resolved. */
@@ -133,15 +139,14 @@ export function useAddLanguage() {
 
       return { language, created, bandError };
     },
-    onSuccess: ({ language, created }) => {
+    onSuccess: ({ language, created }, input) => {
       // Activation-funnel event (5.9.2): consent-gated, only on an actual create (not a re-add),
       // and only non-PII signals — the language code and whether it's a curated pick (#95), never
-      // the display name.
+      // the display name. The `curated` flag is the REAL submit path threaded from the form (issue
+      // #151), not a name-table lookup — so a custom add of a curated-named language is classified
+      // as custom, as the event's docstring promises.
       if (created) {
-        trackLanguageAdded(
-          language.code ?? null,
-          findCurated(language.name) !== undefined,
-        );
+        trackLanguageAdded(language.code ?? null, input.curated ?? false);
       }
       // S12: invalidate on POST success regardless of the band PUT outcome, so a freshly created
       // language always shows up in the list (and the panel reflects any level change).

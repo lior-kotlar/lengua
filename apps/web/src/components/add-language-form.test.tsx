@@ -118,6 +118,7 @@ describe('AddLanguageForm — curated path', () => {
       code: 'fr',
       vowelized: false,
       band: 'B1',
+      curated: true,
     });
   });
 
@@ -137,6 +138,7 @@ describe('AddLanguageForm — curated path', () => {
       code: 'ar',
       vowelized: true,
       band: 'A1',
+      curated: true,
     });
   });
 
@@ -155,6 +157,7 @@ describe('AddLanguageForm — curated path', () => {
       code: 'he',
       vowelized: false,
       band: 'A1',
+      curated: true,
     });
   });
 
@@ -208,6 +211,7 @@ describe('AddLanguageForm — custom (experimental) path', () => {
       code: 'eo',
       vowelized: false,
       band: 'B1',
+      curated: false,
     });
   });
 
@@ -255,6 +259,7 @@ describe('AddLanguageForm — custom (experimental) path', () => {
       code: 'arc',
       vowelized: true,
       band: 'A1',
+      curated: false,
     });
   });
 
@@ -454,5 +459,25 @@ describe('AddLanguageForm — success/error handling (shared)', () => {
     const user = userEvent.setup();
     await pickCurated(user, 'French');
     expect(screen.getByRole('button', { name: /adding/i })).toBeDisabled();
+  });
+
+  it('#151: locks the curated "Change" affordance while the add is in flight', async () => {
+    // isPending must be true BEFORE the pick so the curated step renders in its pending state.
+    useAddLanguage.mockReturnValue({ mutate: vi.fn(), isPending: true });
+    render(<AddLanguageForm />);
+    const user = userEvent.setup();
+    await pickCurated(user, 'French');
+    // The user cannot navigate back to the picker between pressing "Add" and the success reset.
+    expect(screen.getByRole('button', { name: /change/i })).toBeDisabled();
+  });
+
+  it('#151: locks the custom "Back to list" affordance while the add is in flight', async () => {
+    useAddLanguage.mockReturnValue({ mutate: vi.fn(), isPending: true });
+    render(<AddLanguageForm />);
+    const user = userEvent.setup();
+    await goCustom(user, 'Klingon');
+    expect(
+      screen.getByRole('button', { name: /back to list/i }),
+    ).toBeDisabled();
   });
 });

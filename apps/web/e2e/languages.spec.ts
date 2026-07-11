@@ -103,4 +103,53 @@ test.describe('language management & CEFR level (ephemeral stack)', () => {
       0,
     );
   });
+
+  test('curated pick → submit adds the language, then removes it', async ({
+    page,
+  }) => {
+    // The feature's PRIMARY new flow (issue #95): search the curated list, pick a real curated
+    // language (NOT the custom fallback the other spec drives), choose a starting band, and submit.
+    // The demo seed owns Spanish only, so "French" is guaranteed absent at the start.
+    const picker = page.getByLabel('Active language');
+    const level = page.getByRole('region', { name: 'Proficiency level' });
+    const band = level.getByTestId('cefr-band');
+
+    await login(page);
+
+    await page
+      .getByRole('navigation', { name: 'Primary' })
+      .getByRole('link', { name: 'Languages' })
+      .click();
+
+    // Curated picker: type "French", then click the CURATED "French" option (its accessible name
+    // starts with "French …"), not the custom row (`Add "French" as a custom language…`).
+    await page
+      .getByRole('combobox', { name: 'Language', exact: true })
+      .fill('French');
+    await page.getByRole('option', { name: /^French/ }).click();
+
+    // The curated step shows a read-only chip (no Name/Code inputs) — the primary difference from
+    // the custom path. Pick a non-default band so the create + proficiency PUT both run.
+    await expect(page.getByText('Français')).toBeVisible();
+    await expect(page.getByLabel('Name')).toHaveCount(0);
+    await page.getByLabel('Starting level').selectOption('B1');
+    await page.getByRole('button', { name: 'Add language' }).click();
+
+    // It lands in the management list and the header picker (auto-selected active on create), at B1.
+    const removeButton = page.getByRole('button', { name: 'Remove French' });
+    await expect(removeButton).toBeVisible();
+    await expect(picker.getByRole('option', { name: 'French' })).toHaveCount(1);
+    await expect(band).toHaveText('B1');
+
+    // Clean up: remove French so the demo account is left as it was found.
+    await removeButton.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Remove' }).click();
+
+    await expect(
+      page.getByRole('button', { name: 'Remove French' }),
+    ).toHaveCount(0);
+    await expect(picker.getByRole('option', { name: 'French' })).toHaveCount(0);
+  });
 });

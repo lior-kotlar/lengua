@@ -30,8 +30,9 @@ export function trackSignup(method: 'email' = 'email'): void {
 /**
  * Funnel step 2 — a language was added. `code` is the (non-PII) language code, e.g. `"es"`, or
  * `null` when none was given; `curated` records whether it came from the curated picker (issue #95)
- * vs the custom/experimental path — a coarse, non-identifying signal. The display name is
- * intentionally NOT sent.
+ * vs the custom/experimental path — a coarse, non-identifying signal. This is the REAL submit path
+ * threaded from the add form (issue #151), not a name-table lookup, so a custom add of a
+ * curated-named language reads as custom. The display name is intentionally NOT sent.
  */
 export function trackLanguageAdded(
   code: string | null,
