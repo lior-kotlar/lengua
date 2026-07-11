@@ -91,6 +91,44 @@ export function scriptFontClass(code: string | null | undefined): string {
   return '';
 }
 
+/** The script-specific name for a language's optional vowel diacritics. */
+export type VowelMarkTerm = 'harakat' | 'nikkud';
+
+/**
+ * The script-specific term for a language code's vowel marks:
+ *  - `'harakat'` for Arabic-script codes (`ar`, `fa`, `ur`, …),
+ *  - `'nikkud'` for Hebrew-script codes (`he`, `iw`, `yi`, …),
+ *  - `null` for every other script (Latin / Cyrillic / …) and a blank/missing code.
+ *
+ * Derived from the SAME subtag sets that drive {@link scriptFontClass}, so the term shown to the
+ * user and the diacritic-correct font can never disagree.
+ */
+export function vowelMarkTerm(
+  code: string | null | undefined,
+): VowelMarkTerm | null {
+  const subtag = primarySubtag(code);
+  if (ARABIC_SCRIPT_SUBTAGS.has(subtag)) {
+    return 'harakat';
+  }
+  if (HEBREW_SCRIPT_SUBTAGS.has(subtag)) {
+    return 'nikkud';
+  }
+  return null;
+}
+
+/**
+ * Whether a code is written in a script that carries optional vowel diacritics worth toggling
+ * (Arabic or Hebrew script) — i.e. whether the vowel-marks option is meaningful for it. Used by the
+ * custom add-language path to decide whether to offer the checkbox at all.
+ *
+ * NOTE: this is SCRIPT-level, so it is `true` for `ur` (Urdu, Arabic script) even though the curated
+ * Urdu entry is `vowelizable: false`; the custom path is the experimental escape hatch, and offering
+ * the option there is harmless.
+ */
+export function isVowelizableCode(code: string | null | undefined): boolean {
+  return vowelMarkTerm(code) !== null;
+}
+
 // ── Diacritics (harakat / nikkud) ────────────────────────────────────────────────────────────────
 //
 // The combining vowel marks of the Arabic and Hebrew scripts. Stripping these from displayed text

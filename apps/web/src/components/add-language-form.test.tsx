@@ -108,8 +108,10 @@ describe('AddLanguageForm — curated path', () => {
     const user = userEvent.setup();
     await pickCurated(user, 'French');
     await user.selectOptions(screen.getByLabelText('Starting level'), 'B1');
-    // A non-vowelizable language never shows the vowel-marks toggle.
-    expect(screen.queryByLabelText(/vowel marks/i)).not.toBeInTheDocument();
+    // A non-vowelizable language never shows the vowel-marks option.
+    expect(
+      screen.queryByRole('checkbox', { name: /vowel marks/i }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /add language/i }));
 
     expect(mutate).toHaveBeenCalledTimes(1);
@@ -122,14 +124,17 @@ describe('AddLanguageForm — curated path', () => {
     });
   });
 
-  it('defaults the vowel-marks toggle ON for a vowelizable curated pick (e.g. Arabic)', async () => {
+  it('defaults the vowel-marks toggle ON for a vowelizable curated pick (e.g. Arabic), labelled harakat', async () => {
     const mutate = vi.fn();
     useAddLanguage.mockReturnValue({ mutate, isPending: false });
     render(<AddLanguageForm />);
 
     const user = userEvent.setup();
     await pickCurated(user, 'Arabic');
-    const toggle = screen.getByLabelText(/vowel marks/i) as HTMLInputElement;
+    // The Arabic checkbox uses the script-specific term, not the generic "harakat / nikkud".
+    const toggle = screen.getByRole('checkbox', {
+      name: /vowel marks \(harakat\)/i,
+    }) as HTMLInputElement;
     expect(toggle.checked).toBe(true);
     await user.click(screen.getByRole('button', { name: /add language/i }));
 
@@ -149,7 +154,10 @@ describe('AddLanguageForm — curated path', () => {
 
     const user = userEvent.setup();
     await pickCurated(user, 'Hebrew');
-    await user.click(screen.getByLabelText(/vowel marks/i)); // untick
+    // The Hebrew checkbox is labelled with "nikkud", not the generic combined term.
+    await user.click(
+      screen.getByRole('checkbox', { name: /vowel marks \(nikkud\)/i }),
+    ); // untick
     await user.click(screen.getByRole('button', { name: /add language/i }));
 
     expect(mutate.mock.calls[0][0]).toEqual({
@@ -228,67 +236,94 @@ describe('AddLanguageForm — custom (experimental) path', () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it('S14: requires a code when vowel marks are on and blocks the submit', async () => {
-    const mutate = vi.fn();
-    useAddLanguage.mockReturnValue({ mutate, isPending: false });
+  it('hides the vowel-marks option until an Arabic/Hebrew-script code is entered', async () => {
     render(<AddLanguageForm />);
-
     const user = userEvent.setup();
-    await goCustom(user, 'Aramaic');
-    await user.click(screen.getByLabelText(/vowel marks/i));
-    await user.click(screen.getByRole('button', { name: /add language/i }));
+    await goCustom(user, 'Klingon');
 
-    expect(screen.getByText(/enter a language code/i)).toBeInTheDocument();
-    expect(mutate).not.toHaveBeenCalled();
+    // No code yet → the option is not offered (it would be meaningless for most languages).
+    expect(
+      screen.queryByRole('checkbox', { name: /vowel marks/i }),
+    ).not.toBeInTheDocument();
+
+    // A non-Arabic/Hebrew code → still not offered.
+    await user.type(screen.getByLabelText('Code (optional)'), 'tlh');
+    expect(
+      screen.queryByRole('checkbox', { name: /vowel marks/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it('S14: submits a vowelized custom language once a code is provided', async () => {
+  it('offers a harakat checkbox for an Arabic-script custom code and submits it vowelized', async () => {
     const mutate = vi.fn();
     useAddLanguage.mockReturnValue({ mutate, isPending: false });
     render(<AddLanguageForm />);
 
     const user = userEvent.setup();
-    await goCustom(user, 'Aramaic');
-    await user.type(screen.getByLabelText(/^code/i), 'arc');
-    await user.click(screen.getByLabelText(/vowel marks/i));
+    // Pashto is not curated, but its code is Arabic-script → the option appears, labelled harakat.
+    await goCustom(user, 'Pashto');
+    await user.type(screen.getByLabelText('Code (optional)'), 'ps');
+    const box = screen.getByRole('checkbox', { name: /harakat/i });
+    // Not a curated vowelizable entry → not auto-checked; the user opts in.
+    expect(box).not.toBeChecked();
+    await user.click(box);
     await user.click(screen.getByRole('button', { name: /add language/i }));
 
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0][0]).toEqual({
-      name: 'Aramaic',
-      code: 'arc',
+      name: 'Pashto',
+      code: 'ps',
       vowelized: true,
       band: 'A1',
       curated: false,
     });
   });
 
-  it('pre-sets the vowel-marks default when a known code is typed', async () => {
+  it('offers a help affordance explaining the vowel-marks option', async () => {
     render(<AddLanguageForm />);
     const user = userEvent.setup();
     await goCustom(user, 'My Arabic');
-    const toggle = screen.getByLabelText(/vowel marks/i) as HTMLInputElement;
-    expect(toggle.checked).toBe(false);
-
-    // "ar" is a curated vowelizable code → the toggle flips ON (until the user overrides it).
     await user.type(screen.getByLabelText('Code (optional)'), 'ar');
+
+    const help = screen.getByRole('button', { name: /about vowel marks/i });
+    await user.click(help);
     expect(
-      (screen.getByLabelText(/vowel marks/i) as HTMLInputElement).checked,
-    ).toBe(true);
+      screen.getByText(/optional pronunciation guides/i),
+    ).toBeInTheDocument();
+  });
+
+  it('reveals the option already checked when a known vowelizable code is typed', async () => {
+    render(<AddLanguageForm />);
+    const user = userEvent.setup();
+    await goCustom(user, 'My Arabic');
+    // No code → no option.
+    expect(
+      screen.queryByRole('checkbox', { name: /vowel marks/i }),
+    ).not.toBeInTheDocument();
+
+    // "ar" is a curated vowelizable code → the option appears already ON, labelled harakat.
+    await user.type(screen.getByLabelText('Code (optional)'), 'ar');
+    expect(screen.getByRole('checkbox', { name: /harakat/i })).toBeChecked();
     expect(screen.getByText(/recognized as/i)).toHaveTextContent('Arabic');
   });
 
   it('respects a manual vowel-marks choice over a later code lookup', async () => {
     render(<AddLanguageForm />);
     const user = userEvent.setup();
-    await goCustom(user, 'Aramaic');
-    // User explicitly ticks vowel marks (needs a code) …
-    await user.click(screen.getByLabelText(/vowel marks/i));
-    await user.type(screen.getByLabelText('Code'), 'ar'); // curated vowelizable
-    // … the tick is preserved (not clobbered by the lookup), and stays on.
+    await goCustom(user, 'My Persian');
+    // Typing a curated vowelizable code reveals the option auto-checked …
+    await user.type(screen.getByLabelText('Code (optional)'), 'fa');
+    const box = screen.getByRole('checkbox', { name: /harakat/i });
+    expect(box).toBeChecked();
+
+    // … the user unticks it (a manual choice) …
+    await user.click(box);
+    expect(box).not.toBeChecked();
+
+    // … and a later code change that stays Arabic-script must NOT re-tick it.
+    await user.type(screen.getByLabelText(/^code/i), '-IR'); // "fa-IR", still harakat
     expect(
-      (screen.getByLabelText(/vowel marks/i) as HTMLInputElement).checked,
-    ).toBe(true);
+      screen.getByRole('checkbox', { name: /harakat/i }),
+    ).not.toBeChecked();
   });
 
   it('shows a soft, non-blocking duplicate hint when the code subtag is already used', async () => {
