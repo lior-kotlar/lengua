@@ -15,6 +15,23 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-11 — Home-tile percent edge (#152 / #146)
+
+Closes Track-1.1 [#152](https://github.com/lior-kotlar/lengua/issues/152), the last open code item in
+the 2026-07-11 audit's §1.1 — a display-only rounding edge on the Dashboard language tiles. Frontend
+only; self-merged on green CI (tiny, reversible).
+
+- **"% to next" caption could read 100% before the band advanced.** `progressPercent`
+  (`apps/web/src/lib/cefr.ts`) rounded the intra-band fraction, so a value ≥ 0.995 rendered
+  "100% to B2" while the band chip on the same tile still said B1 — the backend only advances the band
+  at the integer boundary (`band_progress` returns 1.0 solely at the absolute top C2, where the caption
+  is hidden). Now a below-1 fraction that rounds up to 100 is held at **99**. Chosen cap-at-99 over a
+  plain floor deliberately: a floor would shift `0.555 → 55` (breaking the existing `→ 56` case) and
+  every other percentage; capping only the round-to-100 window changes nothing but the one-quantum band
+  top, and an exact 1.0 still reads 100. Added ≥ 0.995 boundary tests (0.994 / 0.995 / 0.999 / 1.0);
+  `cefr.ts` stays at 100% coverage. No backend, route, or schema change. **§1.1 now has no open code
+  items.**
+
 ## 2026-07-11 — Language-picker follow-ups (#151 / #95)
 
 Closes Track-1.1 [#151](https://github.com/lior-kotlar/lengua/issues/151), the four follow-ups the
