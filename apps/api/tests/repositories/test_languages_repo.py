@@ -38,6 +38,10 @@ async def test_create_get_list_update_delete_scoped(
     by_name = await repo.get_by_name(user_id, "Lang Beta")
     assert by_name is not None and by_name.id == beta.id
     assert await repo.get_by_name(user_id, "nonexistent") is None
+    # get_by_name is case-insensitive (issue #151): a differently-cased spelling resolves to the
+    # same row, so the service dedupes "french" vs "French" instead of adding a variant duplicate.
+    variant = await repo.get_by_name(user_id, "lang BETA")
+    assert variant is not None and variant.id == beta.id
 
     # Scoped: another user can't read these rows.
     assert await repo.get(OTHER_USER, alpha.id) is None

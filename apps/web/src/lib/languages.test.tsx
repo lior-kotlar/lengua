@@ -86,6 +86,7 @@ describe('useAddLanguage', () => {
       name: '  Spanish  ',
       code: '  es  ',
       vowelized: true,
+      curated: true,
     });
 
     // The `created` flag is split off — `language` is the plain LanguageOut.
@@ -101,8 +102,8 @@ describe('useAddLanguage', () => {
     expect(put).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['languages'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['proficiency', 1] });
-    // Funnel event fires with the (non-PII) language code from the created row, plus whether the
-    // name is a curated pick (#95) — "Spanish" is in the curated list, so `curated: true`.
+    // Funnel event fires with the (non-PII) language code from the created row, plus the REAL
+    // submit-path provenance threaded from the form (#151) — here the curated picker path.
     expect(trackLanguageAdded).toHaveBeenCalledWith('es', true);
   });
 
@@ -112,7 +113,7 @@ describe('useAddLanguage', () => {
     const { wrapper } = makeClient();
 
     const { result } = renderHook(() => useAddLanguage(), { wrapper });
-    await result.current.mutateAsync({ name: 'Spanish' });
+    await result.current.mutateAsync({ name: 'Spanish', curated: true });
 
     expect(post).toHaveBeenCalledWith('/languages', {
       body: { name: 'Spanish', code: null, vowelized: false },
@@ -120,8 +121,23 @@ describe('useAddLanguage', () => {
     expect(trackLanguageAdded).toHaveBeenCalledWith(null, true);
   });
 
-  it('reports curated:false for a name that is not in the curated list', async () => {
-    // A custom/experimental language (not in the curated table) → the funnel event marks it uncurated.
+  it('reports curated:false when the submit came from the custom path (#151)', async () => {
+    // Provenance is the REAL submit path, not a name lookup: a custom add of a CURATED-named
+    // language ("Spanish") must still be classified as custom (`curated: false`).
+    post.mockReturnValue(ok({ ...SPANISH, created: true }));
+    const { wrapper } = makeClient();
+
+    const { result } = renderHook(() => useAddLanguage(), { wrapper });
+    await result.current.mutateAsync({
+      name: 'Spanish',
+      code: 'es',
+      curated: false,
+    });
+
+    expect(trackLanguageAdded).toHaveBeenCalledWith('es', false);
+  });
+
+  it('defaults curated to false when the flag is omitted', async () => {
     post.mockReturnValue(
       ok({
         id: 7,

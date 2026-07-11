@@ -34,6 +34,13 @@ async def test_add_is_idempotent_and_trimmed(
 
     assert any(lang.name == "Català" for lang in await service.list_languages(user_id))
 
+    # Case-insensitive dedupe (issue #151): a differently-cased re-add resolves to the SAME row
+    # (created=False) instead of inserting a case-variant duplicate — matching how the web picker
+    # matches curated names case-insensitively.
+    variant, variant_created = await service.add_language(user_id, "català")
+    assert variant.id == created.id
+    assert variant_created is False
+
     toggled = await service.update_language(user_id, created.id, {"vowelized": True})
     assert toggled.vowelized is True
 
@@ -79,9 +86,16 @@ async def test_update_rejects_blank_and_duplicate_name(
     # Renaming onto another of the user's languages -> ValidationError (per-user unique name).
     with pytest.raises(ValidationError):
         await service.update_language(user_id, second.id, {"name": "Greek"})
+    # ...case-insensitively too (issue #151): a differently-cased spelling of a name the user
+    # already owns is still a conflict, not a distinct language.
+    with pytest.raises(ValidationError):
+        await service.update_language(user_id, second.id, {"name": "greek"})
     # Renaming to its OWN current name is fine (the conflict is itself).
     same = await service.update_language(user_id, first.id, {"name": "Greek"})
     assert same.name == "Greek"
+    # ...including a pure case change of the row's own name (the conflict resolves to itself).
+    recased = await service.update_language(user_id, first.id, {"name": "GREEK"})
+    assert recased.name == "GREEK"
 
 
 async def test_validation_and_not_found(db_session: AsyncSession, demo_account: SeedResult) -> None:

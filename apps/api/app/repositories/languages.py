@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Language
@@ -58,10 +58,31 @@ class LanguagesRepository:
         return result.one_or_none()
 
     async def get_by_name(self, user_id: uuid.UUID, name: str) -> Language | None:
-        """Return the user's language named ``name`` (the per-user UNIQUE key), or ``None``."""
-        stmt = select(Language).where(Language.user_id == user_id, Language.name == name)
+        """Return the user's language named ``name``, matched **case-insensitively**, or ``None``.
+
+        The per-user ``UNIQUE (user_id, name)`` constraint is case-*sensitive* (``"French"`` and
+        ``"french"`` are distinct rows at the DB level), but the app treats a language name as
+        case-insensitive: the web picker matches curated names case-insensitively, so a curated
+        "French" pick over an existing "french" must be recognised as the *same* language rather
+        than inserting a case-variant duplicate row (issue #151). Matching on ``lower(name)`` here
+        makes the service's idempotent-add dedupe and its rename-conflict guard agree with that.
+        ``func.lower`` is portable across SQLite (tests) and Postgres (prod).
+
+        Returns the **first** match in stable id order (``LIMIT 1``) rather than ``one_or_none``:
+        if a user's data already held case-variant duplicates from before this fix, a broadened
+        match must not raise ``MultipleResultsFound`` (a 500) — it just resolves to the oldest row.
+        """
+        stmt = (
+            select(Language)
+            .where(
+                Language.user_id == user_id,
+                func.lower(Language.name) == func.lower(name),
+            )
+            .order_by(Language.id)
+            .limit(1)
+        )
         result = await self._session.scalars(stmt)
-        return result.one_or_none()
+        return result.first()
 
     async def update(
         self, user_id: uuid.UUID, language_id: int, changes: Mapping[str, object]

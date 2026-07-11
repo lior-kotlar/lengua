@@ -15,6 +15,36 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-11 — Language-picker follow-ups (#151 / #95)
+
+Closes Track-1.1 [#151](https://github.com/lior-kotlar/lengua/issues/151), the four follow-ups the
+2026-07-11 audit raised against the #95 curated language picker. Frontend + one small server fix;
+self-merged on green CI (low-risk, reversible).
+
+- **(a) Case-variant duplicate rows — fixed server-side.**
+  `LanguagesRepository.get_by_name` now matches on `lower(name)` (via `func.lower`, portable across
+  SQLite/Postgres) instead of an exact-string equality. The web picker already matched curated names
+  case-insensitively, so a curated "French" pick over an existing "french" was inserting a second,
+  case-variant language row. Both callers benefit: `add_language`'s idempotent-add dedupe and
+  `update_language`'s rename-conflict guard now treat differently-cased spellings as the same
+  language (a pure case change of a row's own name still resolves to itself, so re-casing is allowed).
+  The server-side fix was chosen over a client pre-check as the single, robust point that covers
+  every caller. Repo + service integration tests assert the case-insensitive dedupe and conflict.
+- **(b) In-flight reset race — fixed.** `AddLanguageForm`'s "Change" (curated step) and "Back to
+  list" (custom step) affordances are now disabled while the add is `isPending`, so a slow-network
+  user can't navigate away between pressing "Add" and the success reset to the picker (which would
+  clobber their view). Unit tests cover both locks.
+- **(c) Curated-path e2e — added.** `apps/web/e2e/languages.spec.ts` gains a second spec that drives
+  the **curated** pick→submit→remove flow (search "French" → pick the curated row → choose B1 →
+  add → verify list/picker/band → remove). Every prior e2e drove only the custom fallback; this
+  covers the feature's primary new path. Runs against the FakeLLM ephemeral stack in CI (no real LLM
+  calls — none of these flows touch the LLM seam).
+- **(d) Analytics `curated` flag — real provenance threaded.** `AddLanguageInput` gains a `curated`
+  boolean set by the form (`true` from the curated step, `false` from the custom step), and
+  `trackLanguageAdded` now reports that instead of a `findCurated(name)` name-table lookup. A custom
+  add of a curated-named language (e.g. typing "Spanish" in the custom path) now correctly reads as
+  `curated: false`, matching the event's documented picker-path-provenance semantics.
+
 ## 2026-07-11 — Prompt-store hardening (#80 follow-ups) · awaiting owner review
 
 Addresses Track-1.1 [#150](https://github.com/lior-kotlar/lengua/issues/150) (the one HIGH audit

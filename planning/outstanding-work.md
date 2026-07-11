@@ -52,11 +52,17 @@ Surfaced and adversarially confirmed by the [2026-07-11 completion audit](audit-
   with no product owner) and the docs corrected — rollback still works via `is_active`. **(f)** (a
   DB `CHECK`/key-enum constraint — migration-gated) is intentionally **left for the owner** per
   protocol; A1.b covers the same failure at read time.
-- **A2 = #151 — Language-picker follow-ups (#95)** — (a) case-insensitive duplicate check before a
-  curated POST (case-variant duplicate rows today); (b) guard the add-form's `onSuccess` reset
-  when the user navigated mid-flight; (c) one e2e through the curated pick→submit path (all e2e
-  currently exercise only the custom fallback); (d) make the analytics `curated` flag match its
-  documented path-provenance semantics (or fix the docstring).
+- ~~**A2 = #151 — Language-picker follow-ups (#95)**~~ — **shipped 2026-07-11** (frontend + a small
+  server fix; self-merged, green CI). (a) fixed **server-side**: `LanguagesRepository.get_by_name`
+  now matches on `lower(name)` (portable across SQLite/Postgres), so the idempotent-add dedupe *and*
+  the rename-conflict guard both treat "French"/"french" as one language — no case-variant duplicate
+  rows; (b) the add-form's "Change" / "Back to list" affordances are disabled while the add is in
+  flight, so a slow-network user can't navigate away and get clobbered by the success reset; (c) a
+  new e2e drives the curated pick→submit→remove flow (`languages.spec.ts`), the feature's primary
+  path (every prior e2e drove only the custom fallback); (d) the analytics `curated` flag now
+  threads the **real submit path** from the form (a `curated` field on `AddLanguageInput`) instead
+  of a name-table lookup — a custom add of a curated-named language reads as custom, as the event's
+  docstring promises.
 - **A3 = #152 — Home-tile percent edge (#146)** — `progressPercent` `Math.round` can show "100% to B2"
   while the band chip still says B1 at the top of a band; floor or cap at 99 and add the boundary
   test.

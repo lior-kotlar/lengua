@@ -16,7 +16,9 @@
  *    entry pre-sets the vowel default; a soft, non-blocking hint warns if another of the user's
  *    languages already uses that code's primary subtag.
  *
- * On success it resets to the picker, toasts, and hands the language back via `onCreated`.
+ * On success it resets to the picker, toasts, and hands the language back via `onCreated`. While a
+ * submit is in flight the step's "Change" / "Back to list" affordances are locked (issue #151), so a
+ * slow-network user can't navigate away between pressing "Add" and that reset.
  */
 import { useEffect, useRef, useState } from 'react';
 
@@ -206,6 +208,8 @@ function CuratedForm({
       code: language.code,
       vowelized: language.vowelizable ? vowelized : false,
       band,
+      // Provenance for the funnel event (#151): this is the curated picker path.
+      curated: true,
     });
   }
 
@@ -230,7 +234,10 @@ function CuratedForm({
         <button
           type="button"
           onClick={onChangeLanguage}
-          className="shrink-0 rounded text-subhead font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          // #151: locked while a submit is in flight so a slow-network user can't navigate back to
+          // the picker between pressing "Add" and the success reset (which would clobber their view).
+          disabled={pending}
+          className="shrink-0 rounded text-subhead font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
         >
           Change
         </button>
@@ -351,6 +358,9 @@ function CustomForm({
       code: trimmedCode,
       vowelized,
       band,
+      // Provenance for the funnel event (#151): this is the custom/experimental path, even when the
+      // typed name/code happens to match a curated language.
+      curated: false,
     });
   }
 
@@ -367,7 +377,10 @@ function CustomForm({
           <button
             type="button"
             onClick={onBack}
-            className="shrink-0 rounded text-subhead font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            // #151: locked while a submit is in flight (see CuratedForm) so the user can't leave the
+            // custom step between pressing "Add" and the success reset.
+            disabled={pending}
+            className="shrink-0 rounded text-subhead font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           >
             Back to list
           </button>
