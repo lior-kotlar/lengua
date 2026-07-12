@@ -71,7 +71,7 @@ describe('VowelMarksToggle', () => {
     const user = userEvent.setup();
     renderToggle(HEBREW);
 
-    const toggle = screen.getByRole('switch', { name: 'Show vowel marks' });
+    const toggle = screen.getByRole('switch');
     // Default: marks shown.
     expect(toggle).toHaveAttribute('aria-checked', 'true');
 
@@ -92,6 +92,25 @@ describe('VowelMarksToggle', () => {
   it('labels the toggle with the script-specific term (harakat for Arabic)', () => {
     renderToggle(ARABIC);
     expect(screen.getByText('Vowel marks (harakat)')).toBeInTheDocument();
+  });
+
+  // WCAG 2.5.3 "Label in Name": the switch's accessible name must CONTAIN its visible label, so a
+  // speech-input user who says the visible text can activate it. PR #158 made the visible label
+  // language-aware but left a hardcoded aria-label ("Show vowel marks") that no longer matched.
+  it('accessible name contains the visible label (nikkud for Hebrew)', () => {
+    renderToggle(HEBREW);
+    const visibleLabel = 'Vowel marks (nikkud)';
+    expect(screen.getByText(visibleLabel)).toBeInTheDocument();
+    const toggle = screen.getByRole('switch');
+    expect(toggle).toHaveAccessibleName(expect.stringContaining(visibleLabel));
+  });
+
+  it('accessible name contains the visible label (harakat for Arabic)', () => {
+    renderToggle(ARABIC);
+    const visibleLabel = 'Vowel marks (harakat)';
+    expect(screen.getByText(visibleLabel)).toBeInTheDocument();
+    const toggle = screen.getByRole('switch');
+    expect(toggle).toHaveAccessibleName(expect.stringContaining(visibleLabel));
   });
 
   it('offers a help affordance explaining what vowel marks are', async () => {

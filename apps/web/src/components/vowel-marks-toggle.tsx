@@ -10,7 +10,7 @@ import { HelpTip, VOWEL_MARKS_HELP } from '@/components/help-tip';
 import { useActiveLanguage } from '@/components/active-language-context';
 import { useVowelMarks } from '@/components/vowel-marks-context';
 import { Switch } from '@/components/ui/switch';
-import { vowelMarkTerm } from '@/lib/language-text';
+import { vowelMarksLabel } from '@/lib/language-text';
 
 export function VowelMarksToggle() {
   const { activeLanguage } = useActiveLanguage();
@@ -22,9 +22,10 @@ export function VowelMarksToggle() {
   }
 
   // Show the script-specific term ("harakat" / "nikkud"); fall back to the generic label for an odd
-  // vowelized language whose code isn't a recognised Arabic/Hebrew script.
-  const term = vowelMarkTerm(activeLanguage.code);
-  const labelText = term ? `Vowel marks (${term})` : 'Vowel marks';
+  // vowelized language whose code isn't a recognised Arabic/Hebrew script. The SAME string drives the
+  // switch's accessible name (below), so the visible label and the accessible name can never diverge
+  // — a WCAG 2.5.3 "label in name" requirement (the accessible name must contain the visible label).
+  const labelText = vowelMarksLabel(activeLanguage.code);
 
   return (
     <div className="flex w-fit items-center gap-2.5 text-subhead">
@@ -32,7 +33,7 @@ export function VowelMarksToggle() {
         <Switch
           checked={showVowels}
           onCheckedChange={setShowVowels}
-          aria-label="Show vowel marks"
+          aria-label={labelText}
         />
         <span className="font-medium text-muted-foreground">{labelText}</span>
       </label>
