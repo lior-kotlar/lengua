@@ -296,13 +296,20 @@ def resolve_fragment(key: str, overrides: Mapping[str, str] | None = None) -> st
 def _render_fragment(key: str, overrides: Mapping[str, str] | None, /, **fmt: object) -> str:
     """Resolve ``key`` from ``overrides`` and ``str.format`` it, falling back on a bad override.
 
-    The render guard (GitHub #150): a DB **override** may contain a malformed template — an unknown
-    ``{placeholder}``, a positional ``{}``, or a stray unbalanced brace — which would raise inside
-    ``str.format`` on **every** generation request and 500 the whole app until the row is fixed.
-    Instead, a render failure is logged loudly and that one fragment falls back to its
-    :data:`CODE_DEFAULTS` text (which the module's own tests keep renderable), so a bad operator edit
-    degrades a single fragment rather than taking generation down. The code default is rendered
-    without a guard: if a *code* template were malformed that is a bug we want surfaced in tests.
+    The render guard (GitHub #150): a DB **override** may contain a malformed template that raises
+    inside ``str.format`` on **every** generation request and 500s the whole app until the row is
+    fixed. The failure modes are open-ended — an unknown ``{placeholder}`` (KeyError), a positional
+    ``{}``/``{0}`` field (IndexError), a stray unbalanced brace (ValueError), an attribute access
+    ``{language.foo}`` (AttributeError), or an index access ``{language[foo]}`` (TypeError) — so the
+    guard catches any :class:`Exception`. On failure it logs loudly and that one fragment falls back
+    to its :data:`CODE_DEFAULTS` text (which the module's own tests keep renderable), so a bad
+    operator edit degrades a single fragment rather than taking generation down.
+
+    Catching broad :class:`Exception` is deliberate and safe here: it does **not** swallow
+    ``asyncio.CancelledError`` / ``KeyboardInterrupt`` (those derive from :class:`BaseException`, not
+    :class:`Exception`, since Python 3.8), so cooperative cancellation still propagates. The fallback
+    re-renders the code default, which is fully test-covered — so a genuine bug in a *code* template
+    still surfaces there (the code default is rendered without a guard, on purpose).
     """
     text = resolve_fragment(key, overrides)
     default = CODE_DEFAULTS[key]
@@ -310,10 +317,11 @@ def _render_fragment(key: str, overrides: Mapping[str, str] | None, /, **fmt: ob
         return default.format(**fmt)
     try:
         return text.format(**fmt)
-    except (KeyError, IndexError, ValueError) as exc:
+    except Exception as exc:
         logger.error(
             "prompt override for key %r failed to render (%s); falling back to the code default. "
-            "Fix the active prompt_versions row — its template has a bad placeholder or brace.",
+            "Fix the active prompt_versions row — its template has a bad placeholder, brace, or "
+            "attribute/index access.",
             key,
             exc,
             exc_info=True,

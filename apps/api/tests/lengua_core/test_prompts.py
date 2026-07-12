@@ -130,6 +130,8 @@ def _install_source(overrides: dict[str, str]) -> None:
         "You teach {0} — positional.",  # positional field → IndexError
         "You teach {} — auto-positional.",  # auto-numbered field → IndexError
         "You teach {language — stray unbalanced brace.",  # malformed → ValueError
+        "You teach {language.foo} — bad attribute.",  # attribute access on a str → AttributeError
+        "You teach {language[foo]} — bad index.",  # index access on a str → TypeError
     ],
 )
 def test_system_instruction_bad_override_falls_back_to_code_default(

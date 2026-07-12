@@ -162,9 +162,11 @@ within `PROMPT_CACHE_TTL_SECONDS`.
 
 **Bad overrides degrade safely, they don't take generation down (#150).** A bad edit can't 500 the
 app: at read time an override for an unknown key or with empty content is dropped (and warned), and
-at render time an override whose template has a bad placeholder or an unbalanced brace is logged and
-falls back to that fragment's in-code default. Watch the logs for `prompt override for key … failed
-to render` (or the drop warnings) and fix the offending `prompt_versions` row.
+at render time any override whose template fails to render — a bad placeholder, an unbalanced brace,
+or an attribute/index access like `{language.foo}` / `{language[foo]}` — is logged and falls back to
+that fragment's in-code default (the render guard catches any `Exception`, so no malformed template
+survives to raise per-request). Watch the logs for `prompt override for key … failed to render` (or
+the drop warnings) and fix the offending `prompt_versions` row.
 
 ## Importing legacy data
 
