@@ -89,10 +89,12 @@ code fixes shipped the same day (shipped-record below):
   (PR #160, frontend-only, self-merged on green CI). #158's language-aware visible label had left a
   hardcoded `aria-label` behind, breaking WCAG 2.5.3; a new shared `vowelMarksLabel()` now drives
   both strings so they can't diverge.
-- ~~**V2 — CI guard for "keep legacy Streamlit runnable"**~~ — **shipped 2026-07-12** (self-merged
-  on green CI). The standing CLAUDE.md contract had zero automated coverage; a CI import-smoke now
-  imports the legacy modules + the pages' top-level imports (AST-extracted) + the prompt builders
-  via `uv run --with streamlit` (streamlit stays out of the project deps).
+- ~~**V2 — CI guard for "keep legacy Streamlit runnable"**~~ — **shipped 2026-07-12** (PR #161,
+  squash `3aa2109`, self-merged on green CI). The standing CLAUDE.md contract had zero automated
+  coverage; `apps/api/scripts/legacy_smoke.py` (run in the CI lint job via `uv run --with
+  streamlit` — streamlit stays out of the project deps) now imports the legacy modules, executes
+  the pages' AST-extracted top-level imports, byte-compiles the pages, and exercises the prompt
+  builders. Proven to fail on a sabotaged symbol; ~zero added CI wall-clock.
 
 (#158 — language-aware vowel-marks option (harakat/nikkud + help tip) — shipped 2026-07-11 as a
 direct feature PR with no tracking issue; recorded retroactively in [`../CHANGELOG.md`](../CHANGELOG.md)

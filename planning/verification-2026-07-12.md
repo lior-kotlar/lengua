@@ -66,17 +66,20 @@ Both have benign failure modes (a duplicate row that resolves deterministically 
   merge (T1).**
 - **V2 — "Keep legacy Streamlit runnable" had zero automated coverage** (medium). The standing
   CLAUDE.md contract was enforced by nothing; #153 rewrote `lengua_core/prompts.py`, the legacy
-  app's highest-churn dependency. **Fixed: a CI import-smoke guard** — imports the legacy support
-  modules, executes the four pages' top-level imports (AST-extracted; page *bodies* are not run —
-  they need a real Streamlit runtime), `compileall`s the pages, and calls the prompt builders
-  under the no-store default, via `uv run --with streamlit` (streamlit stays out of the project
-  deps). Proven to fail on a sabotaged symbol.
+  app's highest-churn dependency. **Fixed in
+  [PR #161](https://github.com/lior-kotlar/lengua/pull/161)** (squash `3aa2109`, self-merged on
+  green CI): `apps/api/scripts/legacy_smoke.py`, run in the CI lint job — imports the legacy
+  support modules, executes the four pages' top-level imports (AST-extracted; page *bodies* are
+  not run — they need a real Streamlit runtime), `compileall`s the pages, and calls the prompt
+  builders under the no-store default, via `uv run --with streamlit` (streamlit stays out of the
+  project deps). Proven to fail on a sabotaged symbol; ~zero added CI wall-clock.
 - **V3 — #158 a11y regression: label-in-name** (low, WCAG 2.5.3). #158 made the vowel-marks
   toggle's visible label language-aware but left the hardcoded `aria-label="Show vowel marks"`,
   so the accessible name stopped containing the visible label. **Fixed in
   [PR #160](https://github.com/lior-kotlar/lengua/pull/160)** — new `vowelMarksLabel()` is the
   single source of truth for both strings; label-in-name tests (nikkud + harakat) proven to fail
-  on the old code. (The #158 add-form checkbox was checked: not affected — its name comes from
+  on the old code; the rtl e2e + the two staging specs updated to the language-aware name. Merged
+  (squash `bdd7b48`). (The #158 add-form checkbox was checked: not affected — its name comes from
   the `<label>` text.)
 
 ### Doc / bookkeeping corrections (the docs-sync PR that added this file)
