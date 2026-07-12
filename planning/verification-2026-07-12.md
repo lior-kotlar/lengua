@@ -22,17 +22,17 @@ edge-case bugs, 1 test-guard gap, 12 doc/bookkeeping errors — **all acted on t
 
 ## 1. Open tasks (what's left after this sweep)
 
-### T1 — Merge PR #159 (owner-review class) — **the only open code action**
+### T1 — Merge PR #159 (owner-review class) — **DONE 2026-07-12**
 
-The prompt-store render guard broadening (finding V1, below) is implemented, tested, and green,
-but it edits generation-critical prompt-assembly code — the same owner-review class as #153 — so
-it was **opened for review, not self-merged**.
+The prompt-store render guard broadening (finding V1, below) edits generation-critical
+prompt-assembly code — the same owner-review class as #153 — so it was **opened for review, not
+self-merged**.
 
-- [ ] **T1.a** Review + merge [PR #159](https://github.com/lior-kotlar/lengua/pull/159)
-      (squash), after owner (Kotlar) authorization — same protocol as #153.
-- [ ] **T1.b** After the merge: flip this file's V1 status in §2 and the board line in
-      [outstanding-work.md](outstanding-work.md) §1.1 from "PR open" to "merged", the same way
-      #153's record was flipped.
+- [x] **T1.a** Reviewed + merged (squash `647e84d`): Ben authorized a delegated review — three
+      independent Opus 4.8 reviewers (correctness/safety · test adequacy with a mutation proof ·
+      docs/protocol) returned **unanimous APPROVE** with zero defects — then the merge.
+- [x] **T1.b** Status flipped here, in [outstanding-work.md](outstanding-work.md) §1.1, and in
+      the CHANGELOG entry. **No open code items remain.**
 
 ### T2 — Optional post-v1 hardening (added to [outstanding-work.md](outstanding-work.md) §1.2 — no action for v1)
 
@@ -62,8 +62,8 @@ Both have benign failure modes (a duplicate row that resolves deterministically 
   exact mass-500 mode #150(a) was built to eliminate. **Fixed in
   [PR #159](https://github.com/lior-kotlar/lengua/pull/159)** — guard broadened to
   `except Exception` (safe: `CancelledError`/`KeyboardInterrupt` derive from `BaseException`),
-  two new parametrized test cases, README fail-safe claim made accurate. **Open — awaiting owner
-  merge (T1).**
+  two new parametrized test cases, README fail-safe claim made accurate. **Merged 2026-07-12
+  (squash `647e84d`) after the unanimous three-lens delegated review (T1).**
 - **V2 — "Keep legacy Streamlit runnable" had zero automated coverage** (medium). The standing
   CLAUDE.md contract was enforced by nothing; #153 rewrote `lengua_core/prompts.py`, the legacy
   app's highest-churn dependency. **Fixed in
@@ -156,7 +156,7 @@ mobile → launch → post-launch). Next up, unchanged:
 | Who | Software | Action |
 |-----|----------|--------|
 | Kotlar | Resend + DNS registrar | Custom SMTP + SPF/DKIM/DMARC → re-enable prod email confirmation ([#103](https://github.com/lior-kotlar/lengua/issues/103)) — the only open GitHub issue |
-| Kotlar (Ben ok'd) | GitHub PR [#159](https://github.com/lior-kotlar/lengua/pull/159) | Authorize/merge the prompt-store guard PR (T1) |
+| ~~Kotlar (Ben ok'd)~~ | ~~GitHub PR #159~~ | ~~Authorize/merge the prompt-store guard PR (T1)~~ — **done 2026-07-12** (Ben authorized; unanimous delegated review; squash `647e84d`) |
 | Either | Google Cloud + Supabase Auth | (Optional) Google OAuth creds + `VITE_OAUTH_PROVIDERS` |
 | — | — | Everything else waits for the prod-cutover decision — [go-live-activation.md](go-live-activation.md) §F/§G |
 
