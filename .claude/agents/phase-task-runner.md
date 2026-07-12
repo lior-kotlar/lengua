@@ -31,7 +31,7 @@ existing code you will touch before editing it.
 6. **Paper trail — in the SAME PR:** for a phase task, tick `- [ ]`→`- [x]` in `phase-N-*.md` and update the Phase status line in `task-tracker.md`; for a `planning/outstanding-work.md` Track-1 item, update/remove its board entry instead. Either way add a `CHANGELOG.md` entry for what shipped, and update `README.md`/`CLAUDE.md` if usage changed.
 7. **Commit** (Conventional Commit; end the body with `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`), push, `gh pr create` with a body listing what changed + the verify outputs.
 8. **Merge mode:**
-   - **AUTO-MERGE** (default) when the change is low-risk and reversible and every verify is green: `gh pr merge <n> --merge --delete-branch`, then `git switch main && git pull`.
+   - **AUTO-MERGE** (default) when the change is low-risk and reversible and every verify is green: `gh pr merge <n> --squash --delete-branch` (the repo is **squash-only**), then `git switch main && git pull`.
    - **PAUSE** (open the PR, do NOT merge, report it needs review) when the task is: an owner-only action (branch protection, secrets, dashboards, paid accounts); a non-trivially-reversible DB migration; security/auth/cost-guard logic; or a significant architectural deviation. When in doubt → pause.
 9. **Report** concisely: status (`merged` | `pr_open` | `failed`), PR #/URL, verify outputs, checkboxes ticked, and any deviation/decision the human should know.
 

@@ -30,7 +30,7 @@ API with a JSON body:
 gh api -X PUT repos/lior-kotlar/lengua/branches/main/protection \
   --input - <<'JSON'
 {
-  "required_status_checks": { "strict": true, "checks": [ { "context": "lint-and-types" }, { "context": "backend-tests" }, { "context": "frontend-tests" }, { "context": "build" }, { "context": "e2e" }, { "context": "security" } ] },
+  "required_status_checks": { "strict": true, "checks": [ { "context": "lint + format + types" }, { "context": "backend tests + coverage" }, { "context": "frontend tests + coverage" }, { "context": "build (api image + web bundle)" }, { "context": "e2e (ephemeral stack, FakeLLM)" }, { "context": "security (audit + secrets)" } ] },
   "required_pull_request_reviews": { "required_approving_review_count": 1, "dismiss_stale_reviews": true },
   "enforce_admins": true,
   "restrictions": null
@@ -38,7 +38,9 @@ gh api -X PUT repos/lior-kotlar/lengua/branches/main/protection \
 JSON
 ```
 
-(Replace the `context` values with the actual job/check names from `infra/branch-protection.md`.)
+(The `context` values above are the exact GitHub **check names** — each job's `name:` in
+`ci.yml`, not its job id — matching the canonical list in
+[`../infra/branch-protection.md`](../infra/branch-protection.md); re-verify there before applying.)
 
 **Verify:** `gh api repos/lior-kotlar/lengua/branches/main/protection` returns without 404 and
 shows `required_pull_request_reviews.required_approving_review_count = 1`; a direct push to

@@ -15,6 +15,56 @@ This is the source of truth for **what is done**; open work lives in
 
 ---
 
+## 2026-07-12 — Post-audit verification sweep: two fixes shipped, one PR opened, docs re-synced
+
+A second full verification (after the 2026-07-11 audit) re-checked every claim the six post-audit
+merges #153–#158 introduced — ~60 agents, adversarial refutation on every finding; report:
+[`planning/verification-2026-07-12.md`](planning/verification-2026-07-12.md). All shipped claims
+held; the sweep's own output:
+
+- **Vowel-marks toggle a11y fix (PR #160).** #158's language-aware visible label had left the old
+  hardcoded `aria-label="Show vowel marks"` behind — the accessible name no longer contained the
+  visible label (WCAG 2.5.3 "label in name"). A new `vowelMarksLabel()`
+  (`apps/web/src/lib/language-text.ts`) now drives **both** strings; label-in-name tests
+  (nikkud + harakat) added, proven to fail on the old code.
+- **CI guard for the "keep legacy Streamlit runnable" contract (PR #161).** The standing CLAUDE.md
+  rule had zero automated coverage. A new import-smoke (`apps/api/scripts/legacy_smoke.py`, run in
+  CI via `uv run --with streamlit` — streamlit stays out of the project deps) imports the legacy
+  support modules, executes the four pages' AST-extracted top-level imports (page *bodies* need a
+  real Streamlit runtime, deliberately not run), `compileall`s the pages, and exercises the prompt
+  builders under the no-store default. Proven to fail on a sabotaged symbol.
+- **Prompt-store render-guard broadening ([PR #159](https://github.com/lior-kotlar/lengua/pull/159)
+  — open, awaiting owner merge).** The #153 guard caught only `(KeyError, IndexError, ValueError)`;
+  `{language.foo}` (AttributeError) / `{language[foo]}` (TypeError) overrides still 500'd every
+  generation. Guard → `except Exception` + two new test cases. Owner-review class, like #153.
+- **Docs re-sync** (same PR as this entry): the #150 CHANGELOG heading un-staled ("awaiting owner
+  review" → merged `de1ecc4`); the missing #158 entry added below; `provider.py` module docstring
+  aligned with the A4 per-request wording; `prompt_store.py`/`test_prompt_store.py` pin-path
+  leftovers removed; parity ledger rows 33/35 + §6 rewritten for #95/#158; branch-protection JSON
+  in `owner-deferred-tasks.md` now uses the real check names; `phase-task-runner.md` merge command
+  → `--squash`; dead spec citation de-linked; board/tracker/status blocks synced. Post-v1 backlog
+  gained two marginal custom-path notes (Unicode case-folding; case-insensitive unique index —
+  migration-gated).
+
+## 2026-07-11 — Language-aware vowel-marks option (#158)
+
+A direct feature PR (no tracking issue) that merged **after** the 2026-07-11 audit's final docs
+sync, so it is recorded here retroactively (2026-07-12, by the post-audit verification sweep).
+Frontend-only; self-merged on green CI.
+
+- **Script-specific vowel-mark terms.** The add-language flow and the display toggle now name the
+  marks by the active script — **harakat** (Arabic script) / **nikkud** (Hebrew script) — via new
+  `vowelMarkTerm()` / `isVowelizableCode()` helpers in `apps/web/src/lib/language-text.ts`, with the
+  generic "vowel marks" fallback for an unrecognised vowelized code.
+- **Custom-path checkbox is now gated.** In the custom (experimental) add-language path, the
+  "Include vowel marks" checkbox renders only once the typed code resolves to an Arabic/Hebrew
+  script (with a stale-`vowelized` reset when the code changes away) — a deliberate improvement
+  over the legacy app's unconditional checkbox.
+- **New `HelpTip` component** (`apps/web/src/components/help-tip.tsx`) — an accessible info-tip,
+  first used to explain what vowel marks are on both the add form and the display toggle.
+- README updated in the same PR. Distinct from the still-open §1.2 backlog item (UI-wiring the
+  `vowelized` flag on an *existing* language); that item remains open.
+
 ## 2026-07-11 — Home-tile percent edge (#152 / #146)
 
 Closes Track-1.1 [#152](https://github.com/lior-kotlar/lengua/issues/152), the last open code item in
@@ -62,14 +112,15 @@ self-merged on green CI (low-risk, reversible).
   add of a curated-named language (e.g. typing "Spanish" in the custom path) now correctly reads as
   `curated: false`, matching the event's documented picker-path-provenance semantics.
 
-## 2026-07-11 — Prompt-store hardening (#80 follow-ups) · awaiting owner review
+## 2026-07-11 — Prompt-store hardening (#80 follow-ups) · owner-approved and merged
 
-Addresses Track-1.1 [#150](https://github.com/lior-kotlar/lengua/issues/150) (the one HIGH audit
+Closes Track-1.1 [#150](https://github.com/lior-kotlar/lengua/issues/150) (the one HIGH audit
 finding): the DB-backed prompt store's fail-safe covered **read** failures but not **render** or
 **assembly** failures. Internal hardening of the generation-critical prompt path — **no API/route/
-schema change** — in `apps/api/lengua_core/prompts.py` and `apps/api/app/prompt_store.py`. The PR is
-**paused for owner review** rather than self-merged (a fault here 500s every generation; #80 itself
-was owner-reviewed).
+schema change** — in `apps/api/lengua_core/prompts.py` and `apps/api/app/prompt_store.py`. Opened
+for owner review rather than self-merged (a fault here 500s every generation; #80 itself was
+owner-reviewed), then **merged 2026-07-11 after the owner explicitly authorized it** (PR #153,
+squash `de1ecc4`, CI green).
 
 - **(a) Render guard.** Every DB-overridden fragment fed to `str.format(...)` is now wrapped in a
   try/except (`_render_fragment`): a malformed override — unknown `{placeholder}`, positional `{}`,

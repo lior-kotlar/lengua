@@ -5,8 +5,9 @@ Layered like the feature-flags suite:
 * **Unit (offline)** — the pure ``lengua_core.prompts`` builders' source-hook fallback (code default
   when no source / a source ``None``), and the :class:`~app.prompt_store.PromptStore` accessor: warm
   + synchronous ``get``, the TTL cache + the *change-without-redeploy* refresh (against an injected
-  clock), the TTL floor, ``invalidate``, concurrent-warm-reads-once, and ``resolve`` for the ``-1``
-  (active) and pinned-version paths. All use injected fakes, so they need no database.
+  clock), the TTL floor, ``invalidate``, concurrent-warm-reads-once, the whole-map ``snapshot()``
+  (torn-assembly guard, #150), and ``_validate_snapshot`` read-time validation (unknown keys and
+  empty-string overrides dropped). All use injected fakes, so they need no database.
 * **Integration (``@pytest.mark.integration``)** — the *real* DB read path against the seeded
   ``prompt_versions`` table: the seed matches the code defaults, exactly one active version per key,
   a new active version changes what the store resolves (the acceptance criterion), and the SECURITY

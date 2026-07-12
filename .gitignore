@@ -253,5 +253,6 @@ playwright/.cache/
 
 # Local scratch / draft prompts (keep out of git)
 /next-propt.txt
+/next-prompt.txt
 
 .vercel

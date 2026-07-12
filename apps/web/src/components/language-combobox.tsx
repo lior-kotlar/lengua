@@ -13,8 +13,8 @@
  * Presentational and callback-driven: it owns only the highlight/keyboard state, and reports a
  * choice through {@link onSelect} (a curated entry) or {@link onSelectCustom} (the custom row).
  *
- * As-built keyboard model (a deliberate deviation from the spec's "Esc closes", recorded in
- * `planning/language-support-design.md`): the listbox is ALWAYS open (this is an inline in-card
+ * As-built keyboard model (a deliberate deviation from the retired #95 design spec's "Esc
+ * closes" — the spec lives in git history): the listbox is ALWAYS open (this is an inline in-card
  * picker, not a popover), so `aria-expanded` is always `true` and there is nothing to collapse.
  * ↑/↓ move the active option, Enter selects it, and Escape clears the query instead of closing.
  * IME composition is respected — the Enter/Arrows that drive a CJK candidate list never leak into
