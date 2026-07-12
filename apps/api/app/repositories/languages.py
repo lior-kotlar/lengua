@@ -67,7 +67,8 @@ class LanguagesRepository:
         "French" pick over an existing "french" must be recognised as the *same* language rather
         than inserting a case-variant duplicate row (issue #151). Matching on ``lower(name)`` here
         makes the service's idempotent-add dedupe and its rename-conflict guard agree with that.
-        ``func.lower`` is portable across SQLite (tests) and Postgres (prod).
+        ``func.lower`` is portable SQL (the test and prod suites both run it on Postgres; it would
+        work on SQLite too).
 
         Returns the **first** match in stable id order (``LIMIT 1``) rather than ``one_or_none``:
         if a user's data already held case-variant duplicates from before this fix, a broadened

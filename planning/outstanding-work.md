@@ -7,7 +7,9 @@ session), append it to the matching track with *where* + *status*.
 Everything **done** — phases 0–6, milestones M1–M3, the M4 staging leg, the 22 resolved
 live-staging findings, the three doable-now hardening sweeps, and the Phase-8 compliance code
 slice — is recorded in [`../CHANGELOG.md`](../CHANGELOG.md). Validated 2026-07-08 against the code
-(every "done" claim re-verified in-tree before this reorganization).
+(every "done" claim re-verified in-tree before this reorganization), re-audited 2026-07-11
+([audit-2026-07-11.md](audit-2026-07-11.md)), and re-verified post-follow-ups 2026-07-12
+([verification-2026-07-12.md](verification-2026-07-12.md)).
 
 **How to run a work item:** `/next-task` (one Track-1 item per run — see
 [`../.claude/skills/next-task/SKILL.md`](../.claude/skills/next-task/SKILL.md)) or `/run-phase N`
@@ -32,11 +34,23 @@ held, legacy Streamlit kept runnable).*
 
 ### 1.1 Open code items
 
-_No open code items right now._ The 2026-07-11 completion-audit follow-ups (issues
+**One item open — implemented, awaiting owner merge** (from the
+[2026-07-12 post-audit verification](verification-2026-07-12.md)):
+
+- [ ] **V1 = [PR #159](https://github.com/lior-kotlar/lengua/pull/159) — prompt-store render-guard
+  broadening (#153 follow-up)** — the #153 guard caught only `(KeyError, IndexError, ValueError)`,
+  but `str.format` raises AttributeError for `{language.foo}` and TypeError for `{language[foo]}`,
+  so such a DB override still 500s every generation. Implemented + tested (guard → `except
+  Exception`; 555 non-integration tests pass; CI green); **opened for owner review, not
+  self-merged** (generation-critical class, same as #153). Owner: authorize → squash-merge → flip
+  this line to shipped.
+
+The 2026-07-11 completion-audit follow-ups (issues
 [#150](https://github.com/lior-kotlar/lengua/issues/150),
 [#151](https://github.com/lior-kotlar/lengua/issues/151),
-[#152](https://github.com/lior-kotlar/lengua/issues/152)) all **shipped 2026-07-11** and the
-audit's A4 wording corrections landed 2026-07-12; shipped-record below:
+[#152](https://github.com/lior-kotlar/lengua/issues/152)) all **shipped 2026-07-11**, the
+audit's A4 wording corrections landed 2026-07-12, and the 2026-07-12 verification's other two
+code fixes shipped the same day (shipped-record below):
 
 - ~~**A1 = #150 — Prompt-store hardening (#80 follow-ups)**~~ — **shipped 2026-07-11** (PR #153,
   squash `de1ecc4`, green CI). It was opened as an owner-review PR (it edits generation-critical
@@ -71,6 +85,20 @@ audit's A4 wording corrections landed 2026-07-12; shipped-record below:
   over a plain floor to leave every other percent unchanged (0.62 → 62, 0.555 → 56; an exact 1.0 still
   reads 100). Added the ≥0.995 boundary tests. **§1.1 now has no open code items.**
 
+- ~~**V3 — vowel-marks toggle label-in-name (a11y, #158 regression)**~~ — **shipped 2026-07-12**
+  (PR #160, frontend-only, self-merged on green CI). #158's language-aware visible label had left a
+  hardcoded `aria-label` behind, breaking WCAG 2.5.3; a new shared `vowelMarksLabel()` now drives
+  both strings so they can't diverge.
+- ~~**V2 — CI guard for "keep legacy Streamlit runnable"**~~ — **shipped 2026-07-12** (self-merged
+  on green CI). The standing CLAUDE.md contract had zero automated coverage; a CI import-smoke now
+  imports the legacy modules + the pages' top-level imports (AST-extracted) + the prompt builders
+  via `uv run --with streamlit` (streamlit stays out of the project deps).
+
+(#158 — language-aware vowel-marks option (harakat/nikkud + help tip) — shipped 2026-07-11 as a
+direct feature PR with no tracking issue; recorded retroactively in [`../CHANGELOG.md`](../CHANGELOG.md)
+by the 2026-07-12 verification. Distinct from the §1.2 "vowelized toggle on an *existing*
+language" item, which remains open.)
+
 (#146 — Home language cards: explicit "% to next level" + per-tile due/new breakdown —
 frontend-only gap-closing on the Dashboard tiles (the progress footnote now reads `62% to B2`
 via `progressPercent`, and the due badge reads `{due} due · {fresh} new` via `DueTotals`); shipped
@@ -97,6 +125,12 @@ admin / support tooling (support views, abuse review, manual budget override); U
 
 (**Offline review + sync** was removed from this backlog by owner decision 2026-07-12 — deemed not
 necessary.)
+
+Added by the [2026-07-12 verification](verification-2026-07-12.md) (both marginal, custom-path
+only, benign failure modes — see its §1 T2): **Unicode case-folding** for custom language-name
+dedupe (NFC + `casefold()` or ICU/citext; `lower()` misses Turkish `İ`, NFC-vs-NFD); **functional
+unique index** on `(user_id, lower(name))` + `IntegrityError` → return-existing handler to close
+the concurrent case-variant add race (**migration-gated → owner review**).
 
 ---
 

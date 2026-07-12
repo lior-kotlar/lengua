@@ -30,9 +30,9 @@ The legacy sidebar is always-present. In React it splits between the **app shell
 | Active language persists across restarts | Selection persisted in `localStorage` (per user) and reconciled against the fetched list | `ActiveLanguageProvider` | ✅ |
 | CEFR level display: band + progress-to-next-band | Sidebar level panel (band + coloured progress over a neutral track) reading `GET /proficiency/{id}` | `CefrPanel` ([cefr-panel.tsx](../apps/web/src/components/cefr-panel.tsx)) | ✅ |
 | Manual level override ("Adjust level" select) | "Override level" select → `PUT /proficiency/{id}` | `CefrPanel` | ✅ |
-| Manage languages → Add (name, optional code, vowel-marks flag) | Add-language form (name, optional code, **starting CEFR band**, vowel-marks flag) → `POST /languages` (+ follow-up `PUT /proficiency/{id}` for a non-default band) | `/languages` → `AddLanguageForm` ([add-language-form.tsx](../apps/web/src/components/add-language-form.tsx)) | ✅ |
+| Manage languages → Add (name, optional code, vowel-marks flag) | **Picker-first** add flow (#95): a searchable combobox over the curated language list → chip (with "Change") + **starting CEFR band** + vowel-marks checkbox; free-form name/code fields survive only under the **Custom (experimental)** fallback → `POST /languages` (+ follow-up `PUT /proficiency/{id}` for a non-default band). Submits `{name, code, vowelized}` exactly as before. | `/languages` → `AddLanguageForm` + `LanguageCombobox` ([add-language-form.tsx](../apps/web/src/components/add-language-form.tsx), [language-combobox.tsx](../apps/web/src/components/language-combobox.tsx)) | ✅ |
 | Manage languages → Remove a language | Confirm dialog (cascade warning) → `DELETE /languages/{id}` | `/languages` → `RemoveLanguageDialog` ([remove-language-dialog.tsx](../apps/web/src/components/remove-language-dialog.tsx)) | ✅ |
-| Per-language vowel-marks (harakat / nikkud) generation flag | Set when adding a language (the form's vowel-marks checkbox sets the language `vowelized` flag the backend passes to generation). Display strip/restore is a richer React control (see §6). | `AddLanguageForm` + `VowelMarksToggle` | ✅* |
+| Per-language vowel-marks (harakat / nikkud) generation flag | Set when adding a language (the form's vowel-marks checkbox sets the language `vowelized` flag the backend passes to generation). Since #158 the checkbox is **script-aware** — labeled with the script's own term (harakat / nikkud) plus a help tip, and on the custom path rendered only once the typed code resolves to an Arabic/Hebrew script — a deliberate improvement over the legacy unconditional checkbox. Display strip/restore is a richer React control (see §6). | `AddLanguageForm` + `VowelMarksToggle` | ✅* |
 
 ✅* **Nuance — flipping `vowelized` on an _existing_ language is not yet UI-wired.** The legacy
 sidebar checkbox could toggle the generation-vocalization flag on the active language at any time;
@@ -124,8 +124,11 @@ fully present; the save UI is the shared Generate one by design.
 **Vowel-marks display toggle (React enhancement).** Beyond the legacy generation flag (§1), the
 React app adds a **device-level display toggle** that shows or strips harakat/nikkud in rendered
 target text without changing what was generated. It is self-gating (shown only for vowelized
-languages) and lives on Generate/Review/Discover. Component:
-[`VowelMarksToggle`](../apps/web/src/components/vowel-marks-toggle.tsx) + `VowelMarksProvider`. ➕
+languages) and lives on Generate/Review/Discover. Since #158 its label names the active script's
+own term — "Vowel marks (nikkud)" / "(harakat)", generic fallback otherwise — with a help tip
+explaining the marks; the same string is the control's accessible name (WCAG 2.5.3 label-in-name).
+Component: [`VowelMarksToggle`](../apps/web/src/components/vowel-marks-toggle.tsx) +
+`VowelMarksProvider`. ➕
 
 ---
 

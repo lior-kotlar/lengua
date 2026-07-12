@@ -9,11 +9,12 @@
   reserved for prod); requires the Gemini operator key.
 - ``fake`` -> the deterministic :class:`~lengua_core.llm.fake.FakeLLM` (no key, no I/O).
 
-The selected provider's key is checked **once, eagerly** (each provider's ``from_env`` obtains it
-through the single :func:`~lengua_core.llm.keys.resolve_llm_key` seam, which fails fast with a clear
-error), so a misconfigured deployment dies at startup rather than on the first LLM call. The vendor
-SDKs are imported lazily — only the chosen provider's SDK is loaded, and the ``fake`` path pulls in
-neither.
+The selected provider's key is checked when the provider is built (each provider's ``from_env``
+obtains it through the single :func:`~lengua_core.llm.keys.resolve_llm_key` seam, which fails fast
+with a clear error). Callers construct the provider **per-request** (the API's provider dependency
+does this), so a misconfigured deployment fails fast on the **first LLM-dependent request**, not at
+process boot. The vendor SDKs are imported lazily — only the chosen provider's SDK is loaded, and
+the ``fake`` path pulls in neither.
 """
 
 from __future__ import annotations

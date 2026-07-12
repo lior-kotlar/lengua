@@ -1,7 +1,7 @@
 """DB-backed LLM prompts with versioning — the runtime store + fallback (GitHub #80).
 
 Why this exists: to tweak an LLM prompt in **production without a code change + redeploy**, keep a
-full history of every wording tried, and be able to roll back to (or pin) an older version. The
+full history of every wording tried, and be able to roll back to an older version. The
 prompt fragments live in the append-only ``prompt_versions`` table (one **active** version per
 ``key``); this module resolves the active set on the server, caches it with a TTL, and feeds it to
 the pure prompt builders in :mod:`lengua_core.prompts`.
