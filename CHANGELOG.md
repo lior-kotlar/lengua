@@ -34,9 +34,12 @@ held; the sweep's own output:
   real Streamlit runtime, deliberately not run), `compileall`s the pages, and exercises the prompt
   builders under the no-store default. Proven to fail on a sabotaged symbol.
 - **Prompt-store render-guard broadening ([PR #159](https://github.com/lior-kotlar/lengua/pull/159)
-  — open, awaiting owner merge).** The #153 guard caught only `(KeyError, IndexError, ValueError)`;
-  `{language.foo}` (AttributeError) / `{language[foo]}` (TypeError) overrides still 500'd every
-  generation. Guard → `except Exception` + two new test cases. Owner-review class, like #153.
+  — owner-approved and merged 2026-07-12, squash `647e84d`).** The #153 guard caught only
+  `(KeyError, IndexError, ValueError)`; `{language.foo}` (AttributeError) / `{language[foo]}`
+  (TypeError) overrides still 500'd every generation. Guard → `except Exception` + two new test
+  cases. Owner-review class, like #153: merged on Ben's authorization after a unanimous three-lens
+  delegated review (correctness/safety · test adequacy incl. a mutation proof that reverting the
+  guard fails exactly the two new tests, `prompts.py` held at 100% line+branch · docs/protocol).
 - **Docs re-sync** (same PR as this entry): the #150 CHANGELOG heading un-staled ("awaiting owner
   review" → merged `de1ecc4`); the missing #158 entry added below; `provider.py` module docstring
   aligned with the A4 per-request wording; `prompt_store.py`/`test_prompt_store.py` pin-path

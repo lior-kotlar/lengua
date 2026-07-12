@@ -1,13 +1,13 @@
 # Lengua — planning (open work)
 
-> **Status (2026-07-12): ALL code work is done and twice re-verified; one PR awaits owner merge.**
-> A full completion audit ([audit-2026-07-11.md](audit-2026-07-11.md)) re-verified every
+> **Status (2026-07-12): ALL code work is done, twice re-verified, and fully merged — Track 1 is
+> empty.** A full completion audit ([audit-2026-07-11.md](audit-2026-07-11.md)) re-verified every
 > done-claim in-tree; its follow-up items (#150–#152) shipped the same day. A second,
 > post-follow-up verification ([verification-2026-07-12.md](verification-2026-07-12.md)) confirmed
-> the #153–#158 claims, shipped two more small fixes (a11y label-in-name; a CI guard for the
-> legacy-Streamlit contract) and the docs corrections, and left **exactly one open code item**:
-> [PR #159](https://github.com/lior-kotlar/lengua/pull/159) (prompt-store render-guard
-> broadening), implemented + green, **awaiting owner merge**.
+> the #153–#158 claims and shipped its three fixes the same day: the a11y label-in-name fix
+> (#160), the legacy-Streamlit CI guard (#161), and the prompt-store render-guard broadening
+> (#159 — owner-review class, merged on the owner's authorization after a unanimous three-lens
+> delegated review), plus the docs corrections (#162). Only the optional post-v1 backlog remains.
 > Phases 0–6 are done (M1–M3 + the M4 staging leg live); three hardening sweeps and the Phase-8
 > compliance code slice have shipped. What remains is organized into three tracks in
 > **[outstanding-work.md](outstanding-work.md)**: **Track 1** = code doable now, **Track 2** =

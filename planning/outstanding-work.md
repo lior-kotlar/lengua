@@ -34,16 +34,16 @@ held, legacy Streamlit kept runnable).*
 
 ### 1.1 Open code items
 
-**One item open — implemented, awaiting owner merge** (from the
-[2026-07-12 post-audit verification](verification-2026-07-12.md)):
+_No open code items._ **§1.1 is empty again** — the last item, V1 below, merged 2026-07-12.
 
-- [ ] **V1 = [PR #159](https://github.com/lior-kotlar/lengua/pull/159) — prompt-store render-guard
-  broadening (#153 follow-up)** — the #153 guard caught only `(KeyError, IndexError, ValueError)`,
-  but `str.format` raises AttributeError for `{language.foo}` and TypeError for `{language[foo]}`,
-  so such a DB override still 500s every generation. Implemented + tested (guard → `except
-  Exception`; 555 non-integration tests pass; CI green); **opened for owner review, not
-  self-merged** (generation-critical class, same as #153). Owner: authorize → squash-merge → flip
-  this line to shipped.
+- ~~**V1 = [PR #159](https://github.com/lior-kotlar/lengua/pull/159) — prompt-store render-guard
+  broadening (#153 follow-up)**~~ — **shipped 2026-07-12** (squash `647e84d`). The #153 guard
+  caught only `(KeyError, IndexError, ValueError)`, but `str.format` raises AttributeError for
+  `{language.foo}` and TypeError for `{language[foo]}`, so such a DB override still 500'd every
+  generation; the guard is now `except Exception` (+2 mutation-proven tests, README made
+  accurate). Opened for owner review (generation-critical class, like #153), then **merged on the
+  owner's (Ben's) authorization after a unanimous three-lens delegated review** (correctness ·
+  test-mutation · docs/protocol; see [verification-2026-07-12.md](verification-2026-07-12.md)).
 
 The 2026-07-11 completion-audit follow-ups (issues
 [#150](https://github.com/lior-kotlar/lengua/issues/150),

@@ -33,10 +33,9 @@ deferred) is [`../outstanding-work.md`](../outstanding-work.md), and the owner l
 
 ## Forward critical path
 
-**Track-1 code items** (`/next-task` — one open: PR #159 awaiting owner merge, see
-[outstanding-work §1.1](../outstanding-work.md); the 2026-07-11 audit follow-ups #150–#152 and the
-2026-07-12 verification fixes shipped; otherwise only the optional post-v1 backlog remains) run
-any time. Then, in order:
+**Track-1 code items** (`/next-task` — currently none open: the 2026-07-11 audit follow-ups
+#150–#152 and the 2026-07-12 verification fixes #159–#161 all shipped; only the optional post-v1
+backlog remains) run any time. Then, in order:
 **M4 prod cutover** (owner — go-live §F) → **P7 mobile** (Capacitor, signed
 builds, store accounts) → **P8 store-console half** (labels, data-safety, listings, closed tests) →
 **P9 launch** (cross-platform smoke, store submit/promote, 48h watch). P5 live observability
