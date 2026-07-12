@@ -316,7 +316,12 @@ page/feature to its React equivalent (the one exception, the Gemini model select
 retired because the LLM provider/model is now operator/server config). The **legacy Streamlit app is
 therefore deprecated and retained for reference only**: the code is **not** being deleted and stays
 runnable — as a reference implementation and a fallback — until the React app ships to production
-(Phase 6) and is wrapped for mobile (Phase 7). The sections below document that legacy app.
+(Phase 6) and is wrapped for mobile (Phase 7). The sections below document that legacy app. That
+"stays runnable" promise is enforced in CI: the `lint + format + types` job runs
+[`apps/api/scripts/legacy_smoke.py`](apps/api/scripts/legacy_smoke.py), a fast smoke that imports the
+legacy support modules, resolves every Streamlit page's imports, byte-compiles the pages, and
+exercises the `lengua_core` prompt builders the legacy path uses — so a `lengua_core` refactor that
+breaks a symbol the legacy app depends on fails the PR instead of silently breaking it.
 
 ## How it works
 

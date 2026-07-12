@@ -122,6 +122,17 @@ jobs:
         working-directory: apps/api
         run: uv run mypy .
 
+      # Guard the standing "keep the legacy Streamlit app runnable" contract (CLAUDE.md). A fast
+      # (<1 min) smoke that imports the legacy support modules, resolves each Streamlit page's
+      # imports, byte-compiles the pages, and exercises the lengua_core prompt builders the legacy
+      # path uses — so a lengua_core refactor that renames a symbol the legacy app imports (its
+      # highest-churn dependency is lengua_core/prompts.py) fails CI instead of silently breaking it.
+      # streamlit is deliberately NOT an apps/api dependency (the legacy app pins its own deps in the
+      # repo-root requirements.txt), so it is supplied ephemerally via `uv run --with streamlit`.
+      - name: legacy Streamlit smoke (keep-runnable contract)
+        working-directory: apps/api
+        run: uv run --with streamlit python scripts/legacy_smoke.py
+
       # Web: eslint + prettier --check + tsc --noEmit.
       - uses: pnpm/action-setup@v4
         with:
