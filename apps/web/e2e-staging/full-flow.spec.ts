@@ -298,8 +298,10 @@ test('demo user completes the full learning journey across two languages', async
       await expect(content).toHaveAttribute('dir', 'rtl');
 
       // The vowel-marks switch renders only for a vowelized language; toggling it flips aria-checked.
+      // Its accessible name is the language-aware visible label ("Vowel marks (nikkud)" /
+      // "(harakat)"), so match on the stable prefix.
       const vowelSwitch = page.getByRole('switch', {
-        name: 'Show vowel marks',
+        name: /^Vowel marks/,
       });
       await expect(vowelSwitch).toBeVisible();
       const before = (await vowelSwitch.getAttribute('aria-checked')) ?? 'true';

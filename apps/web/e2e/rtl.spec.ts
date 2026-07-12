@@ -123,7 +123,8 @@ test.describe('RTL, diacritics & vowel marks (ephemeral stack)', () => {
     });
 
     // 4.9.3 — toggling vowel marks OFF strips the nikkud from the rendered text…
-    const toggle = page.getByRole('switch', { name: 'Show vowel marks' });
+    // Accessible name = the language-aware visible label (WCAG 2.5.3; Hebrew deck → nikkud).
+    const toggle = page.getByRole('switch', { name: 'Vowel marks (nikkud)' });
     await toggle.click();
     await expect
       .poll(async () => hasNikkud(await hebrew.textContent()))
