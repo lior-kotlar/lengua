@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 /**
  * Pixel-exact iOS switch (51×31, green when on) over Radix — the ONE toggle control app-wide.
  * Radix emits `role="switch"` + `aria-checked` and passes aria wiring through, so accessible
- * names ("Show vowel marks", "Share anonymous usage analytics") survive verbatim.
+ * names ("Vowel marks (nikkud)", "Share anonymous usage analytics") survive verbatim.
  */
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,

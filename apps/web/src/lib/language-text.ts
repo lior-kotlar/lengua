@@ -117,6 +117,20 @@ export function vowelMarkTerm(
 }
 
 /**
+ * The human-readable label for the vowel-marks control of a given language — e.g.
+ * `"Vowel marks (nikkud)"` for Hebrew, `"Vowel marks (harakat)"` for Arabic, and the generic
+ * `"Vowel marks"` for an odd vowelized code whose script we don't recognise.
+ *
+ * Single source of truth for BOTH the visible label and the control's accessible name, so they can
+ * never drift apart and re-introduce a WCAG 2.5.3 "label in name" mismatch (issue: PR #158
+ * hardcoded an aria-label that stopped matching the language-aware visible text).
+ */
+export function vowelMarksLabel(code: string | null | undefined): string {
+  const term = vowelMarkTerm(code);
+  return term ? `Vowel marks (${term})` : 'Vowel marks';
+}
+
+/**
  * Whether a code is written in a script that carries optional vowel diacritics worth toggling
  * (Arabic or Hebrew script) — i.e. whether the vowel-marks option is meaningful for it. Used by the
  * custom add-language path to decide whether to offer the checkbox at all.

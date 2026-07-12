@@ -182,7 +182,8 @@ describe('Review — RTL & vowel marks (4.9)', () => {
     // The vowelized prompt renders first (marks shown by default).
     expect(await screen.findByText('שָׁלוֹם עוֹלָם')).toBeInTheDocument();
 
-    const toggle = screen.getByRole('switch', { name: 'Show vowel marks' });
+    // Accessible name = the language-aware visible label (WCAG 2.5.3 label-in-name; Hebrew → nikkud).
+    const toggle = screen.getByRole('switch', { name: 'Vowel marks (nikkud)' });
     await user.click(toggle); // marks off → stripped glyphs
     expect(screen.getByText('שלום עולם')).toBeInTheDocument();
     expect(screen.queryByText('שָׁלוֹם עוֹלָם')).toBeNull();
