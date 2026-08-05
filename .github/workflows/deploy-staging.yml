@@ -20,6 +20,12 @@ name: deploy-staging
 on:
   push:
     branches: [main]
+  # Manual re-deploy with no code change. Needed whenever only SECRETS or CONFIG moved and
+  # `main` is already at the commit we want deployed — a credential rotation, or recovering
+  # after a Supabase free-tier pause. Without this, the only way to re-run CD was to land an
+  # otherwise-pointless commit on `main`. Same gating as `push`: still a no-op unless
+  # `DEPLOY_ENABLED == 'true'`.
+  workflow_dispatch:
 
 # Never run two staging deploys at once; let an in-flight deploy finish (don't cancel a deploy).
 concurrency:
