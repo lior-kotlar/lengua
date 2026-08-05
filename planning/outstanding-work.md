@@ -34,7 +34,29 @@ held, legacy Streamlit kept runnable).*
 
 ### 1.1 Open code items
 
-_No open code items._ **§1.1 is empty again** — the last item, V1 below, merged 2026-07-12.
+Added by the **2026-08-05 staging-recovery session** (owner returned after a 3-week absence; see
+the Track-2 and watch-item entries below for the non-code findings of the same session):
+
+- **R1 — `react-router` open redirect → XSS** ([Dependabot alerts](https://github.com/lior-kotlar/lengua/security/dependabot),
+  3 medium: open redirect via backslash in `<Link>`/`useNavigate`, arbitrary constructor injection
+  via deserialization). **The highest-value alert in the current set** — the others are build/dev
+  tooling, this one is runtime code in `apps/web` that an end user can be attacked through. Bump
+  `react-router`/`react-router-dom` and re-run the e2e suite (routing is exercised end-to-end, so a
+  breaking change surfaces there).
+- **R2 — `js-yaml` quadratic-CPU advisory is BACK** (1 high). PR #81 (2026-06-30) added a pnpm
+  override forcing `js-yaml >= 4.2.0` and the alert auto-closed as `fixed`; it is open again, so
+  either the advisory now covers 4.2.0 or the override stopped resolving. **Check which before
+  bumping** — if the override silently stopped applying, other pinned overrides may have too.
+- **R3 — `brace-expansion` DoS ×3 (high)** and **`dompurify` sanitizer bypass (low)**. Transitive
+  and dev-tooling only; batch them with R1/R2 rather than as their own PR.
+- **R4 — [PR #165](https://github.com/lior-kotlar/lengua/pull/165) (`postcss` 8.5.15 → 8.5.18)** is
+  open and was rebased 2026-08-05; it clears a path-traversal (high) + an incomplete-fix (medium).
+  It only needs a green re-run and a merge. (Its sibling bumps merged the same day: **#164**
+  `pyasn1` → 0.6.4 (`a8919e5`) and **#166** `cryptography` → 50.0.0 (`7490d02`), which between them
+  unblocked the `security (audit + secrets)` CI job — it had been red on EVERY branch, since
+  `pip-audit --strict` audits the whole resolved dependency set, not just the PR's diff.)
+
+_Previously closed:_ the last pre-existing item, V1 below, merged 2026-07-12.
 
 - ~~**V1 = [PR #159](https://github.com/lior-kotlar/lengua/pull/159) — prompt-store render-guard
   broadening (#153 follow-up)**~~ — **shipped 2026-07-12** (squash `647e84d`). The #153 guard
@@ -168,6 +190,30 @@ Needs live accounts, consoles, DNS, or the deployed prod service. Step-by-step r
   `/openapi.json` (S20); move Cloud Run to a dedicated runtime SA with
   `secretmanager.secretAccessor` only (6.1.6); Vercel→Cloudflare host migration
   ([`go-live-activation.md`](go-live-activation.md) §H — **plan only**, do not execute).
+- **(G) Finish the 2026-08-05 credential rotation — Supabase staging service-role key + JWT
+  secret.** Three of five exposed credentials were rotated that day and verified in production
+  (Groq API key, Grafana OTLP token, staging Postgres password). **Still outstanding: the staging
+  `service_role` key and `SUPABASE_STAGING_JWT_SECRET`** — the two most powerful of the set
+  (`service_role` bypasses RLS entirely; the JWT secret can forge a token for any user). Deferred
+  because rotating regenerates the **anon key** too, so it is 3 GitHub secrets
+  (`SUPABASE_STAGING_{SERVICE_ROLE_KEY,JWT_SECRET,ANON_KEY}`) + the local `apps/web/.env` + a
+  redeploy, rather than the single-secret swaps the other three were. Staging verifies user tokens
+  via **ES256/JWKS**, so rotating the legacy HS256 secret should not invalidate live sessions —
+  confirm against **Settings → API Keys** first, since the newer `sb_publishable_`/`sb_secret_`
+  scheme changes the steps and `scripts/seed_e2e.py` expects a service-role **JWT** for the Admin
+  API. **How they leaked:** `gcloud run services describe … --format="value(...env)"` printed every
+  runtime secret in cleartext during an incident diagnosis — which is precisely the argument for the
+  Secret-Manager move under (F) `6.1.6`. Until that lands, use
+  `--format="value(spec.template.spec.containers[0].env[].name)"` to list names only.
+- **(H) Grafana OTLP export has NEVER worked.** The `lengua` access token (created 2026-06, wired
+  into Cloud Run as `OTEL_EXPORTER_OTLP_HEADERS` ever since) showed **`Last used at: Never`** in the
+  Cloud Portal on 2026-08-05. So staging has never successfully exported a single trace or metric —
+  the failure is in the **export path itself**, not merely in the unbuilt dashboards. Diagnose
+  before building anything on top of it under (B): check the endpoint
+  (`https://otlp-gateway-prod-eu-west-2.grafana.net/otlp`), the `Authorization=Basic%20<base64>`
+  header encoding, the access policy's scopes (`stacks:read` + `set:alloy-data-write` — confirm
+  `otlp:write` is actually granted), and whether the SDK exporter is silently swallowing errors at
+  startup. Org `1823776`, instance `1702898`, region `prod-eu-west-2`.
 - **Phase-6 live remainder** (folds into (A)): live rollback drill (`6.8.2`
   `infra/deploy/rollback.sh` once), RLS pytest against the staging DB (`6.2.4`), confirm idempotent
   seed (`6.2.5`), live secret-rotation (`6.4.4`), backup/restore drill (`6.8.4`).
@@ -228,4 +274,34 @@ Small, non-blocking items in shipped code — close when the relevant area is ne
   doesn't depend on it) by the #141 adversarial review. Evidence conflicts on whether Cloud Run's
   frontend normalizes XFF — confirm the deployed topology's behavior at the prod cutover and, if the
   leftmost hop is spoofable there, switch to the rightmost-trusted hop.
-- **Watch:** confirm Supabase free-tier idle-pausing / project limits at prod setup.
+- **⚠ CONFIRMED (2026-08-05) — Supabase free-tier idle-pausing takes staging down, and the
+  symptom is misleading.** No longer a "watch": after ~3 weeks with no merges, BOTH
+  `lengua-staging` (`rydclyotzdwcbbeyitcx`) and `lengua-prod` (`ptyqlxjykbprfzhnxgla`) were
+  `INACTIVE`. Free-tier projects pause after ~7 days idle, so **every absence longer than a week
+  ends with staging down.**
+  - **The trap:** a paused project's DNS record is withdrawn, so
+    `<ref>.supabase.co` returns **NXDOMAIN**, which reads exactly like a *deleted* project. Do not
+    conclude deletion from NXDOMAIN — `supabase projects list` is the authority, and it showed both
+    projects present and merely `INACTIVE`. (A whole replacement-project plan was drafted on the
+    wrong diagnosis before that check was run.)
+  - **The visible symptom is `/ready` → 503 `not_ready` while `/health` stays 200.** That split is
+    by design (`app/main.py`: liveness does no I/O, readiness does `SELECT 1`), so it is the fast
+    way to tell "DB unreachable" from "service down".
+  - **Recovery is ~90 seconds and needs nothing else:** restore from the dashboard; data, auth
+    users, and every existing secret survive intact. No re-seed, no redeploy, no secret rotation.
+  - **Mitigation (undecided, owner call):** upgrade staging to Pro, or add a scheduled keep-alive
+    (a cron'd query or an uptime monitor hitting `/ready` — the latter folds naturally into the
+    Track-2 (B) external uptime monitor, which is already planned).
+  - **At prod cutover this stops being acceptable** — a paused prod project is an outage. Confirm
+    the prod plan covers it before (A).
+- **Staging CD had no manual trigger until 2026-08-05** ([PR #167](https://github.com/lior-kotlar/lengua/pull/167),
+  `5169d36`). `deploy-staging.yml` fired only on `push` to `main`, so a **secrets-only** change
+  (credential rotation, post-pause recovery) could not reach Cloud Run without landing a pointless
+  commit — the running revision keeps its old env vars until something redeploys it. Now also
+  `workflow_dispatch` (**Actions → deploy-staging → Run workflow**), same `DEPLOY_ENABLED` gating.
+  `deploy-prod.yml` still has no dispatch trigger; add one if the same need appears there.
+- **Rotating the Supabase DB password does not drop live connections.** Observed 2026-08-05:
+  staging kept answering `/ready` 200 for minutes after the password was reset, because Postgres
+  leaves established sessions authenticated and Cloud Run's pool was warm. It would have broken at
+  the next cold start or pool recycle. **Do not read a passing `/ready` as "the rotation didn't take
+  effect"** — and do not defer the redeploy on the strength of it.
